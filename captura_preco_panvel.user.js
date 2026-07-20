@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         Captura de Preço - Panvel (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      1.0
+// @version      2.0
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_panvel.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_panvel.user.js
-// @description  Busca o EAN na Panvel, entra no produto, lê o preço via JSON-LD e copia para a área de transferência.
+// @description  Busca o EAN na Panvel: pega o código do produto no card da busca e lê preço/estoque/princípio ativo pela API de catálogo (sem entrar na página do produto). Copia o resultado para a área de transferência.
 // @match        https://www.panvel.com/*
 // @grant        GM_setClipboard
 // @grant        GM_setValue
@@ -18,15 +18,14 @@
     const SITE = 'panvel';
 
     // ------------------------------------------------------------------
-    // PREPARO DA PÁGINA: aceitar cookies e informar o CEP sozinho.
-    // Genérico de propósito (procura por texto/atributo, não por seletor
-    // fixo) para sobreviver a mudanças de layout. Regex de cookies com
-    // "eu concordo" a mais: é o texto exato do botão da Panvel (testado
-    // ao vivo em 07/2026 — os outros 4 sites usam "aceitar"/"concordo"
-    // sozinho, sem o "eu" na frente).
+    // PREPARO DA PÁGINA: só aceitar cookies (se houver banner).
+    // O CEP NÃO é mais preenchido: o preço agora vem da API de catálogo,
+    // que recebe uf=PR direto (estado do usuário — Maringá/PR), então a
+    // região já é determinística sem mexer no CEP. Preencher CEP era um
+    // risco real: o auto-submit do formulário podia RECARREGAR/NAVEGAR a
+    // página bem no meio da captura e derrubar o resultado (uma das causas
+    // dos timeouts intermitentes da Panvel — reavaliado ao vivo em 07/2026).
     // ------------------------------------------------------------------
-    const CEP_ROBO = '87010-055';
-
     function _txt(el) { return (el.innerText || el.textContent || '').trim(); }
 
     function aceitarCookies() {
@@ -39,40 +38,9 @@
         return false;
     }
 
-    function preencherCep() {
-        const alvo = [...document.querySelectorAll('input')].find((i) => {
-            if (i.offsetParent === null || i.disabled || i.readOnly) return false;
-            const a = ((i.placeholder || '') + ' ' + (i.name || '') + ' ' + (i.id || '') + ' '
-                + (i.className || '') + ' ' + (i.getAttribute('aria-label') || '')).toLowerCase();
-            return /cep|postal/.test(a);
-        });
-        if (!alvo) return false;
-        if ((alvo.value || '').replace(/\D/g, '').length >= 8) return false; // já preenchido
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-        setter.call(alvo, CEP_ROBO);
-        alvo.dispatchEvent(new Event('input', { bubbles: true }));
-        alvo.dispatchEvent(new Event('change', { bubbles: true }));
-        setTimeout(() => {
-            const reBt = /inserir|confirmar|buscar|aplicar|salvar|continuar|ok/i;
-            let no = alvo;
-            for (let i = 0; i < 6 && no.parentElement; i++) {
-                no = no.parentElement;
-                const bt = [...no.querySelectorAll('button')].find(
-                    (b) => b.offsetParent !== null && reBt.test(_txt(b)));
-                if (bt) { bt.click(); return; }
-            }
-            alvo.dispatchEvent(new KeyboardEvent('keydown',
-                { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
-            const form = alvo.closest('form');
-            if (form) { try { form.requestSubmit ? form.requestSubmit() : form.submit(); } catch (e) { } }
-        }, 300);
-        console.log('[assistente-ean] CEP preenchido automaticamente:', CEP_ROBO);
-        return true;
-    }
-
     let _tentativasPreparo = 0;
     (function prepararPagina() {
-        try { aceitarCookies(); preencherCep(); } catch (e) { }
+        try { aceitarCookies(); } catch (e) { }
         if (++_tentativasPreparo < 12) setTimeout(prepararPagina, 900);
     })();
     // Conferencia manual (botao direito no assistente): a URL vem com este
@@ -325,6 +293,116 @@
         GM_setClipboard(`EAN=${ean};SITE=${SITE};STATUS=PING;PRECO=;ESTOQUE=;OBS=;NOME=`);
     }
 
+    // ------------------------------------------------------------------
+    // API DE CATÁLOGO (fonte do preço — robusta, sem 2º salto de página).
+    //
+    // A Panvel renderiza o preço via Angular: o HTML cru do produto NÃO tem
+    // JSON-LD (confirmado ao vivo — fetch da página devolve casca sem preço).
+    // O modelo antigo entrava na página do produto e esperava o JSON-LD
+    // hidratar — dois pontos de hidratação (busca + produto) e um preparo de
+    // CEP que podia navegar pra longe no meio: dava timeout intermitente.
+    //
+    // Modelo novo: o card da busca já traz o CÓDIGO do produto (/p-<código>).
+    // A API pública /api/v2/catalog/<código>?uf=PR devolve TUDO em JSON (nome,
+    // ean, preço, estoque, marca, princípio ativo) SEM header especial e com
+    // preço determinístico do estado (uf=PR = Paraná, onde fica Maringá). Assim
+    // o script lê o preço direto da API, sem nunca sair da página de busca.
+    // (A API de busca /api/v3/search exige header user-id; por isso pegamos o
+    // código no DOM do card, que é confiável, e só o DADO vem da API.)
+    // ------------------------------------------------------------------
+    const UF_CATALOGO = 'PR';
+
+    function specDoCatalogo(cat, chaveLower) {
+        const lista = (cat && cat.technicalSpecifications) || [];
+        const item = lista.find((s) => (s.key || '').toLowerCase().includes(chaveLower));
+        return item ? String(item.value || '').trim() : '';
+    }
+
+    async function buscarCatalogo(code) {
+        const resp = await fetch('/api/v2/catalog/' + code + '?uf=' + UF_CATALOGO,
+            { credentials: 'include' });
+        if (resp.status === 404) return { naoEncontrado: true };
+        if (!resp.ok) return null;
+        return resp.json();
+    }
+
+    // Recebe o EAN buscado e o CÓDIGO do produto (do card) e resolve tudo pela
+    // API: monta a sentinela OK/DIVERGENTE/POR_NOME e copia pro clipboard.
+    async function processarPorCodigo(eanBuscado, code, porNome) {
+        let cat;
+        try {
+            cat = await buscarCatalogo(code);
+        } catch (e) {
+            // Rede/exceção: não grava lixo — deixa o app estourar o timeout e
+            // tentar de novo na próxima rodada (melhor que um dado errado).
+            console.log('[assistente-ean] Panvel: falha na API de catálogo', code, e && e.message);
+            return;
+        }
+        if (!cat || cat.naoEncontrado || !cat.ean) {
+            GM_setClipboard(montarSentinel(eanBuscado, 'NAO_ENCONTRADO', '', '', '', ''));
+            console.log('[assistente-ean] Panvel: catálogo sem produto para código', code);
+            encerrarAba();
+            return;
+        }
+
+        const gtin = String(cat.ean || '').trim();
+        const nome = cat.name || '';
+        // Preço de venda: discount.dealPrice quando existe; senão originalPrice
+        // (quando não há promoção, a API manda dealPrice == originalPrice com
+        // discountPercentage 0 — testado ao vivo).
+        const dealPrice = (cat.discount && typeof cat.discount.dealPrice === 'number')
+            ? cat.discount.dealPrice : null;
+        const precoNum = (dealPrice !== null) ? dealPrice
+            : (typeof cat.originalPrice === 'number' ? cat.originalPrice : null);
+        const precoStr = (precoNum !== null) ? String(precoNum) : '';
+
+        const stock = String(cat.stockStatus || '');
+        // Além de InStock, a Panvel usa InStoreOnly (só na loja física) e
+        // OutOfStock — ambos tratados como SEM_ESTOQUE (não dá pra comprar
+        // online / comparar de verdade).
+        const estoque = (stock.includes('InStock') && !stock.includes('InStoreOnly'))
+            ? 'EM_ESTOQUE' : 'SEM_ESTOQUE';
+
+        PRINCIPIO_ATIVO_PAGINA = specDoCatalogo(cat, 'princ');
+        MARCA_PAGINA = cat.brandName || specDoCatalogo(cat, 'marca') || '';
+        URL_DO_RESULTADO = cat.link || ('https://www.panvel.com/panvel/p-' + code);
+
+        // Promoção: originalPrice acima do preço de venda vira "de X por Y".
+        let obs = '';
+        const orig = cat.originalPrice;
+        if (typeof orig === 'number' && precoNum !== null && orig > precoNum + 0.009) {
+            obs = 'Promoção: de ' + formatarBR(String(orig)) + ' por ' + formatarBR(precoStr);
+        }
+
+        if (!precoStr) {
+            // Produto existe mas sem preço utilizável: trata como indisponível.
+            GM_setClipboard(montarSentinel(eanBuscado, 'INDISPONIVEL', '', 'SEM_ESTOQUE', '', nome));
+            console.log('[assistente-ean] Panvel: sem preço utilizável para', eanBuscado);
+            encerrarAba();
+            return;
+        }
+
+        const semZeros = (t) => t.replace(/^0+/, '');
+        if (porNome) {
+            const obsNome = `Achado por NOME (EAN do site: ${gtin || '-'})`
+                + obsEmbalagem(precoStr, nome) + (obs ? ' / ' + obs : '');
+            GM_setClipboard(montarSentinel(eanBuscado, 'POR_NOME', precoStr, estoque, obsNome, nome));
+            console.log('[assistente-ean] Panvel: POR NOME', precoStr, 'EAN site:', gtin);
+        } else if (gtin && semZeros(gtin) !== semZeros(eanBuscado)) {
+            GM_setClipboard(montarSentinel(eanBuscado, 'DIVERGENTE', precoStr, estoque, obs, `${nome} (gtin real: ${gtin})`));
+            console.log('[assistente-ean] Panvel: DIVERGENTE. Buscado:', eanBuscado, 'API:', gtin);
+        } else {
+            GM_setClipboard(montarSentinel(eanBuscado, 'OK', precoStr, estoque, obs, nome));
+            console.log('[assistente-ean] Panvel: OK', precoStr, 'Estoque:', estoque, 'Obs:', obs || '(sem promo)');
+        }
+        encerrarAba();
+    }
+
+    function codigoDoLink(href) {
+        const m = (href || '').match(/\/p-(\d+)/);
+        return m ? m[1] : '';
+    }
+
     // "DESCULPE, MAS NÃO ENCONTRAMOS RESULTADO PARA SUA PESQUISA" (a
     // Panvel escreve tudo em CAIXA ALTA nessa mensagem — testado ao vivo).
     const RE_SEM_RESULTADO = /n[ãa]o encontramos resultado/i;
@@ -337,13 +415,16 @@
         if (!eanBuscado) return;
         enviarPing(eanBuscado);
 
-        // Produto PRIMEIRO: se há card, usa — não importa qualquer texto
-        // transitório na página (mesma cautela da Raia: SPA pode mostrar
+        // Produto PRIMEIRO: se há card, pega o código e resolve pela API — não
+        // importa qualquer texto transitório na página (a SPA pode mostrar
         // "não encontramos" por uma fração de segundo enquanto hidrata).
-        const link = document.querySelector('[data-testid^="product-card"] a[href*="/p-"]');
-        if (link) {
-            GM_setValue('ean_buscado', eanBuscado);
-            location.href = link.href + '#assistente_ean=' + eanBuscado;
+        // Fallback do seletor: se o data-testid mudar, ainda achamos o 1º link
+        // de produto (/p-) na área de resultados.
+        const link = document.querySelector('[data-testid^="product-card"] a[href*="/p-"]')
+            || document.querySelector('a[href*="/p-"]');
+        const code = link ? codigoDoLink(link.href) : '';
+        if (code) {
+            processarPorCodigo(eanBuscado, code, false);
             return;
         }
 
@@ -399,12 +480,23 @@
             return;
         }
         console.log('[assistente-ean] Panvel: candidato por nome aceito (nota', melhorNota.toFixed(2), ')');
-        GM_setValue('ean_buscado', EAN_DO_FRAGMENTO);
-        location.href = melhor.url.split('#')[0] + '#assistente_ean=' + EAN_DO_FRAGMENTO + '&assistente_por_nome=1';
+        const code = codigoDoLink(melhor.url);
+        if (code) {
+            processarPorCodigo(EAN_DO_FRAGMENTO, code, true);
+            return;
+        }
+        // URL do card sem /p-<código> (não deveria acontecer): desiste.
+        GM_setClipboard(montarSentinel(EAN_DO_FRAGMENTO, 'NAO_ENCONTRADO', '', '', '', ''));
+        encerrarAba();
     }
 
     let tentativasProduto = 0;
 
+    // FALLBACK (raro): o fluxo normal NÃO entra mais na página do produto —
+    // lê tudo pela API de catálogo a partir do código do card. Esta função só
+    // roda se alguém abrir manualmente uma URL de produto com o fragmento
+    // #assistente_ean=... (não acontece no uso normal). Mantida por segurança:
+    // se um dia a API mudar, ainda dá pra cair aqui e ler o JSON-LD hidratado.
     function paginaDeProduto() {
         const eanBuscado = pegarEanPendente();
         URL_DO_RESULTADO = location.href.split('#')[0];
