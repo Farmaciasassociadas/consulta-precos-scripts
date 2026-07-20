@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias Nissei (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      2.7
+// @version      2.8
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_nissei.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_nissei.user.js
 // @description  Busca o EAN na Nissei, entra no produto, lê o preço via JSON-LD + bloco de preço e copia para a área de transferência.
@@ -152,14 +152,19 @@
     // Regra: quando os DOIS nomes declaram a mesma unidade, pelo menos um
     // valor precisa coincidir; unidade declarada só de um lado não elimina
     // (kit vs avulso continua tolerado).
+    // Cobre: mcg/mg/g/gr/gramas/kg (massa), ml/l (volume), UI e mEq (potencia
+    // de principio ativo - ex.: Litio em mEq), % (concentracao, ex.:
+    // Minoxidil 5%) e h (duracao de liberacao/protecao, ex.: "XR 24h",
+    // desodorante 72h). (?![a-z0-9]) evita match parcial ("gr" nao virar so
+    // "g" com sobra) e cobre "%" no fim (\b nao funciona depois de simbolo).
     function medidasDoNome(t) {
         const s = (t || '').toLowerCase().replace(/,/g, '.');
-        const re = /(\d+(?:\.\d+)?)\s*(mcg|mg|g|kg|ml|l|ui)\b/g;
+        const re = /(\d+(?:\.\d+)?)\s*(mcg|mg|gramas?|gr|g|kg|ml|l|meq|ui|mts|h|%)(?![a-z0-9])/g;
         const medidas = {};
         let m;
         while ((m = re.exec(s)) !== null) {
             let valor = parseFloat(m[1]), unidade = m[2];
-            if (unidade === 'g') { valor *= 1000; unidade = 'mg'; }
+            if (unidade === 'g' || unidade === 'gr' || unidade === 'gramas' || unidade === 'grama') { valor *= 1000; unidade = 'mg'; }
             if (unidade === 'kg') { valor *= 1000000; unidade = 'mg'; }
             if (unidade === 'l') { valor *= 1000; unidade = 'ml'; }
             if (!medidas[unidade]) medidas[unidade] = [];
@@ -208,7 +213,8 @@
     function doseDoNome(t) {
         const s = (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
         const formas = '(?:comprimidos?|comprs?|comp|cpr|cps|cp|capsulas?|caps|drageas?|'
-            + 'saches?|envelopes?|ampolas?|flaconetes?|pastilhas?|ovulos?|supositorios?|adesivos?)';
+            + 'saches?|envelopes?|ampolas?|flaconetes?|pastilhas?|ovulos?|supositorios?|adesivos?|'
+            + 'doses?|gomas?)';
         let m = s.match(new RegExp('(\d{1,4})\s*' + formas + '\b'));
         if (m) return parseInt(m[1], 10);
         m = s.match(new RegExp('\bc\s*/\s*(\d{1,4})\s*' + formas + '?\b'));
