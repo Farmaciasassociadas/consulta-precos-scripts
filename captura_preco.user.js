@@ -608,6 +608,13 @@
         MARCA_PAGINA = marcaDaPagina(document.body.innerText);
         if (!eanBuscado) return; // chegamos aqui sem vir de uma busca do assistente; ignora.
 
+        // NOTA: a Raia tem um seletor de "Quantidade"/"Dosagem" em algumas páginas (ex.: Vitamina D3)
+        // que parece trocar de variante, mas é ilusório: testado ao vivo (clique no botão E navegação
+        // direta pra URL da outra variante) e tanto o JSON-LD quanto o preço/nome visíveis continuam
+        // sendo os da variante original — só a <title> da aba muda. Ou seja, o bug é do site deles, não
+        // dá pra "clicar e reler" pra pegar a variante certa. Por isso NÃO implementamos troca de
+        // variante aqui; a proteção existente (comparar gtin13 x eanBuscado abaixo) já cobre isso
+        // corretamente, retornando NAO_ENCONTRADO/DIVERGENTE em vez de aceitar o preço errado.
         const scripts = document.querySelectorAll('script[type="application/ld+json"]');
         let produto = null;
         for (const s of scripts) {
