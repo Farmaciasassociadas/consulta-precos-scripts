@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São João (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      2.7
+// @version      2.8
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saojoao.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saojoao.user.js
 // @description  Consulta o EAN na API pública do site da São João (VTEX) e copia o preço para a área de transferência. Não precisa navegar até o produto.
@@ -95,9 +95,22 @@
     // assistente abrir DIRETO na conferencia manual (botao direito).
     let URL_DO_RESULTADO = '';
 
+    // "Principio Ativo": a Sao Joao e o site que mais expoe isso de forma
+    // limpa (secao "Especificacoes" da pagina do produto), mas a busca
+    // PRINCIPAL aqui e via API (sem renderizar a pagina) - so a camada 3 de
+    // fallback (buscarNoDomDaPagina/produtoDaPaginaDoLink) baixa HTML de
+    // verdade, de onde extraimos isso (ver extrairProdutoDeHtml). Fora dessa
+    // camada, fica vazio (campo OPCIONAL, nunca bloqueia).
+    let PRINCIPIO_ATIVO_PAGINA = '';
+    function principioAtivoDoHtml(html) {
+        const texto = (html || '').replace(/<[^>]+>/g, '\n');
+        const m = texto.match(/Princ[ií]pio Ativo:?\s*\n+\s*([^\n]{2,60})/i);
+        return m ? m[1].trim() : '';
+    }
+
     function montarSentinel(ean, status, preco, estoque, obs, nome) {
         const limpar = (t) => (t || '').replace(/[;=\n\r]/g, ' ').replace(/\s+/g, ' ').trim();
-        return `EAN=${ean};SITE=${SITE};STATUS=${status};PRECO=${preco || ''};ESTOQUE=${estoque || ''};OBS=${limpar(obs)};NOME=${limpar(nome)};URL=${(URL_DO_RESULTADO || '').replace(/[;\s]/g, '')}`;
+        return `EAN=${ean};SITE=${SITE};STATUS=${status};PRECO=${preco || ''};ESTOQUE=${estoque || ''};OBS=${limpar(obs)};NOME=${limpar(nome)};URL=${(URL_DO_RESULTADO || '').replace(/[;\s]/g, '')};PRINCIPIO=${limpar(PRINCIPIO_ATIVO_PAGINA)}`;
     }
 
     function encerrarAba() {
@@ -170,6 +183,7 @@
             if (!preco) return null;
             return {
                 productName: nome,
+                principioAtivo: principioAtivoDoHtml(html),
                 items: [{
                     ean: gtin,
                     sellers: [{ commertialOffer: { Price: parseFloat(preco), ListPrice: 0, IsAvailable: /InStock/i.test(disp || '') } }],
@@ -491,6 +505,7 @@
         // Página do produto para a conferência manual (🌐 abre direto nela).
         URL_DO_RESULTADO = produto.urlPagina
             || (produto.linkText ? (location.origin + '/' + produto.linkText + '/p') : '');
+        PRINCIPIO_ATIVO_PAGINA = produto.principioAtivo || '';
         // Prefere o item cujo EAN bate com o buscado (produtos podem ter
         // múltiplas variações/itens).
         const itens = produto.items || [];

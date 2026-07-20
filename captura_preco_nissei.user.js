@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias Nissei (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      2.8
+// @version      2.9
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_nissei.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_nissei.user.js
 // @description  Busca o EAN na Nissei, entra no produto, lê o preço via JSON-LD + bloco de preço e copia para a área de transferência.
@@ -283,9 +283,20 @@
     // assistente abrir DIRETO na conferencia manual (botao direito).
     let URL_DO_RESULTADO = '';
 
+    // "Principio Ativo" da especificacao do produto, quando a pagina expoe
+    // isso (campo OPCIONAL - nem todo site/produto tem). Evidencia extra na
+    // auditoria de coerencia entre farmacias: mais confiavel que raspar do
+    // titulo, quando presente. Regex generico (nao depende de layout/classe
+    // CSS) contra o texto visivel da pagina - testado ao vivo em 07/2026.
+    let PRINCIPIO_ATIVO_PAGINA = '';
+    function principioAtivoDaPagina(texto) {
+        const m = (texto || '').match(/Princ[ií]pio Ativo:?\s*\n?\s*([^\n]{2,60})/i);
+        return m ? m[1].trim() : '';
+    }
+
     function montarSentinel(ean, status, preco, estoque, obs, nome) {
         const limpar = (t) => (t || '').replace(/[;=\n\r]/g, ' ').replace(/\s+/g, ' ').trim();
-        return `EAN=${ean};SITE=${SITE};STATUS=${status};PRECO=${preco || ''};ESTOQUE=${estoque || ''};OBS=${limpar(obs)};NOME=${limpar(nome)};URL=${(URL_DO_RESULTADO || '').replace(/[;\s]/g, '')}`;
+        return `EAN=${ean};SITE=${SITE};STATUS=${status};PRECO=${preco || ''};ESTOQUE=${estoque || ''};OBS=${limpar(obs)};NOME=${limpar(nome)};URL=${(URL_DO_RESULTADO || '').replace(/[;\s]/g, '')};PRINCIPIO=${limpar(PRINCIPIO_ATIVO_PAGINA)}`;
     }
 
     function encerrarAba() {
@@ -424,6 +435,7 @@
     function paginaDeProduto() {
         const eanBuscado = pegarEanPendente();
         URL_DO_RESULTADO = location.href.split('#')[0];
+        PRINCIPIO_ATIVO_PAGINA = principioAtivoDaPagina(document.body.innerText);
         if (!eanBuscado) return; // não viemos de uma busca do assistente
 
         let produto = null;
