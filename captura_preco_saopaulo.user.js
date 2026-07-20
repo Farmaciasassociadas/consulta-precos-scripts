@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São Paulo (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      2.4
+// @version      2.5
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @description  Busca o EAN na Farmácias São Paulo, entra no produto, lé o preço via JSON-LD e copia para a área de transferência.
@@ -157,19 +157,33 @@
         return medidas;
     }
 
+    const UNIDADES_EMBALAGEM = new Set(['ml', 'l']); // volume: kit x avulso tolerado
+
     function medidasConflitam(a, b) {
         const A = medidasDoNome(a), B = medidasDoNome(b);
         for (const unidade in A) {
             const va = A[unidade], vb = B[unidade];
             if (!vb) continue;
-            // Mesma quantidade de valores na unidade (ex.: remedio combinado
-            // "10mg + 40mg"): exige conjuntos IDENTICOS, nao so 1 valor em
-            // comum - senao "10+40" passava como igual a "10+20" (bug real
-            // de 07/2026: Ezetimiba 10mg + Sinvastatina 40mg x 20mg).
-            // Contagens diferentes (kit x avulso) nao entram nesta checagem.
-            if (va.length === vb.length) {
-                const sa = [...va].sort((x, y) => x - y).join(',');
-                const sb = [...vb].sort((x, y) => x - y).join(',');
+            if (UNIDADES_EMBALAGEM.has(unidade)) {
+                // Volume (ml/l): contagem diferente e kit x avulso (embalagem),
+                // tolerado - so compara quando a CONTAGEM bate. Exige conjuntos
+                // IDENTICOS quando bate, nao so 1 valor em comum - senao
+                // "10+40" passava como igual a "10+20" (bug real de 07/2026:
+                // Ezetimiba 10mg + Sinvastatina 40mg x 20mg).
+                if (va.length === vb.length) {
+                    const sa = [...va].sort((x, y) => x - y).join(',');
+                    const sb = [...vb].sort((x, y) => x - y).join(',');
+                    if (sa !== sb) return true;
+                }
+            } else {
+                // Dosagem de principio ativo (mg/mcg/UI): remedio COMBINADO x
+                // ISOLADO tem que ser rejeitado mesmo com contagem diferente -
+                // "Olmesartana 40mg" sozinho NAO e "Olmesartana 40mg +
+                // Anlodipino 10mg" (bug real de 07/2026: um site pegou so o
+                // principio ativo isolado no lugar da combinacao). Exige o
+                // CONJUNTO exato dos dois lados.
+                const sa = [...new Set(va)].sort((x, y) => x - y).join(',');
+                const sb = [...new Set(vb)].sort((x, y) => x - y).join(',');
                 if (sa !== sb) return true;
             }
         }
