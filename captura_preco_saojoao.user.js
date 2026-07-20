@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São João (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      2.4
+// @version      2.5
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saojoao.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saojoao.user.js
 // @description  Consulta o EAN na API pública do site da São João (VTEX) e copia o preço para a área de transferência. Não precisa navegar até o produto.
@@ -286,8 +286,18 @@
     function medidasConflitam(a, b) {
         const A = medidasDoNome(a), B = medidasDoNome(b);
         for (const unidade in A) {
-            if (!B[unidade]) continue;
-            if (!A[unidade].some(v => B[unidade].includes(v))) return true;
+            const va = A[unidade], vb = B[unidade];
+            if (!vb) continue;
+            // Mesma quantidade de valores na unidade (ex.: remedio combinado
+            // "10mg + 40mg"): exige conjuntos IDENTICOS, nao so 1 valor em
+            // comum - senao "10+40" passava como igual a "10+20" (bug real
+            // de 07/2026: Ezetimiba 10mg + Sinvastatina 40mg x 20mg).
+            // Contagens diferentes (kit x avulso) nao entram nesta checagem.
+            if (va.length === vb.length) {
+                const sa = [...va].sort((x, y) => x - y).join(',');
+                const sb = [...vb].sort((x, y) => x - y).join(',');
+                if (sa !== sb) return true;
+            }
         }
         return false;
     }

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Droga Raia (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      3.9
+// @version      4.0
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco.user.js
 // @description  Busca o EAN na Droga Raia, entra no produto, lê o preço via JSON-LD (com detecção de promoções) e copia para a área de transferência.
@@ -170,8 +170,18 @@
     function medidasConflitam(a, b) {
         const A = medidasDoNome(a), B = medidasDoNome(b);
         for (const unidade in A) {
-            if (!B[unidade]) continue;
-            if (!A[unidade].some(v => B[unidade].includes(v))) return true;
+            const va = A[unidade], vb = B[unidade];
+            if (!vb) continue;
+            // Mesma quantidade de valores na unidade (ex.: remedio combinado
+            // "10mg + 40mg"): exige conjuntos IDENTICOS, nao so 1 valor em
+            // comum - senao "10+40" passava como igual a "10+20" (bug real
+            // de 07/2026: Ezetimiba 10mg + Sinvastatina 40mg x 20mg).
+            // Contagens diferentes (kit x avulso) nao entram nesta checagem.
+            if (va.length === vb.length) {
+                const sa = [...va].sort((x, y) => x - y).join(',');
+                const sb = [...vb].sort((x, y) => x - y).join(',');
+                if (sa !== sb) return true;
+            }
         }
         return false;
     }
