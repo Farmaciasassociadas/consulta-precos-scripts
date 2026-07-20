@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São Paulo (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      3.0
+// @version      3.1
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @description  Busca o EAN na Farmácias São Paulo, entra no produto, lé o preço via JSON-LD e copia para a área de transferência.
@@ -222,10 +222,51 @@
         return null;
     }
 
+    // Sinal de KIT DE PRODUTOS DIFERENTES (espelha eh_kit_ou_combo() do
+    // Python) - nao confundir com "kit" de N unidades do MESMO produto (ja
+    // coberto por unidadesDoNome). Exige um PAR de categorias de produto
+    // DIFERENTES no mesmo nome, nao uma palavra solta ("kit"/"leve X pague
+    // Y" sozinhos tambem aparecem em pacotes do MESMO produto e ate em
+    // remedios combinados - "EMS 875mg + 125mg" tem um "+" entre doses).
+    const PARES_PRODUTO_COMBINADO = [
+        [/\bshamp\w*\b/, /\bcondicionador\b|\bcond\.?\b/],
+        [/\baparelho\b|\bbarbeador\b/, /\bcarga\w*\b|\brefil\w*\b|\bcartucho\w*\b/],
+        [/\bcreme dental\b|\bpasta de dente\w*\b/, /\benxaguante\w*\b|\bantisseptico\w*\b/],
+        [/\bsabonete\b/, /\bhidratante\b|\bcreme\b(?!\s+dental)/],
+    ];
+
+    function ehKitOuCombo(t) {
+        const s = (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        return PARES_PRODUTO_COMBINADO.some(([pa, pb]) => pa.test(s) && pb.test(s));
+    }
+
+    // Laboratorio/fabricante do GENERICO citado no nome (espelha
+    // laboratorio_do_nome() do Python) - generico do MESMO principio
+    // ativo/dose/contagem mas de LABORATORIO diferente e outro produto/EAN
+    // (achado real no teste assistido de 07/2026: Rosuvastatina Eurofarma
+    // trocada por Sandoz, Olanzapina Eurofarma trocada por Geolab).
+    const LABORATORIOS_GENERICO = [
+        'eurofarma', 'ems', 'medley', 'neo quimica', 'germed', 'prati donaduzzi',
+        'prati', 'teuto', 'legrand', 'biosintetica', 'sandoz', 'cimed', 'geolab',
+        'zydus', 'nova quimica', 'cristalia', 'ache', 'hipolabor', 'sanval',
+        'vitamedic', 'belfar', 'natulab', 'ranbaxy', 'torrent', 'eurogenericos',
+    ];
+    const RE_LABORATORIO = new RegExp('\\b(' +
+        [...LABORATORIOS_GENERICO].sort((a, b) => b.length - a.length).join('|') + ')\\b');
+
+    function laboratorioDoNome(t) {
+        const s = (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        const m = s.match(RE_LABORATORIO);
+        return m ? m[1] : null;
+    }
+
     function notaComUnidades(esperado, candidato) {
         let nota = similaridadeNomes(esperado, candidato);
         if (!nota) return 0;
         if (medidasConflitam(esperado, candidato)) return 0;
+        if (ehKitOuCombo(esperado) !== ehKitOuCombo(candidato)) return 0;
+        const labE = laboratorioDoNome(esperado), labC = laboratorioDoNome(candidato);
+        if (labE && labC && labE !== labC) return 0;
         // quantidade de comprimidos/capsulas diferente = OUTRO produto
         const de = doseDoNome(esperado), dc = doseDoNome(candidato);
         if (de !== null && dc !== null && de !== dc) return 0;
