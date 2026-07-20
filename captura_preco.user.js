@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Droga Raia (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      4.8
+// @version      4.9
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco.user.js
 // @description  Busca o EAN na Droga Raia, entra no produto, lê o preço via JSON-LD (com detecção de promoções) e copia para a área de transferência.
@@ -156,8 +156,23 @@
     // Minoxidil 5%) e h (duracao de liberacao/protecao, ex.: "XR 24h",
     // desodorante 72h). (?![a-z0-9]) evita match parcial ("gr" nao virar so
     // "g" com sobra) e cobre "%" no fim (\b nao funciona depois de simbolo).
+    // Numeros grandes em formato brasileiro usam "." (ou espaco) como
+    // separador de MILHAR, nao de decimal (ex.: "100.000 UI" = cem mil, nao
+    // 100,0) - o oposto do padrao internacional que o resto do parsing
+    // supoe. Sem normalizar isso primeiro, "100.000ui" virava 100.0 e
+    // "100 000ui" (MESMO produto, outro site) virava 0.0 - nomes IDENTICOS
+    // marcados como incoerentes so por formatacao de numero (achado real de
+    // 07/2026, mesmo bug do lado Python). So normaliza quando o separador
+    // vem seguido de EXATAMENTE 3 digitos e logo antes de unidade
+    // reconhecida - nunca mexe em decimal de verdade ("0.5mg").
+    const RE_MILHAR = /(\d{1,3}(?:[.\s]\d{3})+)(?=\s*(?:mcg|mg|gramas?|gr|g|kg|ml|l|meq|ui|mts|h|%)(?![a-z0-9]))/g;
+
+    function normalizarMilhares(s) {
+        return s.replace(RE_MILHAR, (m) => m.replace(/[.\s]/g, ''));
+    }
+
     function medidasDoNome(t) {
-        const s = (t || '').toLowerCase().replace(/,/g, '.');
+        const s = normalizarMilhares((t || '').toLowerCase()).replace(/,/g, '.');
         const re = /(\d+(?:\.\d+)?)\s*(mcg|mg|gramas?|gr|g|kg|ml|l|meq|ui|mts|h|%)(?![a-z0-9])/g;
         const medidas = {};
         let m;
