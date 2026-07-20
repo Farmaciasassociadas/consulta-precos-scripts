@@ -309,7 +309,7 @@
     // 07/2026, mesmo bug do lado Python). So normaliza quando o separador
     // vem seguido de EXATAMENTE 3 digitos e logo antes de unidade
     // reconhecida - nunca mexe em decimal de verdade ("0.5mg").
-    const RE_MILHAR = /(\d{1,3}(?:[.\s]\d{3})+)(?=\s*(?:mcg|mg|gramas?|gr|g|kg|ml|l|meq|ui|mts|h|%)(?![a-z0-9]))/g;
+    const RE_MILHAR = /(\d{1,3}(?:[.\s]\d{3})+)(?=\s*(?:mcg|mg|gramas?|gr|g|kg|ml|litros?|l|meq|ui|mts|metros?|h|%)(?![a-z0-9]))/g;
 
     function normalizarMilhares(s) {
         return s.replace(RE_MILHAR, (m) => m.replace(/[.\s]/g, ''));
@@ -317,7 +317,7 @@
 
     function medidasDoNome(t) {
         const s = normalizarMilhares((t || '').toLowerCase()).replace(/,/g, '.');
-        const re = /(\d+(?:\.\d+)?)\s*(mcg|mg|gramas?|gr|g|kg|ml|l|meq|ui|mts|h|%)(?![a-z0-9])/g;
+        const re = /(\d+(?:\.\d+)?)\s*(mcg|mg|gramas?|gr|g|kg|ml|litros?|l|meq|ui|mts|metros?|h|%)(?![a-z0-9])/g;
         const medidas = {};
         let m;
         while ((m = re.exec(s)) !== null) {
@@ -328,7 +328,8 @@
             // omite a dosagem - bug real de 07/2026 com cremes EMS/Eurofarma.
             if (unidade === 'gr' || unidade === 'gramas' || unidade === 'grama') { unidade = 'g'; }
             if (unidade === 'kg') { valor *= 1000; unidade = 'g'; }
-            if (unidade === 'l') { valor *= 1000; unidade = 'ml'; }
+            if (unidade === 'l' || unidade === 'litro' || unidade === 'litros') { valor *= 1000; unidade = 'ml'; }
+            if (unidade === 'metro' || unidade === 'metros') { unidade = 'mts'; }
             if (!medidas[unidade]) medidas[unidade] = [];
             medidas[unidade].push(valor);
         }
