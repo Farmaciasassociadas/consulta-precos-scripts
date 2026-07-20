@@ -294,9 +294,21 @@
         return m ? m[1].trim() : '';
     }
 
+    // "Marca": cobre categorias SEM principio ativo (desodorante, fralda,
+    // camisinha etc.) - mesma ideia do Principio Ativo, mas generica pra
+    // qualquer produto. Testado ao vivo contra o TEXTO da pagina (nao o
+    // JSON-LD: em alguns sites o brand do JSON-LD e a LINHA do produto, ex.
+    // "Mach 3", nao a marca de verdade "Gillette" - o texto da especificacao
+    // e mais consistente).
+    let MARCA_PAGINA = '';
+    function marcaDaPagina(texto) {
+        const m = (texto || '').match(/\bMarca:?\s*\n?\s*([^\n]{2,60})/i);
+        return m ? m[1].trim() : '';
+    }
+
     function montarSentinel(ean, status, preco, estoque, obs, nome) {
         const limpar = (t) => (t || '').replace(/[;=\n\r]/g, ' ').replace(/\s+/g, ' ').trim();
-        return `EAN=${ean};SITE=${SITE};STATUS=${status};PRECO=${preco || ''};ESTOQUE=${estoque || ''};OBS=${limpar(obs)};NOME=${limpar(nome)};URL=${(URL_DO_RESULTADO || '').replace(/[;\s]/g, '')};PRINCIPIO=${limpar(PRINCIPIO_ATIVO_PAGINA)}`;
+        return `EAN=${ean};SITE=${SITE};STATUS=${status};PRECO=${preco || ''};ESTOQUE=${estoque || ''};OBS=${limpar(obs)};NOME=${limpar(nome)};URL=${(URL_DO_RESULTADO || '').replace(/[;\s]/g, '')};PRINCIPIO=${limpar(PRINCIPIO_ATIVO_PAGINA)};MARCA=${limpar(MARCA_PAGINA)}`;
     }
 
     function encerrarAba() {
@@ -436,6 +448,7 @@
         const eanBuscado = pegarEanPendente();
         URL_DO_RESULTADO = location.href.split('#')[0];
         PRINCIPIO_ATIVO_PAGINA = principioAtivoDaPagina(document.body.innerText);
+        MARCA_PAGINA = marcaDaPagina(document.body.innerText);
         if (!eanBuscado) return; // não viemos de uma busca do assistente
 
         let produto = null;
