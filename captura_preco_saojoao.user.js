@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São João (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      3.3
+// @version      3.4
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saojoao.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saojoao.user.js
 // @description  Consulta o EAN na API pública do site da São João (VTEX) e copia o preço para a área de transferência. Não precisa navegar até o produto.
@@ -344,9 +344,14 @@
                 // "Olmesartana 40mg" sozinho NAO e "Olmesartana 40mg +
                 // Anlodipino 10mg" (bug real de 07/2026: um site pegou so o
                 // principio ativo isolado no lugar da combinacao). Exige o
-                // CONJUNTO exato dos dois lados.
-                const sa = [...new Set(va)].sort((x, y) => x - y).join(',');
-                const sb = [...new Set(vb)].sort((x, y) => x - y).join(',');
+                // MULTICONJUNTO exato - sort() sem Set(): "Alginac 50mg" (1
+                // substancia) tem que continuar rejeitado contra "Alginac
+                // 50mg+50mg+50mg" (3 substancias, cada uma coincidentemente
+                // 50mg) - um Set() aqui colapsa os tres 50mg em um so e
+                // deixa passar por engano (achado real na revisao de
+                // 07/2026, auditando o proprio precos.csv).
+                const sa = [...va].sort((x, y) => x - y).join(',');
+                const sb = [...vb].sort((x, y) => x - y).join(',');
                 if (sa !== sb) return true;
             }
         }

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Droga Raia (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      4.7
+// @version      4.8
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco.user.js
 // @description  Busca o EAN na Droga Raia, entra no produto, lê o preço via JSON-LD (com detecção de promoções) e copia para a área de transferência.
@@ -200,9 +200,14 @@
                 // "Olmesartana 40mg" sozinho NAO e "Olmesartana 40mg +
                 // Anlodipino 10mg" (bug real de 07/2026: um site pegou so o
                 // principio ativo isolado no lugar da combinacao). Exige o
-                // CONJUNTO exato dos dois lados.
-                const sa = [...new Set(va)].sort((x, y) => x - y).join(',');
-                const sb = [...new Set(vb)].sort((x, y) => x - y).join(',');
+                // MULTICONJUNTO exato - sort() sem Set(): "Alginac 50mg" (1
+                // substancia) tem que continuar rejeitado contra "Alginac
+                // 50mg+50mg+50mg" (3 substancias, cada uma coincidentemente
+                // 50mg) - um Set() aqui colapsa os tres 50mg em um so e
+                // deixa passar por engano (achado real na revisao de
+                // 07/2026, auditando o proprio precos.csv).
+                const sa = [...va].sort((x, y) => x - y).join(',');
+                const sb = [...vb].sort((x, y) => x - y).join(',');
                 if (sa !== sb) return true;
             }
         }
