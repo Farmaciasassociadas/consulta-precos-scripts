@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São Paulo (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      2.9
+// @version      3.0
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @description  Busca o EAN na Farmácias São Paulo, entra no produto, lé o preço via JSON-LD e copia para a área de transferência.
@@ -208,9 +208,16 @@
         const formas = '(?:comprimidos?|comprs?|comp|cpr|cps|cp|capsulas?|caps|drageas?|'
             + 'saches?|envelopes?|ampolas?|flaconetes?|pastilhas?|ovulos?|supositorios?|adesivos?|'
             + 'doses?|gomas?)';
-        let m = s.match(new RegExp('(\d{1,4})\s*' + formas + '\b'));
+        // ATENCAO: dentro de uma STRING (nao de um literal /regex/), "\d",
+        // "\s" e "\b" NAO sao escapes de regex - sao processados pelo
+        // parser do JS ANTES do RegExp existir. "\d"/"\s" perdem a barra
+        // (viram "d"/"s" literais) e "\b" vira um caractere de BACKSPACE
+        // de verdade. O resultado era um regex que nunca casava nada -
+        // doseDoNome() sempre devolvia null, silenciosamente (bug real
+        // achado na revisao de 07/2026). Corrigido com barra dupla.
+        let m = s.match(new RegExp('(\\d{1,4})\\s*' + formas + '\\b'));
         if (m) return parseInt(m[1], 10);
-        m = s.match(new RegExp('\bc\s*/\s*(\d{1,4})\s*' + formas + '?\b'));
+        m = s.match(new RegExp('\\bc\\s*/\\s*(\\d{1,4})\\s*' + formas + '?\\b'));
         if (m) return parseInt(m[1], 10);
         return null;
     }
