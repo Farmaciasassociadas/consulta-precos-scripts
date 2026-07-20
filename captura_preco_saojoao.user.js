@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São João (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      2.9
+// @version      3.0
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saojoao.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saojoao.user.js
 // @description  Consulta o EAN na API pública do site da São João (VTEX) e copia o preço para a área de transferência. Não precisa navegar até o produto.
@@ -305,8 +305,12 @@
         let m;
         while ((m = re.exec(s)) !== null) {
             let valor = parseFloat(m[1]), unidade = m[2];
-            if (unidade === 'g' || unidade === 'gr' || unidade === 'gramas' || unidade === 'grama') { valor *= 1000; unidade = 'mg'; }
-            if (unidade === 'kg') { valor *= 1000000; unidade = 'mg'; }
+            // g/gr/gramas ficam em bucket PROPRIO ("g"), separado de "mg": o
+            // peso do tubo/bisnaga (ex.: "Creme 30g") nao pode colidir com a
+            // dosagem do principio ativo (ex.: "20mg") so porque um site
+            // omite a dosagem - bug real de 07/2026 com cremes EMS/Eurofarma.
+            if (unidade === 'gr' || unidade === 'gramas' || unidade === 'grama') { unidade = 'g'; }
+            if (unidade === 'kg') { valor *= 1000; unidade = 'g'; }
             if (unidade === 'l') { valor *= 1000; unidade = 'ml'; }
             if (!medidas[unidade]) medidas[unidade] = [];
             medidas[unidade].push(valor);
@@ -314,7 +318,7 @@
         return medidas;
     }
 
-    const UNIDADES_EMBALAGEM = new Set(['ml', 'l']); // volume: kit x avulso tolerado
+    const UNIDADES_EMBALAGEM = new Set(['ml', 'l', 'g']); // volume/peso de embalagem: kit x avulso tolerado
 
     function medidasConflitam(a, b) {
         const A = medidasDoNome(a), B = medidasDoNome(b);
