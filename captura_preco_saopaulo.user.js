@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São Paulo (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      2.8
+// @version      2.9
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @description  Busca o EAN na Farmácias São Paulo, entra no produto, lé o preço via JSON-LD e copia para a área de transferência.
@@ -280,7 +280,11 @@
     // consistente).
     let MARCA_PAGINA = '';
     function marcaDaPagina(texto) {
-        const m = (texto || '').match(/\bMarca:?\s*\n?\s*([^\n]{2,60})/i);
+        // ':' OBRIGATORIO: sem isso, "marca" dentro de frase solta (ex.: aviso
+        // regulatorio "esta marca deve deixar explicito que o produto nao
+        // possui acao clareadora...") virava falso positivo - caso real de
+        // 07/2026, Bepantol Derma com o campo "marca" virando lixo de aviso.
+        const m = (texto || '').match(/\bMarca:\s*\n?\s*([^\n]{2,60})/i);
         return m ? m[1].trim() : '';
     }
 

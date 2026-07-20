@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São João (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      3.0
+// @version      3.1
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saojoao.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saojoao.user.js
 // @description  Consulta o EAN na API pública do site da São João (VTEX) e copia o preço para a área de transferência. Não precisa navegar até o produto.
@@ -115,7 +115,9 @@
     // PRINCIPAL via API.
     function marcaDoHtml(html) {
         const texto = (html || '').replace(/<[^>]+>/g, '\n');
-        const m = texto.match(/\bMarca:?\s*\n+\s*([^\n]{2,60})/i);
+        // ':' OBRIGATORIO: mesmo motivo do fix nos outros 3 scripts (evita
+        // pegar "marca" dentro de frase de aviso regulatorio como valor).
+        const m = texto.match(/\bMarca:\s*\n+\s*([^\n]{2,60})/i);
         return m ? m[1].trim() : '';
     }
 

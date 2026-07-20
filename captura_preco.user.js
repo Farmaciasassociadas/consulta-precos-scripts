@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Droga Raia (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      4.4
+// @version      4.5
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco.user.js
 // @description  Busca o EAN na Droga Raia, entra no produto, lê o preço via JSON-LD (com detecção de promoções) e copia para a área de transferência.
@@ -301,7 +301,11 @@
     // e mais consistente).
     let MARCA_PAGINA = '';
     function marcaDaPagina(texto) {
-        const m = (texto || '').match(/\bMarca:?\s*\n?\s*([^\n]{2,60})/i);
+        // ':' OBRIGATORIO: sem isso, "marca" dentro de frase solta (ex.: aviso
+        // regulatorio "esta marca deve deixar explicito que o produto nao
+        // possui acao clareadora...") virava falso positivo - caso real de
+        // 07/2026, Bepantol Derma com o campo "marca" virando lixo de aviso.
+        const m = (texto || '').match(/\bMarca:\s*\n?\s*([^\n]{2,60})/i);
         return m ? m[1].trim() : '';
     }
 

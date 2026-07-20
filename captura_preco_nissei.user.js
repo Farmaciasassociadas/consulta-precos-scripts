@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias Nissei (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      3.0
+// @version      3.1
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_nissei.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_nissei.user.js
 // @description  Busca o EAN na Nissei, entra no produto, lê o preço via JSON-LD + bloco de preço e copia para a área de transferência.
@@ -306,7 +306,11 @@
     // e mais consistente).
     let MARCA_PAGINA = '';
     function marcaDaPagina(texto) {
-        const m = (texto || '').match(/\bMarca:?\s*\n?\s*([^\n]{2,60})/i);
+        // ':' OBRIGATORIO: sem isso, "marca" dentro de frase solta (ex.: aviso
+        // regulatorio "esta marca deve deixar explicito que o produto nao
+        // possui acao clareadora...") virava falso positivo - caso real de
+        // 07/2026, Bepantol Derma com o campo "marca" virando lixo de aviso.
+        const m = (texto || '').match(/\bMarca:\s*\n?\s*([^\n]{2,60})/i);
         return m ? m[1].trim() : '';
     }
 
