@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Panvel (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      2.0
+// @version      2.1
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_panvel.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_panvel.user.js
 // @description  Busca o EAN na Panvel: pega o código do produto no card da busca e lê preço/estoque/princípio ativo pela API de catálogo (sem entrar na página do produto). Copia o resultado para a área de transferência.
@@ -191,6 +191,22 @@
         return m ? m[1] : null;
     }
 
+    function ehMedicamento(t) {
+        const s = (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        if (/\d+\s*(?:mg|mcg|ui|meq)(?![a-z0-9])/.test(s)) return true;
+        if (/\d+\s*(?:comprimidos?|c[aá]psulas?|drageas?)/.test(s)) return true;
+        return false;
+    }
+
+    function simAmbos(a, b) {
+        const A = [...tokensDoNome(a)], B = [...tokensDoNome(b)];
+        if (!A.length || !B.length) return [0, 0];
+        const bate = (w) => B.some(x => x === w || (w.length >= 4 && x.startsWith(w)) || (x.length >= 4 && w.startsWith(x)));
+        let comum = 0;
+        for (const w of A) if (bate(w)) comum++;
+        return [comum / A.length, comum / B.length];
+    }
+
     function notaComUnidades(esperado, candidato) {
         let nota = similaridadeNomes(esperado, candidato);
         if (!nota) return 0;
@@ -200,6 +216,13 @@
         if (labE && labC && labE !== labC) return 0;
         const de = doseDoNome(esperado), dc = doseDoNome(candidato);
         if (de !== null && dc !== null && de !== dc) return 0;
+        // GUARDA DE VARIANTE para produto de CONSUMO (nao remedio): rejeita
+        // outra variante/marca com nome parecido num sentido so (Colgate Total
+        // x Sensitive; Dermodex x Hipoglos).
+        if (!ehMedicamento(esperado) && !ehMedicamento(candidato)) {
+            const [simRef, simCand] = simAmbos(esperado, candidato);
+            if (Math.min(simRef, simCand) < 0.5) return 0;
+        }
         const ue = unidadesDoNome(esperado), uc = unidadesDoNome(candidato);
         if (ue !== null && uc !== null) {
             nota += (ue === uc) ? 0.2 : -0.2;

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São Paulo (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      3.3
+// @version      3.4
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @description  Busca o EAN na Farmácias São Paulo, entra no produto, lé o preço via JSON-LD e copia para a área de transferência.
@@ -281,6 +281,22 @@
         return m ? m[1] : null;
     }
 
+    function ehMedicamento(t) {
+        const s = (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        if (/\d+\s*(?:mg|mcg|ui|meq)(?![a-z0-9])/.test(s)) return true;
+        if (/\d+\s*(?:comprimidos?|c[aá]psulas?|drageas?)/.test(s)) return true;
+        return false;
+    }
+
+    function simAmbos(a, b) {
+        const A = [...tokensDoNome(a)], B = [...tokensDoNome(b)];
+        if (!A.length || !B.length) return [0, 0];
+        const bate = (w) => B.some(x => x === w || (w.length >= 4 && x.startsWith(w)) || (x.length >= 4 && w.startsWith(x)));
+        let comum = 0;
+        for (const w of A) if (bate(w)) comum++;
+        return [comum / A.length, comum / B.length];
+    }
+
     function notaComUnidades(esperado, candidato) {
         let nota = similaridadeNomes(esperado, candidato);
         if (!nota) return 0;
@@ -291,6 +307,13 @@
         // quantidade de comprimidos/capsulas diferente = OUTRO produto
         const de = doseDoNome(esperado), dc = doseDoNome(candidato);
         if (de !== null && dc !== null && de !== dc) return 0;
+        // GUARDA DE VARIANTE para produto de CONSUMO (nao remedio): rejeita
+        // outra variante/marca com nome parecido num sentido so (Colgate Total
+        // x Sensitive; Dermodex x Hipoglos).
+        if (!ehMedicamento(esperado) && !ehMedicamento(candidato)) {
+            const [simRef, simCand] = simAmbos(esperado, candidato);
+            if (Math.min(simRef, simCand) < 0.5) return 0;
+        }
         const ue = unidadesDoNome(esperado), uc = unidadesDoNome(candidato);
         // Quantidade igual = bônus; declarada e diferente = penalidade (um
         // kit legítimo do mesmo item ainda passa: o resto do nome bate ~100%).

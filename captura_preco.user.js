@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Droga Raia (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      4.9
+// @version      5.0
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco.user.js
 // @description  Busca o EAN na Droga Raia, entra no produto, lê o preço via JSON-LD (com detecção de promoções) e copia para a área de transferência.
@@ -291,6 +291,32 @@
         return m ? m[1] : null;
     }
 
+    // Assinatura de REMEDIO: dose de principio ativo (mg/mcg/UI/mEq) ou
+    // contagem de comprimidos/capsulas/drageas. Cosmetico/higiene nao tem — e
+    // ai a semelhanca de nome num sentido so e fraca (as variantes de marca
+    // proliferam), entao exige-se semelhanca nos DOIS sentidos (ver guarda em
+    // notaComUnidades).
+    function ehMedicamento(t) {
+        const s = (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        if (/\d+\s*(?:mg|mcg|ui|meq)(?![a-z0-9])/.test(s)) return true;
+        if (/\d+\s*(?:comprimidos?|c[aá]psulas?|drageas?)/.test(s)) return true;
+        return false;
+    }
+
+    // Semelhanca nos DOIS sentidos: [comum/tokens_da_referencia,
+    // comum/tokens_do_candidato]. O 2o valor pega o caso perigoso do cosmetico:
+    // o candidato bate bastante da referencia MAS traz varios tokens
+    // distintivos que ela nao tem (Colgate "Total" vs "Sensitive", Dermodex vs
+    // Hipoglos) — sinal de outra variante/marca.
+    function simAmbos(a, b) {
+        const A = [...tokensDoNome(a)], B = [...tokensDoNome(b)];
+        if (!A.length || !B.length) return [0, 0];
+        const bate = (w) => B.some(x => x === w || (w.length >= 4 && x.startsWith(w)) || (x.length >= 4 && w.startsWith(x)));
+        let comum = 0;
+        for (const w of A) if (bate(w)) comum++;
+        return [comum / A.length, comum / B.length];
+    }
+
     function notaComUnidades(esperado, candidato) {
         let nota = similaridadeNomes(esperado, candidato);
         if (!nota) return 0;
@@ -301,6 +327,15 @@
         // quantidade de comprimidos/capsulas diferente = OUTRO produto
         const de = doseDoNome(esperado), dc = doseDoNome(candidato);
         if (de !== null && dc !== null && de !== dc) return 0;
+        // GUARDA DE VARIANTE (so produto de CONSUMO, nao remedio): rejeita
+        // quando o candidato traz muito token distintivo que a referencia nao
+        // tem — outra variante/marca (Colgate Total x Sensitive; Dermodex x
+        // Hipoglos), mesmo com nome parecido num sentido. Medicamento fica de
+        // fora: dose+laboratorio ja sao sinais fortes o bastante.
+        if (!ehMedicamento(esperado) && !ehMedicamento(candidato)) {
+            const [simRef, simCand] = simAmbos(esperado, candidato);
+            if (Math.min(simRef, simCand) < 0.5) return 0;
+        }
         const ue = unidadesDoNome(esperado), uc = unidadesDoNome(candidato);
         // Quantidade igual ganha bônus; quantidade declarada e DIFERENTE pesa
         // CONTRA (8 vs 30 comprimidos raramente é o mesmo produto). Um kit
