@@ -1,0 +1,3699 @@
+{
+  "_meta": {
+    "fonte": "precos.csv (mineracao) + classificacao Gemini",
+    "gerado_em": "2026-07-21 10:43:50",
+    "total_termos": 522,
+    "versao": 1
+  },
+  "termos": {
+    "aas": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "acido acetilsalicilico",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "abs": {
+      "confianca": "baixa",
+      "frequencia": 5,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "acao": {
+      "confianca": "baixa",
+      "frequencia": 45,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "acebrofilina": {
+      "confianca": "alta",
+      "frequencia": 11,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "aceclofenaco": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "acetato": {
+      "confianca": "alta",
+      "frequencia": 6,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "acetilcisteina": {
+      "confianca": "alta",
+      "frequencia": 30,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "acetilsalicilico": {
+      "confianca": "alta",
+      "frequencia": 25,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "acetonida": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "ache": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "aciclovir": {
+      "confianca": "alta",
+      "frequencia": 7,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "acido": {
+      "confianca": "baixa",
+      "frequencia": 21,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "acnezil": {
+      "confianca": "alta",
+      "frequencia": 6,
+      "principio_ativo": "peróxido de benzoíla",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "aerosol": {
+      "confianca": "alta",
+      "frequencia": 41,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "aerossol": {
+      "confianca": "alta",
+      "frequencia": 23,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "afetus": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "albendazol": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "alcool": {
+      "confianca": "media",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "alendronato": {
+      "confianca": "alta",
+      "frequencia": 7,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "alergaliv": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "loratadina",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "algestona": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "alginac": {
+      "confianca": "alta",
+      "frequencia": 16,
+      "principio_ativo": "diclofenaco",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "alivio": {
+      "confianca": "media",
+      "frequencia": 51,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "aloe": {
+      "confianca": "media",
+      "frequencia": 17,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "alprazolam": {
+      "confianca": "alta",
+      "frequencia": 20,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "althaia": {
+      "confianca": "alta",
+      "frequencia": 22,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "fabricante_generico"
+    },
+    "amilorida": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "amitriptilina": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "amox": {
+      "confianca": "baixa",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "amoxicilina": {
+      "confianca": "alta",
+      "frequencia": 70,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "ampola": {
+      "confianca": "alta",
+      "frequencia": 20,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "ampolas": {
+      "confianca": "alta",
+      "frequencia": 20,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "analgesico": {
+      "confianca": "alta",
+      "frequencia": 11,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "anastrozol": {
+      "confianca": "alta",
+      "frequencia": 8,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "anlodipino": {
+      "confianca": "alta",
+      "frequencia": 16,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "anos": {
+      "confianca": "alta",
+      "frequencia": 16,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "antara": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "fenofibrato",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "anti": {
+      "confianca": "media",
+      "frequencia": 15,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "antiacido": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "antibacteriano": {
+      "confianca": "alta",
+      "frequencia": 26,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "anticarie": {
+      "confianca": "alta",
+      "frequencia": 15,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "anticaspa": {
+      "confianca": "alta",
+      "frequencia": 20,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "antiqueda": {
+      "confianca": "alta",
+      "frequencia": 33,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "antisseptico": {
+      "confianca": "alta",
+      "frequencia": 21,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "antitranspirante": {
+      "confianca": "alta",
+      "frequencia": 53,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "aparelho": {
+      "confianca": "media",
+      "frequencia": 98,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "aplicadores": {
+      "confianca": "alta",
+      "frequencia": 20,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "aspdip": {
+      "confianca": "media",
+      "frequencia": 15,
+      "principio_ativo": "acido acetilsalicilico",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "aspirina": {
+      "confianca": "alta",
+      "frequencia": 14,
+      "principio_ativo": "ácido acetilsalicílico",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "aspmol": {
+      "confianca": "alta",
+      "frequencia": 8,
+      "principio_ativo": "salbutamol",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "assaduras": {
+      "confianca": "alta",
+      "frequencia": 31,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "atenolol": {
+      "confianca": "alta",
+      "frequencia": 29,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "ativa": {
+      "confianca": "media",
+      "frequencia": 37,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "ativado": {
+      "confianca": "media",
+      "frequencia": 34,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "atorvastatina": {
+      "confianca": "alta",
+      "frequencia": 16,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "avalox": {
+      "confianca": "alta",
+      "frequencia": 9,
+      "principio_ativo": "moxifloxacino",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "axetil": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "axetilcefuroxima": {
+      "confianca": "alta",
+      "frequencia": 7,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "azitromicina": {
+      "confianca": "alta",
+      "frequencia": 32,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "baby": {
+      "confianca": "alta",
+      "frequencia": 162,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "babymed": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "retinol/colecalciferol/óxido de zinco",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "bambu": {
+      "confianca": "alta",
+      "frequencia": 45,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "barbeador": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "barbear": {
+      "confianca": "alta",
+      "frequencia": 93,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "barra": {
+      "confianca": "alta",
+      "frequencia": 97,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "base": {
+      "confianca": "media",
+      "frequencia": 11,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "bayer": {
+      "confianca": "alta",
+      "frequencia": 38,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "fabricante_generico"
+    },
+    "bebe": {
+      "confianca": "alta",
+      "frequencia": 25,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "bebes": {
+      "confianca": "alta",
+      "frequencia": 15,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "belfar": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "benzoilmetronidazol": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "bepantol": {
+      "confianca": "alta",
+      "frequencia": 19,
+      "principio_ativo": "dexpantenol",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "bepantriz": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "dexpantenol",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "besilato": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "betaistina": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "betametasona": {
+      "confianca": "alta",
+      "frequencia": 83,
+      "principio_ativo": "betametasona",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "bezafibrato": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "bicalutamida": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "bilastina": {
+      "confianca": "alta",
+      "frequencia": 12,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "bimatoprosta": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "biocolor": {
+      "confianca": "alta",
+      "frequencia": 27,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "biolab": {
+      "confianca": "alta",
+      "frequencia": 21,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "fabricante_generico"
+    },
+    "biosintetica": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "biotinamina": {
+      "confianca": "media",
+      "frequencia": 27,
+      "principio_ativo": "biotina",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "bisoprolol": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "bissulfato": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "blue": {
+      "confianca": "media",
+      "frequencia": 24,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "bond": {
+      "confianca": "media",
+      "frequencia": 37,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "bozzano": {
+      "confianca": "alta",
+      "frequencia": 77,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "branco": {
+      "confianca": "media",
+      "frequencia": 21,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "bravan": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "valsartana",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "bromazepam": {
+      "confianca": "alta",
+      "frequencia": 8,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "brometo": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "bromidrato": {
+      "confianca": "alta",
+      "frequencia": 14,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "bromoprida": {
+      "confianca": "alta",
+      "frequencia": 7,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "bucal": {
+      "confianca": "alta",
+      "frequencia": 103,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "bupropiona": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "buscopan": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "butilbrometo de escopolamina",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "cabeca": {
+      "confianca": "alta",
+      "frequencia": 16,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "cabelo": {
+      "confianca": "media",
+      "frequencia": 66,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "cabergolina": {
+      "confianca": "alta",
+      "frequencia": 8,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "cafeina": {
+      "confianca": "alta",
+      "frequencia": 8,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "calcica": {
+      "confianca": "alta",
+      "frequencia": 28,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "camisinha": {
+      "confianca": "alta",
+      "frequencia": 18,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "canesten": {
+      "confianca": "alta",
+      "frequencia": 7,
+      "principio_ativo": "clotrimazol",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "capilar": {
+      "confianca": "alta",
+      "frequencia": 41,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "captopril": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "carbamazepina": {
+      "confianca": "alta",
+      "frequencia": 8,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "carbocisteina": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "carbonato": {
+      "confianca": "alta",
+      "frequencia": 10,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "carbono": {
+      "confianca": "media",
+      "frequencia": 23,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "care": {
+      "confianca": "alta",
+      "frequencia": 32,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "carefree": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "carga": {
+      "confianca": "media",
+      "frequencia": 17,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "carmed": {
+      "confianca": "alta",
+      "frequencia": 6,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "carvao": {
+      "confianca": "alta",
+      "frequencia": 52,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "carvedilol": {
+      "confianca": "alta",
+      "frequencia": 17,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "castanho": {
+      "confianca": "alta",
+      "frequencia": 25,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "cebion": {
+      "confianca": "alta",
+      "frequencia": 6,
+      "principio_ativo": "ácido ascórbico",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "cefadroxil": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "cefadroxila": {
+      "confianca": "alta",
+      "frequencia": 7,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "cefalexina": {
+      "confianca": "alta",
+      "frequencia": 15,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "ceftriaxona": {
+      "confianca": "alta",
+      "frequencia": 14,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "celecoxibe": {
+      "confianca": "alta",
+      "frequencia": 13,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "cetoconazol": {
+      "confianca": "alta",
+      "frequencia": 47,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "cetoprofeno": {
+      "confianca": "alta",
+      "frequencia": 19,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "cetorolaco": {
+      "confianca": "alta",
+      "frequencia": 16,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "cha": {
+      "confianca": "alta",
+      "frequencia": 6,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "ciclobenzaprina": {
+      "confianca": "alta",
+      "frequencia": 9,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "ciclopirox": {
+      "confianca": "alta",
+      "frequencia": 6,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "cicloprimogyna": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "estradiol, norgestrel",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "ciflogex": {
+      "confianca": "alta",
+      "frequencia": 6,
+      "principio_ativo": "cloridrato de benzidamina",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "cilostazol": {
+      "confianca": "alta",
+      "frequencia": 17,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "cimed": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 29,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "cipro": {
+      "confianca": "media",
+      "frequencia": 6,
+      "principio_ativo": "ciprofloxacino",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "ciprofibrato": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "ciprofloxacino": {
+      "confianca": "alta",
+      "frequencia": 15,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "cisteil": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "acetilcisteina",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "citalopram": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "citoneurin": {
+      "confianca": "alta",
+      "frequencia": 30,
+      "principio_ativo": "cianocobalamina, piridoxina, tiamina",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "citrato": {
+      "confianca": "alta",
+      "frequencia": 12,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "claritin": {
+      "confianca": "alta",
+      "frequencia": 9,
+      "principio_ativo": "loratadina",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "claritromicina": {
+      "confianca": "alta",
+      "frequencia": 11,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "claro": {
+      "confianca": "alta",
+      "frequencia": 19,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "classic": {
+      "confianca": "alta",
+      "frequencia": 33,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "clavulanato": {
+      "confianca": "alta",
+      "frequencia": 36,
+      "principio_ativo": "clavulanato",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "clean": {
+      "confianca": "alta",
+      "frequencia": 35,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "clearblue": {
+      "confianca": "alta",
+      "frequencia": 25,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "clinical": {
+      "confianca": "alta",
+      "frequencia": 15,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "clonazepam": {
+      "confianca": "alta",
+      "frequencia": 10,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "clor": {
+      "confianca": "baixa",
+      "frequencia": 13,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "cloridrato": {
+      "confianca": "alta",
+      "frequencia": 233,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "clortalidona": {
+      "confianca": "alta",
+      "frequencia": 13,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "clotrimazol": {
+      "confianca": "alta",
+      "frequencia": 7,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "colageno": {
+      "confianca": "alta",
+      "frequencia": 32,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "colgate": {
+      "confianca": "alta",
+      "frequencia": 6,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "comp": {
+      "confianca": "alta",
+      "frequencia": 50,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "concor": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "fumarato de bisoprolol",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "condicionador": {
+      "confianca": "alta",
+      "frequencia": 121,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "control": {
+      "confianca": "alta",
+      "frequencia": 33,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "corporal": {
+      "confianca": "alta",
+      "frequencia": 35,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "creme": {
+      "confianca": "alta",
+      "frequencia": 402,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "cremoso": {
+      "confianca": "alta",
+      "frequencia": 24,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "cresce": {
+      "confianca": "media",
+      "frequencia": 24,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "cristalia": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "dapagliflozina": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "deflazacorte": {
+      "confianca": "alta",
+      "frequencia": 8,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "delicada": {
+      "confianca": "media",
+      "frequencia": 17,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "demais": {
+      "confianca": "alta",
+      "frequencia": 15,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "dental": {
+      "confianca": "alta",
+      "frequencia": 398,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "dente": {
+      "confianca": "media",
+      "frequencia": 70,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "deo": {
+      "confianca": "alta",
+      "frequencia": 6,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "depilar": {
+      "confianca": "alta",
+      "frequencia": 21,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "depilatorio": {
+      "confianca": "alta",
+      "frequencia": 15,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "derma": {
+      "confianca": "media",
+      "frequencia": 52,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "dermafeme": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "dermatologica": {
+      "confianca": "alta",
+      "frequencia": 22,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "descartavel": {
+      "confianca": "alta",
+      "frequencia": 29,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "desloratadina": {
+      "confianca": "alta",
+      "frequencia": 18,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "desodorante": {
+      "confianca": "alta",
+      "frequencia": 82,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "desogestrel": {
+      "confianca": "alta",
+      "frequencia": 18,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "desonida": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "desvenlafaxina": {
+      "confianca": "alta",
+      "frequencia": 24,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "dexametasona": {
+      "confianca": "alta",
+      "frequencia": 7,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "dexclorfeniramina": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "diamond": {
+      "confianca": "alta",
+      "frequencia": 26,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "diclofenaco": {
+      "confianca": "alta",
+      "frequencia": 22,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "diclor": {
+      "confianca": "media",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "dicloridrato": {
+      "confianca": "alta",
+      "frequencia": 27,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "dienogeste": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "dimesilato": {
+      "confianca": "alta",
+      "frequencia": 11,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "dipirona": {
+      "confianca": "alta",
+      "frequencia": 23,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "dipr": {
+      "confianca": "baixa",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "dipropionato": {
+      "confianca": "alta",
+      "frequencia": 18,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "divalproato": {
+      "confianca": "alta",
+      "frequencia": 17,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "domperidona": {
+      "confianca": "alta",
+      "frequencia": 23,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "doritos": {
+      "confianca": "alta",
+      "frequencia": 19,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "dosadora": {
+      "confianca": "media",
+      "frequencia": 20,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "doxazosina": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "dramin": {
+      "confianca": "alta",
+      "frequencia": 6,
+      "principio_ativo": "dimenidrinato",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "drospirenona": {
+      "confianca": "alta",
+      "frequencia": 20,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "efervescentes": {
+      "confianca": "alta",
+      "frequencia": 22,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "elmex": {
+      "confianca": "alta",
+      "frequencia": 19,
+      "principio_ativo": "aminofluoreto",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "ems": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "enalapril": {
+      "confianca": "alta",
+      "frequencia": 8,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "enantato": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "eno": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "bicarbonato de sodio, carbonato de sodio, acido citrico",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "envelopes": {
+      "confianca": "alta",
+      "frequencia": 19,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "enxaguante": {
+      "confianca": "alta",
+      "frequencia": 85,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "esalerg": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "desloratadina",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "escitalopram": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "escova": {
+      "confianca": "alta",
+      "frequencia": 131,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "escuro": {
+      "confianca": "alta",
+      "frequencia": 19,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "esmalte": {
+      "confianca": "alta",
+      "frequencia": 79,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "espironolactona": {
+      "confianca": "alta",
+      "frequencia": 26,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "espuma": {
+      "confianca": "alta",
+      "frequencia": 8,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "estradiol": {
+      "confianca": "alta",
+      "frequencia": 18,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "etinilestradiol": {
+      "confianca": "alta",
+      "frequencia": 36,
+      "principio_ativo": "etinilestradiol",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "etira": {
+      "confianca": "baixa",
+      "frequencia": 6,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "etodolaco": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "eudora": {
+      "confianca": "alta",
+      "frequencia": 7,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "euro": {
+      "confianca": "baixa",
+      "frequencia": 105,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "eurofarma": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 840,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "eurogenericos": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "expectorante": {
+      "confianca": "alta",
+      "frequencia": 15,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "extra": {
+      "confianca": "media",
+      "frequencia": 44,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "extracts": {
+      "confianca": "media",
+      "frequencia": 15,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "extremo": {
+      "confianca": "media",
+      "frequencia": 26,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "ezetimiba": {
+      "confianca": "alta",
+      "frequencia": 8,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "femibion": {
+      "confianca": "alta",
+      "frequencia": 15,
+      "principio_ativo": "vitaminas e minerais",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "feminino": {
+      "confianca": "alta",
+      "frequencia": 28,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "fenofibrato": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "fexofenadina": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "finasterida": {
+      "confianca": "alta",
+      "frequencia": 9,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "fio": {
+      "confianca": "alta",
+      "frequencia": 8,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "firialta": {
+      "confianca": "alta",
+      "frequencia": 10,
+      "principio_ativo": "finerenona",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "fita": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "fixador": {
+      "confianca": "alta",
+      "frequencia": 18,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "flanax": {
+      "confianca": "alta",
+      "frequencia": 29,
+      "principio_ativo": "naproxeno",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "fluconazol": {
+      "confianca": "alta",
+      "frequencia": 9,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "fluor": {
+      "confianca": "alta",
+      "frequencia": 17,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "folha": {
+      "confianca": "baixa",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "folhas": {
+      "confianca": "baixa",
+      "frequencia": 9,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "fosfato": {
+      "confianca": "alta",
+      "frequencia": 6,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "fralda": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "fresh": {
+      "confianca": "alta",
+      "frequencia": 51,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "frontal": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "alprazolam",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "furoato": {
+      "confianca": "alta",
+      "frequencia": 11,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "gabapentina": {
+      "confianca": "alta",
+      "frequencia": 14,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "garganta": {
+      "confianca": "alta",
+      "frequencia": 23,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "gel": {
+      "confianca": "alta",
+      "frequencia": 28,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "gengiva": {
+      "confianca": "alta",
+      "frequencia": 33,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "gentamicina": {
+      "confianca": "alta",
+      "frequencia": 23,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "geolab": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "germed": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "gillette": {
+      "confianca": "alta",
+      "frequencia": 8,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "gino": {
+      "confianca": "media",
+      "frequencia": 24,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "giovanna": {
+      "confianca": "alta",
+      "frequencia": 9,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "glibenclamida": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "glicerina": {
+      "confianca": "alta",
+      "frequencia": 35,
+      "principio_ativo": "glicerina",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "gliclazida": {
+      "confianca": "alta",
+      "frequencia": 8,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "glimepirida": {
+      "confianca": "alta",
+      "frequencia": 12,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "glow": {
+      "confianca": "media",
+      "frequencia": 20,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "gotas": {
+      "confianca": "alta",
+      "frequencia": 37,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "gravidez": {
+      "confianca": "alta",
+      "frequencia": 27,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "gtin": {
+      "confianca": "alta",
+      "frequencia": 18,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "hair": {
+      "confianca": "alta",
+      "frequencia": 19,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "hemifumarato": {
+      "confianca": "alta",
+      "frequencia": 30,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "hemitartarato": {
+      "confianca": "alta",
+      "frequencia": 10,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "hidrata": {
+      "confianca": "media",
+      "frequencia": 31,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "hidratacao": {
+      "confianca": "media",
+      "frequencia": 41,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "hidratada": {
+      "confianca": "media",
+      "frequencia": 39,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "hidratado": {
+      "confianca": "media",
+      "frequencia": 25,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "hidratante": {
+      "confianca": "alta",
+      "frequencia": 10,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "hidroclorotiazida": {
+      "confianca": "alta",
+      "frequencia": 6,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "hidrocortisona": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "hidroquinona": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "hipoalergenico": {
+      "confianca": "alta",
+      "frequencia": 15,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "hipoglos": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "retinol, colecalciferol, óxido de zinco",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "hipolabor": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "ibandronato": {
+      "confianca": "alta",
+      "frequencia": 6,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "imediato": {
+      "confianca": "media",
+      "frequencia": 60,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "indapamida": {
+      "confianca": "alta",
+      "frequencia": 9,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "indicator": {
+      "confianca": "media",
+      "frequencia": 21,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "infantil": {
+      "confianca": "alta",
+      "frequencia": 90,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "injetavel": {
+      "confianca": "alta",
+      "frequencia": 33,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "inseto": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "intenso": {
+      "confianca": "media",
+      "frequencia": 21,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "intimo": {
+      "confianca": "alta",
+      "frequencia": 18,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "irbesartana": {
+      "confianca": "alta",
+      "frequencia": 7,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "isotretinoina": {
+      "confianca": "alta",
+      "frequencia": 6,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "itraconazol": {
+      "confianca": "alta",
+      "frequencia": 15,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "iumi": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "etinilestradiol/drospirenona",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "joao": {
+      "confianca": "alta",
+      "frequencia": 9,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "johnsons": {
+      "confianca": "alta",
+      "frequencia": 39,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "jontex": {
+      "confianca": "alta",
+      "frequencia": 22,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "kids": {
+      "confianca": "alta",
+      "frequencia": 42,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "lamitor": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "lamotrigina",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "lamotrigina": {
+      "confianca": "alta",
+      "frequencia": 8,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "lansoprazol": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "laranja": {
+      "confianca": "alta",
+      "frequencia": 49,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "latanoprosta": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "lavanda": {
+      "confianca": "alta",
+      "frequencia": 27,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "leave": {
+      "confianca": "media",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "legrand": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "leite": {
+      "confianca": "media",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "lenco": {
+      "confianca": "alta",
+      "frequencia": 8,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "lencos": {
+      "confianca": "alta",
+      "frequencia": 6,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "letrozol": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "levetiracetam": {
+      "confianca": "alta",
+      "frequencia": 13,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "levofloxacino": {
+      "confianca": "alta",
+      "frequencia": 26,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "levotiroxina": {
+      "confianca": "alta",
+      "frequencia": 6,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "liberacao": {
+      "confianca": "media",
+      "frequencia": 58,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "lichia": {
+      "confianca": "media",
+      "frequencia": 20,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "limao": {
+      "confianca": "alta",
+      "frequencia": 19,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "limpeza": {
+      "confianca": "alta",
+      "frequencia": 39,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "liquido": {
+      "confianca": "alta",
+      "frequencia": 141,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "lisdexanfetamina": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "liso": {
+      "confianca": "alta",
+      "frequencia": 40,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "listerine": {
+      "confianca": "alta",
+      "frequencia": 12,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "locao": {
+      "confianca": "alta",
+      "frequencia": 19,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "loratadina": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "lorazepam": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "losartana": {
+      "confianca": "alta",
+      "frequencia": 29,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "louro": {
+      "confianca": "alta",
+      "frequencia": 40,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "luftagastro": {
+      "confianca": "alta",
+      "frequencia": 10,
+      "principio_ativo": "simeticona",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "luftal": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "simeticona",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "luminous": {
+      "confianca": "alta",
+      "frequencia": 58,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "mach3": {
+      "confianca": "alta",
+      "frequencia": 48,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "macia": {
+      "confianca": "alta",
+      "frequencia": 42,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "maleato": {
+      "confianca": "alta",
+      "frequencia": 36,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "mascara": {
+      "confianca": "media",
+      "frequencia": 31,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "masculino": {
+      "confianca": "alta",
+      "frequencia": 29,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "med": {
+      "confianca": "baixa",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "medley": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "medoxomila": {
+      "confianca": "alta",
+      "frequencia": 31,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "mefex": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "ácido mefenâmico",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "melancia": {
+      "confianca": "media",
+      "frequencia": 33,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "meloxicam": {
+      "confianca": "alta",
+      "frequencia": 12,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "menta": {
+      "confianca": "alta",
+      "frequencia": 54,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "mesalazina": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "mesilato": {
+      "confianca": "alta",
+      "frequencia": 10,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "metamucil": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "psyllium",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "metildopa": {
+      "confianca": "alta",
+      "frequencia": 8,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "mini": {
+      "confianca": "alta",
+      "frequencia": 25,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "minions": {
+      "confianca": "alta",
+      "frequencia": 18,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "mint": {
+      "confianca": "alta",
+      "frequencia": 59,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "miracles": {
+      "confianca": "media",
+      "frequencia": 29,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "molecular": {
+      "confianca": "media",
+      "frequencia": 38,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "mometasona": {
+      "confianca": "alta",
+      "frequencia": 15,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "monange": {
+      "confianca": "alta",
+      "frequencia": 15,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "monoidratado": {
+      "confianca": "alta",
+      "frequencia": 18,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "montelucaste": {
+      "confianca": "alta",
+      "frequencia": 17,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "moxifloxacino": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "multivitaminico": {
+      "confianca": "alta",
+      "frequencia": 9,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "nactali": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "desogestrel",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "nan": {
+      "confianca": "alta",
+      "frequencia": 6,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "naproxeno": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "nasal": {
+      "confianca": "alta",
+      "frequencia": 22,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "natulab": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "natural": {
+      "confianca": "alta",
+      "frequencia": 45,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "naturals": {
+      "confianca": "alta",
+      "frequencia": 46,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "neo quimica": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "neomicina": {
+      "confianca": "alta",
+      "frequencia": 23,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "neosaldina": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "dipirona, mucato de isometepteno, cafeina",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "neutrogena": {
+      "confianca": "alta",
+      "frequencia": 8,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "niely": {
+      "confianca": "alta",
+      "frequencia": 38,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "nimesulida": {
+      "confianca": "alta",
+      "frequencia": 16,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "nistatina": {
+      "confianca": "alta",
+      "frequencia": 6,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "nitazoxanida": {
+      "confianca": "alta",
+      "frequencia": 18,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "nitrato": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "noretisterona": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "nova quimica": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "nutre": {
+      "confianca": "media",
+      "frequencia": 24,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "nutri": {
+      "confianca": "media",
+      "frequencia": 60,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "nutricao": {
+      "confianca": "alta",
+      "frequencia": 26,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "odor": {
+      "confianca": "media",
+      "frequencia": 19,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "oftalmica": {
+      "confianca": "alta",
+      "frequencia": 19,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "olanzapina": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "oleo": {
+      "confianca": "alta",
+      "frequencia": 6,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "olla": {
+      "confianca": "alta",
+      "frequencia": 15,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "olmesartana": {
+      "confianca": "alta",
+      "frequencia": 46,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "omeprazol": {
+      "confianca": "alta",
+      "frequencia": 9,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "orlistate": {
+      "confianca": "alta",
+      "frequencia": 8,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "oxalato": {
+      "confianca": "alta",
+      "frequencia": 27,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "palmolive": {
+      "confianca": "alta",
+      "frequencia": 77,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "pampers": {
+      "confianca": "alta",
+      "frequencia": 16,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "pantene": {
+      "confianca": "alta",
+      "frequencia": 20,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "pantoprazol": {
+      "confianca": "alta",
+      "frequencia": 25,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "paracetamol": {
+      "confianca": "alta",
+      "frequencia": 32,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "pasta": {
+      "confianca": "alta",
+      "frequencia": 9,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "pastilha": {
+      "confianca": "alta",
+      "frequencia": 16,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "pastilhas": {
+      "confianca": "alta",
+      "frequencia": 10,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "pele": {
+      "confianca": "media",
+      "frequencia": 70,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "pentear": {
+      "confianca": "alta",
+      "frequencia": 41,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "pentoxifilina": {
+      "confianca": "alta",
+      "frequencia": 6,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "periogard": {
+      "confianca": "alta",
+      "frequencia": 39,
+      "principio_ativo": "clorexidina",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "permanente": {
+      "confianca": "baixa",
+      "frequencia": 37,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "piroxicam": {
+      "confianca": "alta",
+      "frequencia": 9,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "pisa": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "fabricante_generico"
+    },
+    "pitavastatina": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "plastia": {
+      "confianca": "media",
+      "frequencia": 20,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "plax": {
+      "confianca": "alta",
+      "frequencia": 42,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "polivitaminico": {
+      "confianca": "alta",
+      "frequencia": 9,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "pomada": {
+      "confianca": "alta",
+      "frequencia": 17,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "potassica": {
+      "confianca": "alta",
+      "frequencia": 23,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "potassio": {
+      "confianca": "alta",
+      "frequencia": 39,
+      "principio_ativo": "potassio",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "prati": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "prati donaduzzi": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "prednisolona": {
+      "confianca": "alta",
+      "frequencia": 32,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "prednisona": {
+      "confianca": "alta",
+      "frequencia": 8,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "predsim": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "prednisolona",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "pregabalina": {
+      "confianca": "alta",
+      "frequencia": 7,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "preservativo": {
+      "confianca": "alta",
+      "frequencia": 18,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "prestobarba": {
+      "confianca": "alta",
+      "frequencia": 29,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "prestobarba3": {
+      "confianca": "alta",
+      "frequencia": 21,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "preto": {
+      "confianca": "alta",
+      "frequencia": 25,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "prevencao": {
+      "confianca": "media",
+      "frequencia": 40,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "prod": {
+      "confianca": "baixa",
+      "frequencia": 15,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "profunda": {
+      "confianca": "media",
+      "frequencia": 33,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "prolongada": {
+      "confianca": "alta",
+      "frequencia": 48,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "promestrieno": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "propionato": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "protecao": {
+      "confianca": "media",
+      "frequencia": 24,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "protect": {
+      "confianca": "alta",
+      "frequencia": 32,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "protetor": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "protex": {
+      "confianca": "alta",
+      "frequencia": 175,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "puran": {
+      "confianca": "alta",
+      "frequencia": 7,
+      "principio_ativo": "levotiroxina",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "pyrena": {
+      "confianca": "baixa",
+      "frequencia": 18,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "quetiapina": {
+      "confianca": "alta",
+      "frequencia": 27,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "ranbaxy": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "real": {
+      "confianca": "baixa",
+      "frequencia": 18,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "reckitt": {
+      "confianca": "alta",
+      "frequencia": 17,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "fabricante_generico"
+    },
+    "redoxon": {
+      "confianca": "alta",
+      "frequencia": 25,
+      "principio_ativo": "acido ascorbico",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "refil": {
+      "confianca": "alta",
+      "frequencia": 25,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "reforcada": {
+      "confianca": "media",
+      "frequencia": 16,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "removedor": {
+      "confianca": "media",
+      "frequencia": 5,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "repair": {
+      "confianca": "alta",
+      "frequencia": 36,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "resgata": {
+      "confianca": "media",
+      "frequencia": 27,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "restauracao": {
+      "confianca": "media",
+      "frequencia": 33,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "rifamicina": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "risedronato": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "risperidona": {
+      "confianca": "alta",
+      "frequencia": 13,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "risque": {
+      "confianca": "alta",
+      "frequencia": 103,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "rivaroxabana": {
+      "confianca": "alta",
+      "frequencia": 14,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "rose": {
+      "confianca": "alta",
+      "frequencia": 20,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "rosuvastatina": {
+      "confianca": "alta",
+      "frequencia": 14,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "runner": {
+      "confianca": "baixa",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "sab": {
+      "confianca": "baixa",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "sabonete": {
+      "confianca": "alta",
+      "frequencia": 220,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "sabor": {
+      "confianca": "media",
+      "frequencia": 74,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "sandoz": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "sanval": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "seakalm": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "passiflora incarnata",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "secnidazol": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "semp": {
+      "confianca": "alta",
+      "frequencia": 10,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "fabricante_generico"
+    },
+    "sensacao": {
+      "confianca": "baixa",
+      "frequencia": 22,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "sensibilidade": {
+      "confianca": "alta",
+      "frequencia": 15,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "sensitive": {
+      "confianca": "alta",
+      "frequencia": 94,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "sensivel": {
+      "confianca": "alta",
+      "frequencia": 24,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "seringa": {
+      "confianca": "alta",
+      "frequencia": 23,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "sertralina": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "serum": {
+      "confianca": "alta",
+      "frequencia": 15,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "shampoo": {
+      "confianca": "alta",
+      "frequencia": 150,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "siage": {
+      "confianca": "alta",
+      "frequencia": 7,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "sibutramina": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "simeticona": {
+      "confianca": "alta",
+      "frequencia": 14,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "sinot": {
+      "confianca": "baixa",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "sinvastatina": {
+      "confianca": "alta",
+      "frequencia": 13,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "sodico": {
+      "confianca": "alta",
+      "frequencia": 74,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "sodio": {
+      "confianca": "alta",
+      "frequencia": 47,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "soft": {
+      "confianca": "media",
+      "frequencia": 23,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "solucao": {
+      "confianca": "alta",
+      "frequencia": 14,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "sonozzz": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "melatonina",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "spray": {
+      "confianca": "alta",
+      "frequencia": 6,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "strepsils": {
+      "confianca": "alta",
+      "frequencia": 19,
+      "principio_ativo": "diclorobenzilico/amilmetacresol",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "suave": {
+      "confianca": "alta",
+      "frequencia": 24,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "succinato": {
+      "confianca": "alta",
+      "frequencia": 24,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "sulfametoxazol": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "sulfato": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "sumax": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "sumatriptana",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "suspensao": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "tadalafila": {
+      "confianca": "alta",
+      "frequencia": 7,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "tandy": {
+      "confianca": "alta",
+      "frequencia": 26,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "tenoxicam": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "teste": {
+      "confianca": "alta",
+      "frequencia": 25,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "teuto": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "tibolona": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "tinidazol": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "tinta": {
+      "confianca": "media",
+      "frequencia": 53,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "tintura": {
+      "confianca": "alta",
+      "frequencia": 55,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "tioconazol": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "tonico": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "topiramato": {
+      "confianca": "alta",
+      "frequencia": 26,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "torrent": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "total": {
+      "confianca": "media",
+      "frequencia": 105,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "tramadol": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "tramal": {
+      "confianca": "alta",
+      "frequencia": 4,
+      "principio_ativo": "tramadol",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "tratamento": {
+      "confianca": "alta",
+      "frequencia": 7,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "triancinolona": {
+      "confianca": "alta",
+      "frequencia": 5,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "tripla": {
+      "confianca": "media",
+      "frequencia": 35,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "trometamol": {
+      "confianca": "alta",
+      "frequencia": 14,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "tylenol": {
+      "confianca": "alta",
+      "frequencia": 11,
+      "principio_ativo": "paracetamol",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "ultra": {
+      "confianca": "media",
+      "frequencia": 23,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "vaginal": {
+      "confianca": "alta",
+      "frequencia": 41,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "val": {
+      "confianca": "media",
+      "frequencia": 4,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "valerato": {
+      "confianca": "alta",
+      "frequencia": 9,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "prefixo_sal"
+    },
+    "valsartana": {
+      "confianca": "alta",
+      "frequencia": 8,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "vanlure": {
+      "confianca": "baixa",
+      "frequencia": 6,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "vaporub": {
+      "confianca": "alta",
+      "frequencia": 15,
+      "principio_ativo": "cânfora, levomentol e óleo de eucalipto",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "vartaz": {
+      "confianca": "alta",
+      "frequencia": 3,
+      "principio_ativo": "valsartana",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "veet": {
+      "confianca": "alta",
+      "frequencia": 22,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "venus": {
+      "confianca": "alta",
+      "frequencia": 31,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "vera": {
+      "confianca": "baixa",
+      "frequencia": 15,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "viagem": {
+      "confianca": "media",
+      "frequencia": 3,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "vick": {
+      "confianca": "alta",
+      "frequencia": 40,
+      "principio_ativo": "mentol/cânfora/óleo de eucalipto",
+      "revisado": false,
+      "tipo": "marca"
+    },
+    "vitamedic": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    },
+    "vitamina": {
+      "confianca": "media",
+      "frequencia": 34,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "outro"
+    },
+    "white": {
+      "confianca": "alta",
+      "frequencia": 61,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "variante_produto"
+    },
+    "xarope": {
+      "confianca": "alta",
+      "frequencia": 21,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "categoria_produto"
+    },
+    "zolpidem": {
+      "confianca": "alta",
+      "frequencia": 16,
+      "principio_ativo": "",
+      "revisado": false,
+      "tipo": "principio_ativo"
+    },
+    "zydus": {
+      "confianca": "alta",
+      "fonte": "lista hardcoded LABORATORIOS_GENERICO (scripts .user.js)",
+      "frequencia": 0,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "fabricante_generico"
+    }
+  },
+  "termos_compostos": {
+    "joao maria": {
+      "confianca": "alta",
+      "fonte": "verificado manualmente (produtos infantis Joao e Maria - shampoo/sabonete)",
+      "frequencia": 10,
+      "principio_ativo": "",
+      "revisado": true,
+      "tipo": "marca_composta"
+    }
+  }
+}
