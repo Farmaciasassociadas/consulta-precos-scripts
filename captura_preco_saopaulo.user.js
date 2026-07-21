@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São Paulo (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      3.4
+// @version      3.5
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @description  Busca o EAN na Farmácias São Paulo, entra no produto, lé o preço via JSON-LD e copia para a área de transferência.
@@ -176,6 +176,11 @@
             if (unidade === 'kg') { valor *= 1000; unidade = 'g'; }
             if (unidade === 'l' || unidade === 'litro' || unidade === 'litros') { valor *= 1000; unidade = 'ml'; }
             if (unidade === 'metro' || unidade === 'metros') { unidade = 'mts'; }
+            // Em comprimido/capsula/dragea, "g" e a DOSE do principio ativo
+            // (ex.: Dipirona 1g), nao o peso da embalagem — converte pra mg
+            // (x1000) e cai no MESMO balde, tornando 1g comparavel a 500mg.
+            // Creme/liquido nao tem essa palavra: "g" segue como peso.
+            if (unidade === 'g' && /\b(?:comprimidos?|comprs?|cpr|caps|c[aá]psulas?|drageas?)\b/.test((t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''))) { valor *= 1000; unidade = 'mg'; }
             if (!medidas[unidade]) medidas[unidade] = [];
             medidas[unidade].push(valor);
         }
