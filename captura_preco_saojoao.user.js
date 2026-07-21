@@ -1,12 +1,16 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São João (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      3.7
+// @version      3.8
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saojoao.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saojoao.user.js
 // @description  Consulta o EAN na API pública do site da São João (VTEX) e copia o preço para a área de transferência. Não precisa navegar até o produto.
 // @match        https://www.saojoaofarmacias.com.br/*
 // @grant        GM_setClipboard
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_xmlhttpRequest
+// @connect      raw.githubusercontent.com
 // @run-at       document-idle
 // ==/UserScript==
 
@@ -456,6 +460,65 @@
         return [comum / A.length, comum / B.length];
     }
 
+    const URL_DICIONARIO = 'https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/dicionario_termos.json';
+    const DICIONARIO_CACHE_MS = 12 * 60 * 60 * 1000;
+    let DICIONARIO_TERMOS = null;
+    try {
+        const bruto = GM_getValue('dicionario_termos_cache', null);
+        const quando = GM_getValue('dicionario_termos_cache_hora', 0);
+        if (bruto) { try { DICIONARIO_TERMOS = JSON.parse(bruto); } catch (e) { } }
+        if ((!bruto || (Date.now() - quando) > DICIONARIO_CACHE_MS) && typeof GM_xmlhttpRequest === 'function') {
+            GM_xmlhttpRequest({
+                method: 'GET', url: URL_DICIONARIO, timeout: 8000,
+                onload: (resp) => {
+                    try {
+                        JSON.parse(resp.responseText);
+                        GM_setValue('dicionario_termos_cache', resp.responseText);
+                        GM_setValue('dicionario_termos_cache_hora', Date.now());
+                    } catch (e) { }
+                },
+                onerror: () => { }, ontimeout: () => { },
+            });
+        }
+    } catch (e) { }
+
+    function termosConhecidosNoDicionario(nome, tipoAlvo) {
+        const achados = new Set();
+        if (!DICIONARIO_TERMOS || !DICIONARIO_TERMOS.termos) return achados;
+        for (const tok of tokensDoNome(nome)) {
+            const info = DICIONARIO_TERMOS.termos[tok];
+            if (info && info.tipo === tipoAlvo && info.confianca !== 'baixa') achados.add(tok);
+        }
+        return achados;
+    }
+
+    function principioAtivoViaDicionario(nome) {
+        const diretos = termosConhecidosNoDicionario(nome, 'principio_ativo');
+        if (diretos.size) return diretos;
+        const viaMarca = new Set();
+        for (const m of termosConhecidosNoDicionario(nome, 'marca')) {
+            const pa = ((DICIONARIO_TERMOS.termos[m] || {}).principio_ativo || '').toLowerCase();
+            if (pa) viaMarca.add(pa.split(',')[0].split('/')[0].trim());
+        }
+        return viaMarca;
+    }
+
+    function algumEmComum(a, b) {
+        for (const x of a) if (b.has(x)) return true;
+        return false;
+    }
+
+    function dicionarioConflita(esperado, candidato) {
+        if (!DICIONARIO_TERMOS || !DICIONARIO_TERMOS.termos) return false;
+        const marcasE = termosConhecidosNoDicionario(esperado, 'marca');
+        const marcasC = termosConhecidosNoDicionario(candidato, 'marca');
+        if (marcasE.size && marcasC.size && !algumEmComum(marcasE, marcasC)) return true;
+        const paE = principioAtivoViaDicionario(esperado);
+        const paC = principioAtivoViaDicionario(candidato);
+        if (paE.size && paC.size && !algumEmComum(paE, paC)) return true;
+        return false;
+    }
+
     function notaComUnidades(esperado, candidato) {
         let nota = similaridadeNomes(esperado, candidato);
         if (!nota) return 0;
@@ -463,6 +526,7 @@
         if (ehKitOuCombo(esperado) !== ehKitOuCombo(candidato)) return 0;
         const labE = laboratorioDoNome(esperado), labC = laboratorioDoNome(candidato);
         if (labE && labC && labE !== labC) return 0;
+        if (dicionarioConflita(esperado, candidato)) return 0;
         // quantidade de comprimidos/capsulas diferente = OUTRO produto
         const de = doseDoNome(esperado), dc = doseDoNome(candidato);
         if (de !== null && dc !== null && de !== dc) return 0;
