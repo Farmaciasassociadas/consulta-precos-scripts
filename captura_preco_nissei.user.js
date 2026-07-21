@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias Nissei (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      3.8
+// @version      3.9
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_nissei.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_nissei.user.js
 // @description  Busca o EAN na Nissei, entra no produto, lê o preço via JSON-LD + bloco de preço e copia para a área de transferência.
@@ -473,6 +473,24 @@
         return m ? m[1].trim() : '';
     }
 
+    // Publica o resultado nos DOIS canais: clipboard (compatibilidade + captura
+    // manual pelo usuario) e TITULO da aba. O titulo permite ao app ler o
+    // resultado de VARIAS abas ao mesmo tempo (coleta PARALELA) sem a colisao
+    // que o clipboard - canal unico - causaria. Re-afirma o titulo de tempos
+    // em tempos porque o site (SPA) reescreve document.title depois.
+    let _aeanIntervaloTitulo = null;
+    function emitirResultado(sentinel) {
+        try { GM_setClipboard(sentinel); } catch (e) { }
+        try {
+            const marca = 'AEAN|' + sentinel;
+            document.title = marca;
+            if (_aeanIntervaloTitulo) clearInterval(_aeanIntervaloTitulo);
+            _aeanIntervaloTitulo = setInterval(() => {
+                if (document.title !== marca) document.title = marca;
+            }, 600);
+        } catch (e) { }
+    }
+
     function montarSentinel(ean, status, preco, estoque, obs, nome) {
         const limpar = (t) => (t || '').replace(/[;=\n\r]/g, ' ').replace(/\s+/g, ' ').trim();
         return `EAN=${ean};SITE=${SITE};STATUS=${status};PRECO=${preco || ''};ESTOQUE=${estoque || ''};OBS=${limpar(obs)};NOME=${limpar(nome)};URL=${(URL_DO_RESULTADO || '').replace(/[;\s]/g, '')};PRINCIPIO=${limpar(PRINCIPIO_ATIVO_PAGINA)};MARCA=${limpar(MARCA_PAGINA)}`;
@@ -523,7 +541,7 @@
     function enviarPing(ean) {
         if (pingEnviado) return;
         pingEnviado = true;
-        GM_setClipboard(`EAN=${ean};SITE=${SITE};STATUS=PING;PRECO=;ESTOQUE=;OBS=;NOME=`);
+        emitirResultado(`EAN=${ean};SITE=${SITE};STATUS=PING;PRECO=;ESTOQUE=;OBS=;NOME=`);
     }
 
     function paginaDeBusca() {
@@ -540,7 +558,7 @@
         const n = parseInt(m[1], 10);
 
         if (n === 0 || n > MAX_RESULTADOS_REAIS) {
-            GM_setClipboard(montarSentinel(ean, 'NAO_ENCONTRADO', '', '', '', ''));
+            emitirResultado(montarSentinel(ean, 'NAO_ENCONTRADO', '', '', '', ''));
             console.log('[assistente-ean] Nissei: nao encontrado (', n, 'resultados):', ean);
             encerrarAba();
             return;
@@ -585,7 +603,7 @@
             tentativasNome++;
             const m = document.body.innerText.match(/(\d+)\s*produtos?/i);
             if ((m && parseInt(m[1], 10) === 0) || tentativasNome > 20) {
-                GM_setClipboard(montarSentinel(EAN_DO_FRAGMENTO, 'NAO_ENCONTRADO', '', '', '', ''));
+                emitirResultado(montarSentinel(EAN_DO_FRAGMENTO, 'NAO_ENCONTRADO', '', '', '', ''));
                 console.log('[assistente-ean] Nissei: busca por nome sem resultados');
                 encerrarAba();
                 return;
@@ -600,7 +618,7 @@
         }
         if (!melhor || melhorNota < LIMIAR_NOME) {
             console.log('[assistente-ean] Nissei: nenhum candidato parecido o bastante (melhor:', melhorNota.toFixed(2), ')');
-            GM_setClipboard(montarSentinel(EAN_DO_FRAGMENTO, 'NAO_ENCONTRADO', '', '', '', ''));
+            emitirResultado(montarSentinel(EAN_DO_FRAGMENTO, 'NAO_ENCONTRADO', '', '', '', ''));
             encerrarAba();
             return;
         }
@@ -640,7 +658,7 @@
             // Página 404 (link morto): conclui como NAO_ENCONTRADO na hora.
             if (/página não encontrada|page not found/i.test(document.body.innerText)) {
                 GM_setValue('ean_buscado', '');
-                GM_setClipboard(montarSentinel(eanBuscado, 'NAO_ENCONTRADO', '', '', '', ''));
+                emitirResultado(montarSentinel(eanBuscado, 'NAO_ENCONTRADO', '', '', '', ''));
                 console.log('[assistente-ean] Nissei: pagina 404 — NAO_ENCONTRADO para', eanBuscado);
                 encerrarAba();
                 return;
@@ -657,7 +675,7 @@
                     || ((document.querySelector('h1') || {}).innerText || '').trim();
                 GM_setValue('ean_buscado', '');
                 try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { }
-                GM_setClipboard(montarSentinel(eanBuscado, 'INDISPONIVEL', '', 'SEM_ESTOQUE', '', nome));
+                emitirResultado(montarSentinel(eanBuscado, 'INDISPONIVEL', '', 'SEM_ESTOQUE', '', nome));
                 console.log('[assistente-ean] Nissei: preco INDISPONIVEL para', eanBuscado);
                 encerrarAba();
                 return;
@@ -746,13 +764,13 @@
         if (MODO_POR_NOME) {
             // Produto aceito pela SEMELHANÇA DE NOME (o EAN não bateu na busca).
             const obsNome = `Achado por NOME (EAN do site: ${gtin || '-'})` + obsEmbalagem(preco, nome) + (obs ? ' / ' + obs : '');
-            GM_setClipboard(montarSentinel(eanBuscado, 'POR_NOME', preco, estoque, obsNome, nome));
+            emitirResultado(montarSentinel(eanBuscado, 'POR_NOME', preco, estoque, obsNome, nome));
             console.log('[assistente-ean] Nissei: preco POR NOME:', preco, 'EAN do site:', gtin);
         } else if (gtin && semZeros(gtin) !== semZeros(eanBuscado)) {
-            GM_setClipboard(montarSentinel(eanBuscado, 'DIVERGENTE', preco, estoque, obs, `${nome} (gtin real: ${gtin})`));
+            emitirResultado(montarSentinel(eanBuscado, 'DIVERGENTE', preco, estoque, obs, `${nome} (gtin real: ${gtin})`));
             console.log('[assistente-ean] Nissei: EAN divergente. Buscado:', eanBuscado, 'Pagina:', gtin);
         } else {
-            GM_setClipboard(montarSentinel(eanBuscado, 'OK', preco, estoque, obs, nome));
+            emitirResultado(montarSentinel(eanBuscado, 'OK', preco, estoque, obs, nome));
             console.log('[assistente-ean] Nissei: preco copiado:', preco, 'Obs:', obs || '(sem promo)');
         }
 

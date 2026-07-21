@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Panvel (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      2.3
+// @version      2.4
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_panvel.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_panvel.user.js
 // @description  Busca o EAN na Panvel: pega o código do produto no card da busca e lê preço/estoque/princípio ativo pela API de catálogo (sem entrar na página do produto). Copia o resultado para a área de transferência.
@@ -346,6 +346,24 @@
         return item ? String(item.value || '').trim() : '';
     }
 
+    // Publica o resultado nos DOIS canais: clipboard (compatibilidade + captura
+    // manual pelo usuario) e TITULO da aba. O titulo permite ao app ler o
+    // resultado de VARIAS abas ao mesmo tempo (coleta PARALELA) sem a colisao
+    // que o clipboard - canal unico - causaria. Re-afirma o titulo de tempos
+    // em tempos porque o site (SPA) reescreve document.title depois.
+    let _aeanIntervaloTitulo = null;
+    function emitirResultado(sentinel) {
+        try { GM_setClipboard(sentinel); } catch (e) { }
+        try {
+            const marca = 'AEAN|' + sentinel;
+            document.title = marca;
+            if (_aeanIntervaloTitulo) clearInterval(_aeanIntervaloTitulo);
+            _aeanIntervaloTitulo = setInterval(() => {
+                if (document.title !== marca) document.title = marca;
+            }, 600);
+        } catch (e) { }
+    }
+
     function montarSentinel(ean, status, preco, estoque, obs, nome) {
         const limpar = (t) => (t || '').replace(/[;=\n\r]/g, ' ').replace(/\s+/g, ' ').trim();
         return `EAN=${ean};SITE=${SITE};STATUS=${status};PRECO=${preco || ''};ESTOQUE=${estoque || ''};OBS=${limpar(obs)};NOME=${limpar(nome)};URL=${(URL_DO_RESULTADO || '').replace(/[;\s]/g, '')};PRINCIPIO=${limpar(PRINCIPIO_ATIVO_PAGINA)};MARCA=${limpar(MARCA_PAGINA)}`;
@@ -381,7 +399,7 @@
     function enviarPing(ean) {
         if (pingEnviado) return;
         pingEnviado = true;
-        GM_setClipboard(`EAN=${ean};SITE=${SITE};STATUS=PING;PRECO=;ESTOQUE=;OBS=;NOME=`);
+        emitirResultado(`EAN=${ean};SITE=${SITE};STATUS=PING;PRECO=;ESTOQUE=;OBS=;NOME=`);
     }
 
     // ------------------------------------------------------------------
@@ -430,7 +448,7 @@
             return;
         }
         if (!cat || cat.naoEncontrado || !cat.ean) {
-            GM_setClipboard(montarSentinel(eanBuscado, 'NAO_ENCONTRADO', '', '', '', ''));
+            emitirResultado(montarSentinel(eanBuscado, 'NAO_ENCONTRADO', '', '', '', ''));
             console.log('[assistente-ean] Panvel: catálogo sem produto para código', code);
             encerrarAba();
             return;
@@ -467,7 +485,7 @@
 
         if (!precoStr) {
             // Produto existe mas sem preço utilizável: trata como indisponível.
-            GM_setClipboard(montarSentinel(eanBuscado, 'INDISPONIVEL', '', 'SEM_ESTOQUE', '', nome));
+            emitirResultado(montarSentinel(eanBuscado, 'INDISPONIVEL', '', 'SEM_ESTOQUE', '', nome));
             console.log('[assistente-ean] Panvel: sem preço utilizável para', eanBuscado);
             encerrarAba();
             return;
@@ -477,13 +495,13 @@
         if (porNome) {
             const obsNome = `Achado por NOME (EAN do site: ${gtin || '-'})`
                 + obsEmbalagem(precoStr, nome) + (obs ? ' / ' + obs : '');
-            GM_setClipboard(montarSentinel(eanBuscado, 'POR_NOME', precoStr, estoque, obsNome, nome));
+            emitirResultado(montarSentinel(eanBuscado, 'POR_NOME', precoStr, estoque, obsNome, nome));
             console.log('[assistente-ean] Panvel: POR NOME', precoStr, 'EAN site:', gtin);
         } else if (gtin && semZeros(gtin) !== semZeros(eanBuscado)) {
-            GM_setClipboard(montarSentinel(eanBuscado, 'DIVERGENTE', precoStr, estoque, obs, `${nome} (gtin real: ${gtin})`));
+            emitirResultado(montarSentinel(eanBuscado, 'DIVERGENTE', precoStr, estoque, obs, `${nome} (gtin real: ${gtin})`));
             console.log('[assistente-ean] Panvel: DIVERGENTE. Buscado:', eanBuscado, 'API:', gtin);
         } else {
-            GM_setClipboard(montarSentinel(eanBuscado, 'OK', precoStr, estoque, obs, nome));
+            emitirResultado(montarSentinel(eanBuscado, 'OK', precoStr, estoque, obs, nome));
             console.log('[assistente-ean] Panvel: OK', precoStr, 'Estoque:', estoque, 'Obs:', obs || '(sem promo)');
         }
         encerrarAba();
@@ -522,7 +540,7 @@
         tentativasBusca++;
         const semResultado = RE_SEM_RESULTADO.test(document.body.innerText);
         if (semResultado && tentativasBusca >= 5) {
-            GM_setClipboard(montarSentinel(eanBuscado, 'NAO_ENCONTRADO', '', '', '', ''));
+            emitirResultado(montarSentinel(eanBuscado, 'NAO_ENCONTRADO', '', '', '', ''));
             console.log('[assistente-ean] Panvel: nao encontrado (confirmado apos', tentativasBusca, 'tentativas):', eanBuscado);
             encerrarAba();
             return;
@@ -550,7 +568,7 @@
         if (!candidatos.length) {
             tentativasNome++;
             if (semResultado || tentativasNome > 20) {
-                GM_setClipboard(montarSentinel(EAN_DO_FRAGMENTO, 'NAO_ENCONTRADO', '', '', '', ''));
+                emitirResultado(montarSentinel(EAN_DO_FRAGMENTO, 'NAO_ENCONTRADO', '', '', '', ''));
                 console.log('[assistente-ean] Panvel: busca por nome sem resultados');
                 encerrarAba();
                 return;
@@ -566,7 +584,7 @@
         }
         if (!melhor || melhorNota < LIMIAR_NOME) {
             console.log('[assistente-ean] Panvel: nenhum candidato parecido o bastante (melhor:', melhorNota.toFixed(2), ')');
-            GM_setClipboard(montarSentinel(EAN_DO_FRAGMENTO, 'NAO_ENCONTRADO', '', '', '', ''));
+            emitirResultado(montarSentinel(EAN_DO_FRAGMENTO, 'NAO_ENCONTRADO', '', '', '', ''));
             encerrarAba();
             return;
         }
@@ -577,7 +595,7 @@
             return;
         }
         // URL do card sem /p-<código> (não deveria acontecer): desiste.
-        GM_setClipboard(montarSentinel(EAN_DO_FRAGMENTO, 'NAO_ENCONTRADO', '', '', '', ''));
+        emitirResultado(montarSentinel(EAN_DO_FRAGMENTO, 'NAO_ENCONTRADO', '', '', '', ''));
         encerrarAba();
     }
 
@@ -620,7 +638,7 @@
         if (!produto || !produto.offers || !produto.offers.price) {
             if (/p[aá]gina n[ãa]o encontrada|page not found/i.test(document.body.innerText)) {
                 GM_setValue('ean_buscado', '');
-                GM_setClipboard(montarSentinel(eanBuscado, 'NAO_ENCONTRADO', '', '', '', ''));
+                emitirResultado(montarSentinel(eanBuscado, 'NAO_ENCONTRADO', '', '', '', ''));
                 console.log('[assistente-ean] Panvel: pagina 404 — NAO_ENCONTRADO para', eanBuscado);
                 encerrarAba();
                 return;
@@ -632,7 +650,7 @@
                     || ((document.querySelector('h1') || {}).innerText || '').trim();
                 GM_setValue('ean_buscado', '');
                 try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { }
-                GM_setClipboard(montarSentinel(eanBuscado, 'INDISPONIVEL', '', 'SEM_ESTOQUE', '', nome));
+                emitirResultado(montarSentinel(eanBuscado, 'INDISPONIVEL', '', 'SEM_ESTOQUE', '', nome));
                 console.log('[assistente-ean] Panvel: preco INDISPONIVEL para', eanBuscado);
                 encerrarAba();
                 return;
@@ -664,13 +682,13 @@
 
         if (MODO_POR_NOME) {
             const obsNome = `Achado por NOME (EAN do site: ${gtin || '-'})` + obsEmbalagem(preco, nome) + (obs ? ' / ' + obs : '');
-            GM_setClipboard(montarSentinel(eanBuscado, 'POR_NOME', preco, estoque, obsNome, nome));
+            emitirResultado(montarSentinel(eanBuscado, 'POR_NOME', preco, estoque, obsNome, nome));
             console.log('[assistente-ean] Panvel: preco POR NOME:', preco, 'EAN buscado:', eanBuscado, 'EAN do site:', gtin);
         } else if (gtin && semZeros(gtin) !== semZeros(eanBuscado)) {
-            GM_setClipboard(montarSentinel(eanBuscado, 'DIVERGENTE', preco, estoque, obs, `${nome} (gtin real: ${gtin})`));
+            emitirResultado(montarSentinel(eanBuscado, 'DIVERGENTE', preco, estoque, obs, `${nome} (gtin real: ${gtin})`));
             console.log('[assistente-ean] Panvel: EAN divergente. Buscado:', eanBuscado, 'Pagina:', gtin);
         } else {
-            GM_setClipboard(montarSentinel(eanBuscado, 'OK', preco, estoque, obs, nome));
+            emitirResultado(montarSentinel(eanBuscado, 'OK', preco, estoque, obs, nome));
             console.log('[assistente-ean] Panvel: preco copiado:', preco, 'Estoque:', estoque, 'Obs:', obs || '(sem promo)');
         }
 
