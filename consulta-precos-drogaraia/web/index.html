@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Radar de Preços — Farmácias Associadas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="app">
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#f3fbf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="9"/></svg>
+      </span>
+      <div class="brand-text">
+        <span class="brand-name">Radar de Preços</span>
+        <span class="brand-sub">Farmácias Associadas Maringá</span>
+      </div>
+    </div>
+
+    <div class="topbar-meta">
+      <span class="meta-item"><span class="dot live" id="collectDot"></span> <span id="collectState">Coletando</span></span>
+      <span class="meta-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+        Sincronizado há 2 min · 2 PCs
+      </span>
+      <span class="meta-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        Sessão iniciada 04:12
+      </span>
+    </div>
+
+    <div class="topbar-actions">
+      <button class="icon-btn" title="Configurações" aria-label="Configurações">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <button class="icon-btn" id="themeToggle" title="Alternar tema" aria-label="Alternar tema claro/escuro">
+        <svg id="iconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <!-- Overview -->
+    <section class="overview" aria-label="Resumo da coleta">
+      <div class="overview-progress">
+        <div class="overview-progress-head">
+          <span class="overview-figure">86<small>%</small></span>
+          <span class="overview-label">concluído · 1.722 de 2.007 itens</span>
+          <span class="overview-review">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+            220 para revisar
+          </span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      </div>
+      <div class="overview-stats">
+        <div class="overview-stat"><span class="n">11.656</span><span class="l">Gravadas</span></div>
+        <div class="overview-stat"><span class="n">868</span><span class="l">Pendentes</span></div>
+        <div class="overview-stat"><span class="n">2.365</span><span class="l">Na fila</span></div>
+      </div>
+      <div class="pharmacy-tally">
+        <span class="tally-chip">Droga Raia <b>80</b></span>
+        <span class="tally-chip">Nissei <b>346</b></span>
+        <span class="tally-chip">São João <b>78</b></span>
+        <span class="tally-chip">São Paulo <b>291</b></span>
+        <span class="tally-chip">Panvel <b>73</b></span>
+      </div>
+    </section>
+
+    <!-- Controls -->
+    <section class="controls" aria-label="Controles de coleta">
+      <div class="run-controls">
+        <button class="btn btn-primary" id="btnStart">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          Iniciar coleta
+        </button>
+        <button class="btn" id="btnPause" disabled>
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+          Pausar
+        </button>
+        <button class="btn btn-danger-ghost" id="btnStop" disabled>
+          <svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="1"/></svg>
+          Parar
+        </button>
+      </div>
+
+      <span class="run-state" id="runState">
+        <span class="dot" id="runDot"></span> Ocioso
+      </span>
+
+      <div class="field">
+        Lote
+        <select id="batchSize">
+          <option>5</option>
+          <option selected>25</option>
+          <option>50</option>
+          <option>100</option>
+          <option>200</option>
+          <option>500</option>
+          <option>Tudo</option>
+        </select>
+      </div>
+
+      <div class="pharmacy-toggles" aria-label="Farmácias consultadas">
+        <label class="ph-toggle"><input type="checkbox" checked><span class="swatch" style="background:#c4432f"></span>Droga Raia</label>
+        <label class="ph-toggle"><input type="checkbox" checked><span class="swatch" style="background:#0f6e5c"></span>Nissei</label>
+        <label class="ph-toggle"><input type="checkbox" checked><span class="swatch" style="background:#b9740f"></span>São João</label>
+        <label class="ph-toggle"><input type="checkbox" checked><span class="swatch" style="background:#5b5ba6"></span>São Paulo</label>
+        <label class="ph-toggle"><input type="checkbox" checked><span class="swatch" style="background:#2f8f5b"></span>Panvel</label>
+      </div>
+
+      <label class="ai-toggle">
+        <input type="checkbox" id="aiToggle">
+        <span class="switch"></span>
+        Sugestão por IA (Gemini)
+      </label>
+    </section>
+
+    <!-- Filters -->
+    <section class="filter-row" aria-label="Filtros de resultado">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input type="text" id="searchInput" placeholder="Buscar por EAN ou nome do produto…" />
+      </div>
+      <div class="chip-scroll" id="chipRow">
+        <button class="chip active" data-filter="todos">Todos <span class="count" data-count="todos">0</span></button>
+        <button class="chip" data-filter="menor-preco">★ Menor preço <span class="count" data-count="menor-preco">0</span></button>
+        <button class="chip" data-filter="por-nome">Por nome <span class="count" data-count="por-nome">0</span></button>
+        <button class="chip" data-filter="conferir">⚠ Conferir <span class="count" data-count="conferir">0</span></button>
+        <button class="chip" data-filter="nao-achou">Não achou <span class="count" data-count="nao-achou">0</span></button>
+        <button class="chip" data-filter="indisponivel">Indisponível <span class="count" data-count="indisponivel">0</span></button>
+        <button class="chip" data-filter="manual">Manual <span class="count" data-count="manual">0</span></button>
+      </div>
+    </section>
+
+    <!-- Table -->
+    <section class="table-wrap">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-num">#</th>
+              <th class="col-ean" data-sort="ean">EAN <span class="arrow">↕</span></th>
+              <th data-sort="produto">Produto <span class="arrow">↕</span></th>
+              <th data-sort="meu">Meu preço <span class="arrow">↕</span></th>
+              <th data-sort="raia">Droga Raia <span class="arrow">↕</span></th>
+              <th data-sort="nissei">Nissei <span class="arrow">↕</span></th>
+              <th data-sort="saojoao">São João <span class="arrow">↕</span></th>
+              <th data-sort="saopaulo">São Paulo <span class="arrow">↕</span></th>
+              <th data-sort="panvel">Panvel <span class="arrow">↕</span></th>
+              <th class="col-obs">Observações</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <!-- rows injected by app.js -->
+          </tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="emptyState">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <strong>Nada por aqui</strong>
+        <span>Nenhum item corresponde a esse filtro ou busca.</span>
+      </div>
+
+      <div class="statusbar">
+        <span><strong id="visibleCount">18</strong> de 18 exibidos</span>
+        <span class="sep">·</span>
+        <span>Sessão: <strong>142</strong> gravadas · <strong>3</strong> sem resposta · <strong>9</strong> promoções</span>
+        <span class="spacer"></span>
+        <button class="log-toggle" id="logToggle">
+          Log
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+      </div>
+
+      <div class="log-drawer" id="logDrawer">
+        <div class="log-inner" id="logInner">
+          <div class="log-line"><span class="t">04:50:08</span><span>Fila de prioridade: 13 itens problemáticos vão primeiro</span></div>
+          <div class="log-line"><span class="t">04:50:11</span><span class="ok-txt">São João: OK — 007034168967 encontrado por nome (R$ 41,72)</span></div>
+          <div class="log-line"><span class="t">04:50:14</span><span class="warn-txt">Droga Raia: busca por nome também falhou para 007034168971</span></div>
+          <div class="log-line"><span class="t">04:50:19</span><span class="err-txt">Panvel: timeout — Cloudflare detectou possível robô, entrando em quarentena (15 min)</span></div>
+          <div class="log-line"><span class="t">04:50:23</span><span class="ok-txt">Nissei: promoção detectada — de R$ 114,90 por R$ 70,98</span></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="made-with">Radar de Preços v1 · protótipo de interface a partir do app desktop v5.22</footer>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

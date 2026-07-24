@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "radar-precos-web",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8420", "--directory", "consulta-precos-drogaraia/web"],
+      "port": 8420
+    }
+  ]
+}
