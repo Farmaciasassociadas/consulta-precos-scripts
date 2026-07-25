@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Droga Raia (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      5.4
+// @version      5.5
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco.user.js
 // @description  Busca o EAN na Droga Raia, entra no produto, lê o preço via JSON-LD (com detecção de promoções) e copia para a área de transferência.
@@ -783,12 +783,18 @@
         }
 
         if (!produto || !produto.offers || !produto.offers.price) {
-            // Página 404 (a busca da Raia às vezes lista cards com link morto):
-            // conclui como NAO_ENCONTRADO na hora, sem esperar o timeout.
+            // Página 404 (a busca da Raia às vezes lista cards com link morto)
+            // — MAS na Raia essa mesma página também aparece quando o
+            // Cloudflare bloqueia a requisição (confirmado ao vivo em
+            // 07/2026): não dá pra distinguir só pelo texto. Por segurança,
+            // NÃO conclui mais como NAO_ENCONTRADO (arriscaria gravar "não
+            // achou" por engano de bloqueio, não de falta real) — emite
+            // BLOQUEIO: o app não grava nada, o item volta pendente e a Raia
+            // fica pausada uns minutos antes de tentar de novo.
             if (/página não encontrada|page not found/i.test(document.body.innerText)) {
                 GM_setValue('ean_buscado', '');
-                emitirResultado(montarSentinel(eanBuscado, 'NAO_ENCONTRADO', '', '', '', ''));
-                console.log('[assistente-ean] Raia: pagina 404 — NAO_ENCONTRADO para', eanBuscado);
+                emitirResultado(montarSentinel(eanBuscado, 'BLOQUEIO', '', '', '', ''));
+                console.log('[assistente-ean] Raia: pagina 404 — tratado como BLOQUEIO (possível antibot) para', eanBuscado);
                 encerrarAba();
                 return;
             }

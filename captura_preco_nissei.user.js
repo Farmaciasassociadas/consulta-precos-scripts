@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias Nissei (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      4.0
+// @version      4.1
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_nissei.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_nissei.user.js
 // @description  Busca o EAN na Nissei, entra no produto, lê o preço via JSON-LD + bloco de preço e copia para a área de transferência.
@@ -672,11 +672,16 @@
             }
         }
         if (!produto || !produto.offers || !produto.offers.price) {
-            // Página 404 (link morto): conclui como NAO_ENCONTRADO na hora.
+            // Página 404 (link morto) — mesmo tratamento da Raia (07/2026):
+            // a Nissei também tem proteção antibot e essa mesma página pode
+            // ser o bloqueio disfarçado de "não encontrado". Emite BLOQUEIO
+            // em vez de NAO_ENCONTRADO: o app não grava nada, o item volta
+            // pendente e a Nissei fica pausada uns minutos antes de tentar
+            // de novo.
             if (/página não encontrada|page not found/i.test(document.body.innerText)) {
                 GM_setValue('ean_buscado', '');
-                emitirResultado(montarSentinel(eanBuscado, 'NAO_ENCONTRADO', '', '', '', ''));
-                console.log('[assistente-ean] Nissei: pagina 404 — NAO_ENCONTRADO para', eanBuscado);
+                emitirResultado(montarSentinel(eanBuscado, 'BLOQUEIO', '', '', '', ''));
+                console.log('[assistente-ean] Nissei: pagina 404 — tratado como BLOQUEIO (possível antibot) para', eanBuscado);
                 encerrarAba();
                 return;
             }
