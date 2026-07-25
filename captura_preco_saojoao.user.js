@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São João (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      3.9
+// @version      4.0
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saojoao.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saojoao.user.js
 // @description  Consulta o EAN na API pública do site da São João (VTEX) e copia o preço para a área de transferência. Não precisa navegar até o produto.
@@ -710,6 +710,19 @@
         let item = itens.find(i => semZeros(i.ean) === semZeros(ean)) || itens[0];
         if (!item || !item.sellers || !item.sellers.length) {
             emitirResultado(montarSentinel(ean, 'NAO_ENCONTRADO', '', '', '', ''));
+            encerrarAba();
+            return;
+        }
+
+        // Marketplace: na VTEX, sellerId "1" é o vendedor OFICIAL da loja —
+        // qualquer outro é um terceiro (marketplace) e o preço não é da
+        // farmácia. Não interessa pra captura (pedido real: preço de
+        // marketplace poluindo a comparação entre farmácias).
+        const sellerEscolhido = item.sellers[0] || {};
+        if (sellerEscolhido.sellerId && sellerEscolhido.sellerId !== '1') {
+            const nomeVendedor = sellerEscolhido.sellerName || sellerEscolhido.sellerId;
+            emitirResultado(montarSentinel(ean, 'MARKETPLACE', '', '', `Vendido por: ${nomeVendedor}`, produto.productName || ''));
+            console.log('[assistente-ean] São João: MARKETPLACE detectado, vendedor', nomeVendedor, '- preco NAO capturado');
             encerrarAba();
             return;
         }

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Drogaria São Paulo (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      1.0
+// @version      1.1
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_drogariasp.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_drogariasp.user.js
 // @description  Consulta o EAN na API pública do site da Drogaria São Paulo (VTEX) e copia o preço para a área de transferência. Não precisa navegar até o produto.
@@ -718,6 +718,19 @@
         let item = itens.find(i => semZeros(i.ean) === semZeros(ean)) || itens[0];
         if (!item || !item.sellers || !item.sellers.length) {
             emitirResultado(montarSentinel(ean, 'NAO_ENCONTRADO', '', '', '', ''));
+            encerrarAba();
+            return;
+        }
+
+        // Marketplace: na VTEX, sellerId "1" é o vendedor OFICIAL da loja —
+        // qualquer outro é um terceiro (marketplace) e o preço não é da
+        // farmácia. Não interessa pra captura (pedido real: preço de
+        // marketplace poluindo a comparação entre farmácias).
+        const sellerEscolhido = item.sellers[0] || {};
+        if (sellerEscolhido.sellerId && sellerEscolhido.sellerId !== '1') {
+            const nomeVendedor = sellerEscolhido.sellerName || sellerEscolhido.sellerId;
+            emitirResultado(montarSentinel(ean, 'MARKETPLACE', '', '', `Vendido por: ${nomeVendedor}`, produto.productName || ''));
+            console.log('[assistente-ean] Drogaria São Paulo: MARKETPLACE detectado, vendedor', nomeVendedor, '- preco NAO capturado');
             encerrarAba();
             return;
         }

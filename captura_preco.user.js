@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Droga Raia (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      5.3
+// @version      5.4
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco.user.js
 // @description  Busca o EAN na Droga Raia, entra no produto, lê o preço via JSON-LD (com detecção de promoções) e copia para a área de transferência.
@@ -18,6 +18,9 @@
     'use strict';
 
     const SITE = 'drogaraia';
+    // Nome oficial da loja: usado pra distinguir "vendido por Droga Raia"
+    // (é a própria farmácia) de "vendido por <terceiro>" (marketplace).
+    const NOME_OFICIAL_RE = /droga\s*raia|raiadrogasil/i;
 
     // ------------------------------------------------------------------
     // PREPARO DA PÁGINA: aceitar cookies e informar o CEP sozinho.
@@ -513,6 +516,20 @@
         return `EAN=${ean};SITE=${SITE};STATUS=${status};PRECO=${preco || ''};ESTOQUE=${estoque || ''};OBS=${limpar(obs)};NOME=${limpar(nome)};URL=${(URL_DO_RESULTADO || '').replace(/[;\s]/g, '')};PRINCIPIO=${limpar(PRINCIPIO_ATIVO_PAGINA)};MARCA=${limpar(MARCA_PAGINA)}`;
     }
 
+    // Marketplace: quando a página mostra "vendido por"/"vendido e entregue
+    // por" um vendedor QUE NÃO é a própria loja, o preço é do terceiro, não
+    // da farmácia — não interessa pra captura. Retorna o nome do vendedor
+    // detectado, ou null se não achar o texto ou se for a própria loja.
+    function vendedorTerceiro(textoPagina) {
+        const m = textoPagina.match(/vendido(?:\s+e\s+entregue)?\s+por[:\s]+([^\n\r]{2,60})/i);
+        if (!m) return null;
+        const vendedor = m[1].trim().replace(/\s{2,}/g, ' ');
+        // Falsos-positivos comuns: "vendido por unidade/kg/caixa" etc. (não é nome de loja).
+        if (/^(unidade|un\.?|kg|g|l|ml|caixa|pacote|display|fardo|cento|d[uú]zia|pe[çc]a)\b/i.test(vendedor)) return null;
+        if (NOME_OFICIAL_RE.test(vendedor)) return null; // é a própria farmácia, não é marketplace
+        return vendedor;
+    }
+
     function encerrarAba() {
         // Best-effort: só funciona se a aba foi aberta via window.open() pelo próprio script.
         // O fechamento real e confiável é feito pelo Python (Ctrl+W), então isso é só um bônus.
@@ -807,6 +824,14 @@
 
         GM_setValue('ean_buscado', ''); // limpa para não reaproveitar em navegação futura
         try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { }
+
+        const vendedor = vendedorTerceiro(document.body.innerText);
+        if (vendedor) {
+            emitirResultado(montarSentinel(eanBuscado, 'MARKETPLACE', '', '', `Vendido por: ${vendedor}`, nome));
+            console.log('[assistente-ean] Raia: MARKETPLACE detectado, vendedor', vendedor, '- preco NAO capturado');
+            encerrarAba();
+            return;
+        }
 
         // Compara sem zeros à esquerda: EANs de origem UPC vêm na lista como
         // "0020800750158" e o site pode publicar o gtin sem esses zeros.
