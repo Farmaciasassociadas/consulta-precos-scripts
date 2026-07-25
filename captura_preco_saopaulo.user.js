@@ -453,8 +453,16 @@
     // que o clipboard - canal unico - causaria. Re-afirma o titulo de tempos
     // em tempos porque o site (SPA) reescreve document.title depois.
     let _aeanIntervaloTitulo = null;
+    // Modo paralelo (coleta automatica com 5 abas ao mesmo tempo): o app
+    // ja le o resultado pelo TITULO da aba, o clipboard vira redundante e so
+    // atrapalha quem usa copiar/colar no PC enquanto a coleta roda. O app manda
+    // esse marcador no fragmento da URL quando esta nesse modo.
+    const SEM_CLIPBOARD = /assistente_sem_clipboard=1/.test(location.hash || '');
+
     function emitirResultado(sentinel) {
-        try { GM_setClipboard(sentinel); } catch (e) { }
+        if (!SEM_CLIPBOARD) {
+            try { GM_setClipboard(sentinel); } catch (e) { }
+        }
         try {
             const marca = 'AEAN|' + sentinel;
             document.title = marca;
@@ -655,11 +663,18 @@
                     const texto = el.textContent || '';
                     if (!/R\$\s*\d/.test(texto)) continue;
                     let riscado = false;
-                    try { riscado = getComputedStyle(el).textDecorationLine.includes('line-through'); } catch (err) { }
-                    if (riscado) {
-                        resultado.precoOriginal = extrairValorBR(texto);
-                        break;
-                    }
+                    try {
+                        const cs = getComputedStyle(el);
+                        riscado = cs.textDecorationLine.includes('line-through')
+                            && cs.display !== 'none'
+                            && cs.visibility !== 'hidden'
+                            && el.offsetParent !== null;
+                    } catch (err) { }
+                    if (!riscado) continue;
+                    const valorOriginal = extrairValorBR(texto);
+                    if (!valorOriginal || parseFloat(valorOriginal.replace(',', '.')) === parseFloat(String(preco).replace(',', '.'))) continue;
+                    resultado.precoOriginal = valorOriginal;
+                    break;
                 }
             }
             if (!resultado.fraseLeve) {
