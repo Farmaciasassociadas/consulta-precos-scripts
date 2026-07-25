@@ -623,7 +623,7 @@
                 const certo = (lista || []).find(eanBate);
                 if (certo) {
                     produto = certo;
-                    PLACEHOLDER: achado pela Intelligent Search (regional)');
+                    console.log('[assistente-ean] Preço Popular: achado pela Intelligent Search (regional)');
                     break;
                 }
             }
@@ -638,7 +638,7 @@
                 if (eanBate(p)) {
                     p.urlPagina = l.url;
                     produto = p;
-                    PLACEHOLDER: achado pela PAGINA de busca (fallback DOM)');
+                    console.log('[assistente-ean] Preço Popular: achado pela PAGINA de busca (fallback DOM)');
                     break;
                 }
             }
@@ -646,7 +646,7 @@
 
         if (!produto) {
             emitirResultado(montarSentinel(ean, 'NAO_ENCONTRADO', '', '', '', ''));
-            PLACEHOLDER: nao encontrado:', ean);
+            console.log('[assistente-ean] Preço Popular: nao encontrado:', ean);
             encerrarAba();
             return;
         }
@@ -680,7 +680,7 @@
             if (nota > melhorNota) { melhorNota = nota; melhor = p; }
         }
         if (melhor && melhorNota >= LIMIAR_NOME) {
-            PLACEHOLDER: candidato por nome aceito (nota', melhorNota.toFixed(2), ')');
+            console.log('[assistente-ean] Preço Popular: candidato por nome aceito (nota', melhorNota.toFixed(2), ')');
             emitirDeProduto(melhor, ean, true);
             return;
         }
@@ -695,12 +695,12 @@
             const produto = await produtoDaPaginaDoLink(melhorLink.url);
             if (produto) {
                 produto.urlPagina = melhorLink.url;
-                PLACEHOLDER: candidato por nome via PAGINA (nota', notaLink.toFixed(2), ')');
+                console.log('[assistente-ean] Preço Popular: candidato por nome via PAGINA (nota', notaLink.toFixed(2), ')');
                 emitirDeProduto(produto, ean, true);
                 return;
             }
         }
-        PLACEHOLDER: nenhum candidato por nome (melhor:',
+        console.log('[assistente-ean] Preço Popular: nenhum candidato por nome (melhor:',
             Math.max(melhorNota, notaLink).toFixed(2), ')');
         emitirResultado(montarSentinel(ean, 'NAO_ENCONTRADO', '', '', '', ''));
         encerrarAba();
@@ -754,7 +754,7 @@
         // Produto cadastrado mas sem preço/estoque: registra como INDISPONIVEL.
         if (!preco) {
             emitirResultado(montarSentinel(ean, 'INDISPONIVEL', '', 'SEM_ESTOQUE', '', nome));
-            PLACEHOLDER: preco INDISPONIVEL para', ean);
+            console.log('[assistente-ean] Preço Popular: preco INDISPONIVEL para', ean);
             encerrarAba();
             return;
         }
@@ -763,19 +763,19 @@
             // Produto aceito pela SEMELHANÇA DE NOME (o EAN não bateu na busca).
             const obsNome = `Achado por NOME (EAN do site: ${gtinItem || '-'})` + obsEmbalagem(preco, nome) + (obs ? ' / ' + obs : '');
             emitirResultado(montarSentinel(ean, 'POR_NOME', preco, estoque, obsNome, nome));
-            PLACEHOLDER: preco POR NOME:', preco, 'EAN do site:', gtinItem);
+            console.log('[assistente-ean] Preço Popular: preco POR NOME:', preco, 'EAN do site:', gtinItem);
         } else if (gtinItem && semZeros(gtinItem) !== semZeros(ean)) {
             emitirResultado(montarSentinel(ean, 'DIVERGENTE', preco, estoque, obs, `${nome} (ean real: ${gtinItem})`));
-            PLACEHOLDER: EAN divergente. Buscado:', ean, 'API:', gtinItem);
+            console.log('[assistente-ean] Preço Popular: EAN divergente. Buscado:', ean, 'API:', gtinItem);
         } else {
             emitirResultado(montarSentinel(ean, 'OK', preco, estoque, obs, nome));
-            PLACEHOLDER: preco copiado:', preco, 'Obs:', obs || '(sem promo)');
+            console.log('[assistente-ean] Preço Popular: preco copiado:', preco, 'Obs:', obs || '(sem promo)');
         }
 
         encerrarAba();
     }
 
-    PLACEHOLDER v2.2 ativo em', location.pathname,
+    console.log('[assistente-ean] Preço Popular v2.2 ativo em', location.pathname,
         EAN_DO_FRAGMENTO ? '(ean pendente: ' + EAN_DO_FRAGMENTO + ')' : '');
 
     if (EAN_DO_FRAGMENTO) {
