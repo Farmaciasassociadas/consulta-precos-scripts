@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Panvel (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      2.5
+// @version      2.6
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_panvel.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_panvel.user.js
 // @description  Busca o EAN na Panvel: pega o código do produto no card da busca e lê preço/estoque/princípio ativo pela API de catálogo (sem entrar na página do produto). Copia o resultado para a área de transferência.
@@ -649,10 +649,17 @@
             : '';
 
         if (!produto || !produto.offers || !produto.offers.price) {
+            // Página 404 — mesmo tratamento da Raia/Nissei/São Paulo (07/2026):
+            // muito 404 aparecendo aqui também é sinal de bloqueio antibot
+            // disfarçado, não "não encontrado" de verdade. Emite BLOQUEIO: o
+            // app não grava nada, o item volta pendente e o Panvel fica
+            // pausado uns minutos antes de tentar de novo. (O outro caminho,
+            // via API de catálogo em buscarCatalogo(), continua tratando 404
+            // real da API como NAO_ENCONTRADO — não é o mesmo problema.)
             if (/p[aá]gina n[ãa]o encontrada|page not found/i.test(document.body.innerText)) {
                 GM_setValue('ean_buscado', '');
-                emitirResultado(montarSentinel(eanBuscado, 'NAO_ENCONTRADO', '', '', '', ''));
-                console.log('[assistente-ean] Panvel: pagina 404 — NAO_ENCONTRADO para', eanBuscado);
+                emitirResultado(montarSentinel(eanBuscado, 'BLOQUEIO', '', '', '', ''));
+                console.log('[assistente-ean] Panvel: pagina 404 — tratado como BLOQUEIO (possível antibot) para', eanBuscado);
                 encerrarAba();
                 return;
             }

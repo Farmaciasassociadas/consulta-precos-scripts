@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São Paulo (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      3.8
+// @version      3.9
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @description  Busca o EAN na Farmácias São Paulo, entra no produto, lé o preço via JSON-LD e copia para a área de transferência.
@@ -613,10 +613,15 @@
         }
 
         if (!produto || !produto.offers || !produto.offers.price) {
+            // Página 404 — mesmo tratamento da Raia/Nissei/Panvel (07/2026):
+            // muito 404 aparecendo aqui também é sinal de bloqueio antibot
+            // disfarçado, não "não encontrado" de verdade. Emite BLOQUEIO: o
+            // app não grava nada, o item volta pendente e a Drogaria São
+            // Paulo fica pausada uns minutos antes de tentar de novo.
             if (/página não encontrada|page not found/i.test(document.body.innerText)) {
                 GM_setValue('ean_buscado', '');
-                emitirResultado(montarSentinel(eanBuscado, 'NAO_ENCONTRADO', '', '', '', ''));
-                console.log('[assistente-ean] Sao Paulo: pagina 404 — NAO_ENCONTRADO para', eanBuscado);
+                emitirResultado(montarSentinel(eanBuscado, 'BLOQUEIO', '', '', '', ''));
+                console.log('[assistente-ean] Sao Paulo: pagina 404 — tratado como BLOQUEIO (possível antibot) para', eanBuscado);
                 encerrarAba();
                 return;
             }
