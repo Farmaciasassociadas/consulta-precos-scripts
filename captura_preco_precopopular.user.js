@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Preço Popular (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      1.1
+// @version      1.2
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_precopopular.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_precopopular.user.js
 // @description  Consulta o EAN na API pública do site da Preço Popular (VTEX) e copia o preço para a área de transferência. Não precisa navegar até o produto.
@@ -18,6 +18,20 @@
     'use strict';
 
     const SITE = 'precopopular';
+    // BLOQUEIO ANTIBOT (07/2026): Preço Popular consulta via API/fetch (não navega
+    // até a página do produto), então não dá pra olhar o texto da página
+    // como Raia/Nissei/Panvel/Farmácias São Paulo fazem. Em vez disso,
+    // rastreia status HTTP suspeitos nas respostas das APIs e o texto de
+    // bloqueio/404 no fallback de DOM. Se, no fim, NENHUMA camada achar o
+    // produto E este sinal estiver ligado, emite BLOQUEIO em vez de
+    // NAO_ENCONTRADO — não grava nada, item volta pendente, Preço Popular pausa
+    // sozinho (ver SITES_COM_BLOQUEIO_ANTIBOT em config_app.py).
+    let bloqueioSuspeito = false;
+    const STATUS_HTTP_SUSPEITOS = new Set([401, 403, 429, 503]);
+    function marcarSeSuspeito(status) {
+        if (STATUS_HTTP_SUSPEITOS.has(status)) bloqueioSuspeito = true;
+    }
+    const RE_BLOQUEIO_PAGINA = /p[aá]gina.{0,20}n[ãa]o.{0,20}encontrada|n[ãa]o foi encontrada a p[aá]gina|page not found|error\s*404/i;
 
     // ------------------------------------------------------------------
     // PREPARO DA PÁGINA: aceitar cookies e informar o CEP sozinho.
@@ -180,7 +194,7 @@
 
     function buscarNaApi(termo) {
         return fetch('/api/catalog_system/pub/products/search?fq=alternateIds_Ean:' + encodeURIComponent(termo))
-            .then(r => (r.ok ? r.json() : []))
+            .then(r => { marcarSeSuspeito(r.status); return r.ok ? r.json() : []; })
             .catch(() => []);
     }
 
@@ -202,7 +216,7 @@
         if (seg.regionId) url += '&regionId=' + encodeURIComponent(seg.regionId);
         if (seg.channel) url += '&salesChannel=' + encodeURIComponent(seg.channel);
         return fetch(url)
-            .then(r => (r.ok ? r.json() : {}))
+            .then(r => { marcarSeSuspeito(r.status); return r.ok ? r.json() : {}; })
             .then(j => (j && j.products) || [])
             .catch(() => []);
     }
@@ -252,6 +266,7 @@
                 const links = linksDeResultado();
                 if (links.length) { resolve(links); return; }
                 const semResultado = /não encontr|nenhum result|0\s*resultado/i.test(document.body.innerText);
+                if (RE_BLOQUEIO_PAGINA.test(document.body.innerText)) bloqueioSuspeito = true;
                 if (semResultado || n <= 0) { resolve([]); return; }
                 setTimeout(() => tentar(n - 1), 600);
             };
@@ -645,8 +660,13 @@
         }
 
         if (!produto) {
-            emitirResultado(montarSentinel(ean, 'NAO_ENCONTRADO', '', '', '', ''));
-            console.log('[assistente-ean] Preço Popular: nao encontrado:', ean);
+            if (bloqueioSuspeito) {
+                emitirResultado(montarSentinel(ean, 'BLOQUEIO', '', '', '', ''));
+                console.log('[assistente-ean] Preço Popular: resposta suspeita (bloqueio antibot?) para', ean);
+            } else {
+                emitirResultado(montarSentinel(ean, 'NAO_ENCONTRADO', '', '', '', ''));
+                console.log('[assistente-ean] Preço Popular: nao encontrado:', ean);
+            }
             encerrarAba();
             return;
         }
@@ -702,7 +722,12 @@
         }
         console.log('[assistente-ean] Preço Popular: nenhum candidato por nome (melhor:',
             Math.max(melhorNota, notaLink).toFixed(2), ')');
-        emitirResultado(montarSentinel(ean, 'NAO_ENCONTRADO', '', '', '', ''));
+        if (bloqueioSuspeito) {
+            emitirResultado(montarSentinel(ean, 'BLOQUEIO', '', '', '', ''));
+            console.log('[assistente-ean] Preço Popular: resposta suspeita (bloqueio antibot?) na busca por nome para', ean);
+        } else {
+            emitirResultado(montarSentinel(ean, 'NAO_ENCONTRADO', '', '', '', ''));
+        }
         encerrarAba();
     }
 
