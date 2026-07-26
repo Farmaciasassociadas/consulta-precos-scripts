@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Droga Raia (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      5.5
+// @version      5.6
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco.user.js
 // @description  Busca o EAN na Droga Raia, entra no produto, lê o preço via JSON-LD (com detecção de promoções) e copia para a área de transferência.
@@ -20,7 +20,7 @@
     const SITE = 'drogaraia';
     // Nome oficial da loja: usado pra distinguir "vendido por Droga Raia"
     // (é a própria farmácia) de "vendido por <terceiro>" (marketplace).
-    const NOME_OFICIAL_RE = /droga\s*raia|raiadrogasil/i;
+    const NOME_OFICIAL_RE = /droga\s*raia|raiadrogasil|\braia\b/i;
 
     // ------------------------------------------------------------------
     // PREPARO DA PÁGINA: aceitar cookies e informar o CEP sozinho.
