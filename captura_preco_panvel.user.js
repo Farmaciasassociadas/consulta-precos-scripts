@@ -498,8 +498,8 @@
         // Panvel começar a listar marketplace e isto não pegar nada.
         const vendedorApi = (cat.sellerName || cat.seller || cat.soldBy || cat.vendedor || '').toString().trim();
         if (vendedorApi && !/panvel/i.test(vendedorApi)) {
-            emitirResultado(montarSentinel(eanBuscado, 'MARKETPLACE', '', '', `Vendido por: ${vendedorApi}`, nome));
-            console.log('[assistente-ean] Panvel: MARKETPLACE detectado, vendedor', vendedorApi, '- preco NAO capturado');
+            emitirResultado(montarSentinel(eanBuscado, 'MARKETPLACE', preco, estoque, `Vendido por: ${vendedorApi}`, nome));
+            console.log('[assistente-ean] Panvel: MARKETPLACE detectado, vendedor', vendedorApi, '- preco capturado:', preco);
             encerrarAba();
             return;
         }

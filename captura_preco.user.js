@@ -833,8 +833,8 @@
 
         const vendedor = vendedorTerceiro(document.body.innerText);
         if (vendedor) {
-            emitirResultado(montarSentinel(eanBuscado, 'MARKETPLACE', '', '', `Vendido por: ${vendedor}`, nome));
-            console.log('[assistente-ean] Raia: MARKETPLACE detectado, vendedor', vendedor, '- preco NAO capturado');
+            emitirResultado(montarSentinel(eanBuscado, 'MARKETPLACE', preco, estoque, `Vendido por: ${vendedor}`, nome));
+            console.log('[assistente-ean] Raia: MARKETPLACE detectado, vendedor', vendedor, '- preco capturado:', preco);
             encerrarAba();
             return;
         }

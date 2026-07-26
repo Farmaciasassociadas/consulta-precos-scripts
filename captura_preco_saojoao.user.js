@@ -721,8 +721,9 @@
         const sellerEscolhido = item.sellers[0] || {};
         if (sellerEscolhido.sellerId && sellerEscolhido.sellerId !== '1') {
             const nomeVendedor = sellerEscolhido.sellerName || sellerEscolhido.sellerId;
-            emitirResultado(montarSentinel(ean, 'MARKETPLACE', '', '', `Vendido por: ${nomeVendedor}`, produto.productName || ''));
-            console.log('[assistente-ean] São João: MARKETPLACE detectado, vendedor', nomeVendedor, '- preco NAO capturado');
+            const precoMarketplace = String((item.sellers[0].commertialOffer || {}).Price || '');
+            emitirResultado(montarSentinel(ean, 'MARKETPLACE', precoMarketplace, '', `Vendido por: ${nomeVendedor}`, produto.productName || ''));
+            console.log('[assistente-ean] São João: MARKETPLACE detectado, vendedor', nomeVendedor, '- preco capturado:', precoMarketplace);
             encerrarAba();
             return;
         }
