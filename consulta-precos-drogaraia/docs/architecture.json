@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Consulta de Preços — Farmácias Associadas Maringá",
+    "subtitle": "Coleta multi-farmácia: userscripts em campo, ponte com o app desktop e painel web",
+    "output": "consulta-precos-architecture.html",
+    "quality_profile": "showcase",
+    "views": [
+      { "id": "coleta-em-campo", "label": "Coleta em campo", "focus": ["capture_scripts", "pharmacy_sites", "panvel_api"], "note": "Userscripts injetados por site; Panvel usa API de catálogo em vez de raspar o DOM." },
+      { "id": "ponte-navegador-desktop", "label": "Ponte navegador → desktop", "focus": ["capture_scripts", "assistente_eans", "web_ui"], "note": "Sentinel via clipboard + document.title alimenta o app Python, que abastece o painel web." },
+      { "id": "dicionario-e-ia", "label": "Dicionário & IA", "focus": ["csv_precos", "dicionario", "gemini", "github_raw"], "note": "Termos minerados do CSV, classificados por IA e publicados para auto-update dos scripts." }
+    ]
+  },
+  "components": [
+    { "id": "csv_precos", "type": "database", "label": "precos.csv", "sublabel": "dados minerados", "pos": [40, 60], "size": [150, 60] },
+    { "id": "gemini", "type": "external", "label": "Gemini API", "sublabel": "classificação de termos + sugestão IA", "pos": [280, 60], "size": [180, 60] },
+    { "id": "dicionario", "type": "database", "label": "dicionario_termos.json", "sublabel": "522 termos classificados", "pos": [40, 210], "size": [150, 60] },
+    { "id": "github_raw", "type": "cloud", "label": "raw.githubusercontent.com", "sublabel": "repo público consulta-precos-scripts", "pos": [280, 210], "size": [180, 60] },
+    { "id": "capture_scripts", "type": "frontend", "label": "Userscripts (Violentmonkey)", "sublabel": "7 .user.js — captura_preco*", "pos": [560, 210], "size": [200, 70] },
+    { "id": "pharmacy_sites", "type": "external", "label": "Sites das farmácias", "sublabel": "Raia · Nissei · São João · São Paulo · Pague Menos · Preço Popular · DrogariaSP", "pos": [860, 190], "size": [210, 90] },
+    { "id": "panvel_api", "type": "external", "label": "Panvel — API de catálogo", "sublabel": "uf=PR, sem raspagem de DOM", "pos": [860, 340], "size": [210, 60] },
+    { "id": "assistente_eans", "type": "backend", "label": "assistente_eans.py", "sublabel": "app desktop Python (repo privado)", "pos": [280, 400], "size": [200, 70] },
+    { "id": "web_ui", "type": "frontend", "label": "Radar de Preços (web)", "sublabel": "index.html · app.js · styles.css", "pos": [40, 400], "size": [190, 70] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "consulta-precos-scripts (repo público)", "wraps": ["dicionario", "github_raw", "capture_scripts"] },
+    { "kind": "region", "label": "consulta-precos-drogaraia (repo privado)", "wraps": ["web_ui", "assistente_eans"] }
+  ],
+  "connections": [
+    { "id": "csv-to-dicionario", "from": "csv_precos", "to": "dicionario", "label": "mineração" },
+    { "id": "gemini-to-dicionario", "from": "gemini", "to": "dicionario", "label": "classificação IA", "variant": "dashed", "fromSide": "left", "toSide": "top" },
+    { "id": "dicionario-to-raw", "from": "dicionario", "to": "github_raw", "label": "servido via raw", "variant": "dashed" },
+    { "id": "raw-to-scripts", "from": "github_raw", "to": "capture_scripts", "label": "auto-update", "variant": "dashed", "labelDy": 43 },
+    { "id": "scripts-to-sites", "from": "capture_scripts", "to": "pharmacy_sites", "label": "scraping DOM · busca por EAN", "variant": "emphasis", "labelDy": -30 },
+    { "id": "scripts-to-panvel", "from": "capture_scripts", "to": "panvel_api", "label": "consulta direta ao catálogo" },
+    { "id": "scripts-to-assistente", "from": "capture_scripts", "to": "assistente_eans", "label": "clipboard + document.title (sentinel EAN=…)", "variant": "emphasis", "fromSide": "bottom", "toSide": "right" },
+    { "id": "assistente-to-web", "from": "assistente_eans", "to": "web_ui", "label": "progresso e resultados", "fromSide": "left", "toSide": "right", "labelDy": -29 },
+    { "id": "web-to-assistente", "from": "web_ui", "to": "assistente_eans", "label": "iniciar / pausar / parar", "fromSide": "top", "toSide": "top", "labelDy": -34 }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Coleta em campo", "items": ["7 userscripts (Violentmonkey), um por rede farmacêutica", "Panvel é exceção: consulta a API de catálogo (uf=PR) em vez de raspar o DOM"] },
+    { "dot": "emerald", "title": "Ponte navegador → desktop", "items": ["Protocolo sentinel EAN=…;SITE=…;STATUS=… publicado em dois canais: clipboard e document.title", "Canal duplo evita perda de resultado em coleta paralela (várias abas ao mesmo tempo)", "assistente_eans.py (Python, repo privado) lê os sentinels e grava os preços"] },
+    { "dot": "violet", "title": "Dicionário & IA", "items": ["dicionario_termos.json minerado de precos.csv e classificado com Gemini", "Painel web oferece sugestão por IA (Gemini) como toggle opcional"] },
+    { "dot": "amber", "title": "Distribuição pública dos scripts", "items": ["consulta-precos-scripts é público só para os 4-7 arquivos .user.js e o dicionário", "Sem dados de preço/EAN/negócio — isso fica no repo privado", "Público de propósito: permite ao Violentmonkey checar atualizações sem autenticação"] }
+  ]
+}
