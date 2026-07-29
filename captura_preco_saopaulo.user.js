@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São Paulo (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      4.6
+// @version      4.8
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @description  Busca o EAN na Farmácias São Paulo, entra no produto, lé o preço via JSON-LD e copia para a área de transferência.
@@ -510,6 +510,7 @@
     }
 
     function encerrarAba() {
+        if (/assistente_manter_aba/.test(location.hash || '')) return;  // usuário pediu pra deixar aberta
         setTimeout(() => {
             try { window.close(); } catch (e) { }
         }, 800);
@@ -706,6 +707,12 @@
         PRINCIPIO_ATIVO_PAGINA = principioAtivoDaPagina(document.body.innerText);
         MARCA_PAGINA = marcaDaPagina(document.body.innerText);
         if (!eanBuscado) return;
+        // Diagnostico 29/07: paginaDeProduto() nunca chamava enviarPing(), so
+        // paginaDeBusca/paginaDeBuscaPorNome armavam o vigia de 17s. Toda
+        // consulta que chega direto numa pagina de produto (URL direta OU a
+        // navegacao de _domBusca) ficava SEM rede de seguranca propria — so
+        // sobrava o timeout cego de 20s do lado Python, sem motivo nenhum.
+        enviarPing(eanBuscado);
 
         const scripts = document.querySelectorAll('script[type="application/ld+json"]');
         let produto = null;

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São João (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      4.1
+// @version      4.2
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saojoao.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saojoao.user.js
 // @description  Consulta o EAN na API pública do site da São João (VTEX) e copia o preço para a área de transferência. Não precisa navegar até o produto.
@@ -187,6 +187,7 @@
     }
 
     function encerrarAba() {
+        if (/assistente_manter_aba/.test(location.hash || '')) return;  // usuário pediu pra deixar aberta
         setTimeout(() => {
             try { window.close(); } catch (e) { /* ignorado */ }
         }, 800);

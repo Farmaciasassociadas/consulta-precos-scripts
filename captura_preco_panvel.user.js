@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Panvel (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      2.8
+// @version      2.9
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_panvel.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_panvel.user.js
 // @description  Busca o EAN na Panvel: pega o código do produto no card da busca e lê preço/estoque/princípio ativo pela API de catálogo (sem entrar na página do produto). Copia o resultado para a área de transferência.
@@ -409,6 +409,7 @@
     }
 
     function encerrarAba() {
+        if (/assistente_manter_aba/.test(location.hash || '')) return;  // usuário pediu pra deixar aberta
         setTimeout(() => {
             try { window.close(); } catch (e) { /* ignorado */ }
         }, 800);
