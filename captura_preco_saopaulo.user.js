@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São Paulo (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      4.5
+// @version      4.6
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @description  Busca o EAN na Farmácias São Paulo, entra no produto, lé o preço via JSON-LD e copia para a área de transferência.
@@ -854,13 +854,15 @@
             } else if (NOME_ESPERADO && EAN_DO_FRAGMENTO) {
                 paginaDeBuscaPorNome();
             } else if (EAN_DA_BUSCA) {
-                // URL /{EAN}/ já é a página do produto na São Paulo — vai direto.
-                if (/^\/\d{8,14}\/?$/.test(location.pathname)) {
-                    GM_setValue('ean_buscado', EAN_DA_BUSCA);
-                    paginaDeProduto();
-                } else {
-                    paginaDeBusca(EAN_DA_BUSCA);
-                }
+                // Diagnostico 29/07: /{EAN}/ NEM SEMPRE e' a pagina do produto —
+                // as vezes a São Paulo devolve uma pagina de LISTAGEM de busca
+                // (sem JSON-LD de Product, so um card com link para /produto/p)
+                // em vez do produto direto. O atalho antigo assumia produto
+                // direto e chamava paginaDeProduto(), que esperava um JSON-LD
+                // que nunca chegava nesses casos — ficava girando ate TRAVOU.
+                // paginaDeBusca() cobre os dois casos: tenta a API VTEX, e se a
+                // pagina for so listagem, segue o link do card ate o produto.
+                paginaDeBusca(EAN_DA_BUSCA);
             }
         }, 600);
 })();
