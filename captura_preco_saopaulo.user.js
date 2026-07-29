@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São Paulo (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      4.0
+// @version      4.5
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @description  Busca o EAN na Farmácias São Paulo, entra no produto, lé o preço via JSON-LD e copia para a área de transferência.
@@ -11,6 +11,7 @@
 // @grant        GM_getValue
 // @grant        GM_xmlhttpRequest
 // @connect      raw.githubusercontent.com
+// @connect      www.farmaciassaopaulo.com.br
 // @run-at       document-idle
 // ==/UserScript==
 
@@ -20,9 +21,6 @@
     const SITE = 'farmasp';  // renomeado de 'saopaulo' em 07/2026 para não
     // confundir com 'drogariasp' (Drogaria São Paulo, empresa diferente)
     // nos relatórios/logs/CSV.
-    // Nome oficial da loja: usado pra distinguir "vendido por Farmácias São
-    // Paulo" (é a própria farmácia) de "vendido por <terceiro>" (marketplace).
-    const NOME_OFICIAL_RE = /farm[áa]cias?\s*s[ãa]o\s*paulo/i;
 
     // ------------------------------------------------------------------
     // PREPARO DA PÁGINA: aceitar cookies e informar o CEP sozinho.
@@ -464,7 +462,35 @@
     // esse marcador no fragmento da URL quando esta nesse modo.
     const SEM_CLIPBOARD = /assistente_sem_clipboard=1/.test(location.hash || '');
 
+    const MAX_TENTATIVAS_PRODUTO = 20;   // 20 x 500ms = 10s
+
+    // VIGIA (07/2026) — rede de seguranca contra travamento silencioso.
+    // Diagnostico do log de 26/07: 524 consultas mandaram PING e NUNCA
+    // emitiram veredito (laco de polling sem teto; fetch que nao resolve nem
+    // rejeita). O app esperava os 20s do timeout e registrava "provavel
+    // desafio do Cloudflare" — chute errado: quando a pagina responde, ela
+    // responde em ate 6s (p95); nao existe nada na faixa de 15-19s. Agora o
+    // script desiste sozinho e diz a verdade, 3s antes do corte do app.
+    const VIGIA_MS = 17000;
+    let _vereditoEmitido = false;
+    let _vigiaArmado = false;
+    function armarVigia(sentinelPing) {
+        if (_vigiaArmado) return;   // enviarPing() e' chamado a cada retentativa
+        _vigiaArmado = true;
+        const ean = (String(sentinelPing).match(/^EAN=([^;]*)/) || [])[1] || '';
+        setTimeout(function () {
+            if (_vereditoEmitido) return;
+            const onde = (location.pathname || '').slice(0, 40);
+            console.warn('[assistente-ean] VIGIA: sem veredito em', VIGIA_MS / 1000, 's — em', onde);
+            emitirResultado(montarSentinel(ean, 'TRAVOU', '', '',
+                'vigia ' + (VIGIA_MS / 1000) + 's sem veredito em ' + onde, ''));
+            encerrarAba();
+        }, VIGIA_MS);
+    }
+
     function emitirResultado(sentinel) {
+        if (/;STATUS=PING;/.test(sentinel)) { armarVigia(sentinel); }
+        else { _vereditoEmitido = true; }
         if (!SEM_CLIPBOARD) {
             try { GM_setClipboard(sentinel); } catch (e) { }
         }
@@ -481,20 +507,6 @@
     function montarSentinel(ean, status, preco, estoque, obs, nome) {
         const limpar = (t) => (t || '').replace(/[;=\n\r]/g, ' ').replace(/\s+/g, ' ').trim();
         return `EAN=${ean};SITE=${SITE};STATUS=${status};PRECO=${preco || ''};ESTOQUE=${estoque || ''};OBS=${limpar(obs)};NOME=${limpar(nome)};URL=${(URL_DO_RESULTADO || '').replace(/[;\s]/g, '')};PRINCIPIO=${limpar(PRINCIPIO_ATIVO_PAGINA)};MARCA=${limpar(MARCA_PAGINA)}`;
-    }
-
-    // Marketplace: quando a página mostra "vendido por"/"vendido e entregue
-    // por" um vendedor QUE NÃO é a própria loja, o preço é do terceiro, não
-    // da farmácia — não interessa pra captura. Retorna o nome do vendedor
-    // detectado, ou null se não achar o texto ou se for a própria loja.
-    function vendedorTerceiro(textoPagina) {
-        const m = textoPagina.match(/vendido(?:\s+e\s+entregue)?\s+por[:\s]+([^\n\r]{2,60})/i);
-        if (!m) return null;
-        const vendedor = m[1].trim().replace(/\s{2,}/g, ' ');
-        // Falsos-positivos comuns: "vendido por unidade/kg/caixa" etc. (não é nome de loja).
-        if (/^(unidade|un\.?|kg|g|l|ml|caixa|pacote|display|fardo|cento|d[uú]zia|pe[çc]a)\b/i.test(vendedor)) return null;
-        if (NOME_OFICIAL_RE.test(vendedor)) return null; // é a própria farmácia, não é marketplace
-        return vendedor;
     }
 
     function encerrarAba() {
@@ -526,41 +538,141 @@
         emitirResultado(`EAN=${ean};SITE=${SITE};STATUS=PING;PRECO=;ESTOQUE=;OBS=;NOME=`);
     }
 
+    // Extrai o offer de um produto VTEX — handles tanto objeto quanto array.
+    function _extrairOffer(offers) {
+        if (!offers) return null;
+        return Array.isArray(offers) ? (offers[0] || null) : offers;
+    }
+
+    // Consulta a API VTEX via GM_xmlhttpRequest — não passa pelo contexto da
+    // página (e portanto não é interceptado pelo Norton). Callback recebe o
+    // primeiro produto encontrado ou null.
+    function _buscarApiVtexGM(ean, callback) {
+        const variacoes = [...new Set(
+            [ean, ean.replace(/^0+/, ''), ean.padStart(13, '0')].filter(v => v.length >= 8)
+        )];
+        function tentarVariacao(i) {
+            if (i >= variacoes.length) { callback(null); return; }
+            GM_xmlhttpRequest({
+                method: 'GET',
+                url: location.origin + '/api/catalog_system/pub/products/search?fq=alternateIds_Ean:'
+                    + encodeURIComponent(variacoes[i]),
+                timeout: 8000,
+                onload: function (resp) {
+                    try {
+                        const lista = JSON.parse(resp.responseText);
+                        if (Array.isArray(lista) && lista.length) { callback(lista[0]); return; }
+                    } catch (e) { }
+                    tentarVariacao(i + 1);
+                },
+                onerror: function () { tentarVariacao(i + 1); },
+                ontimeout: function () { tentarVariacao(i + 1); },
+            });
+        }
+        tentarVariacao(0);
+    }
+
+    function _emitirDeApiVtex(ean, prod) {
+        const nome = prod.productName || '';
+        const item = (prod.items || [])[0] || {};
+        const gtinRaw = ((item.referenceId || [])[0] || {});
+        const eanItem = item.ean || (typeof gtinRaw === 'object' ? gtinRaw.Value : gtinRaw) || '';
+        const offer = ((item.sellers || [])[0] || {}).commertialOffer || {};
+        const preco = offer.Price;
+        if (!preco) return false;
+        const precoStr = String(preco);
+        const estoque = offer.IsAvailable !== false ? 'EM_ESTOQUE' : 'SEM_ESTOQUE';
+        URL_DO_RESULTADO = location.href.split('#')[0];
+        PRINCIPIO_ATIVO_PAGINA = principioAtivoDaPagina(document.body.innerText);
+        MARCA_PAGINA = marcaDaPagina(document.body.innerText);
+        let obs = '';
+        if (offer.ListPrice && offer.ListPrice > preco) {
+            obs = 'Promoção: de R$ ' + offer.ListPrice.toFixed(2).replace('.', ',')
+                + ' por R$ ' + preco.toFixed(2).replace('.', ',');
+        }
+        const sz = t => String(t || '').replace(/^0+/, '');
+        if (eanItem && sz(eanItem) !== sz(ean)) {
+            emitirResultado(montarSentinel(ean, 'DIVERGENTE', precoStr, estoque, obs, nome + ' (gtin real: ' + eanItem + ')'));
+        } else {
+            emitirResultado(montarSentinel(ean, 'OK', precoStr, estoque, obs, nome));
+        }
+        console.log('[assistente-ean] Sao Paulo: preco via API (GM):', preco, estoque);
+        return true;
+    }
+
+    // Tenta extrair resultado diretamente do DOM da página atual.
+    // Retorna true se achou (e age); false se deve continuar aguardando.
+    function _domBusca(ean) {
+        PRINCIPIO_ATIVO_PAGINA = principioAtivoDaPagina(document.body.innerText);
+        MARCA_PAGINA = marcaDaPagina(document.body.innerText);
+        URL_DO_RESULTADO = location.href.split('#')[0];
+        for (const s of document.querySelectorAll('script[type="application/ld+json"]')) {
+            try {
+                const d = JSON.parse(s.textContent);
+                if (d && d['@type'] === 'Product') {
+                    const offer = _extrairOffer(d.offers);
+                    if (offer && offer.price) {
+                        GM_setValue('ean_buscado', ean);
+                        console.log('[assistente-ean] Sao Paulo: JSON-LD na pagina');
+                        paginaDeProduto();
+                        return true;
+                    }
+                }
+            } catch (e) { }
+        }
+        const semResultado = /não encontr|não foi encontrad|nenhum result|nenhum produto|0\s*resultados?/i.test(document.body.innerText);
+        const link = document.querySelector('a[href$="/p"], a[href*="/p?"]');
+        if (link) {
+            GM_setValue('ean_buscado', ean);
+            console.log('[assistente-ean] Sao Paulo: navegando para pagina do produto');
+            location.href = link.href.split('#')[0] + '#assistente_ean=' + ean;
+            return true;
+        }
+        if (semResultado) {
+            emitirResultado(montarSentinel(ean, 'NAO_ENCONTRADO', '', '', '', ''));
+            console.log('[assistente-ean] Sao Paulo: nao encontrado:', ean);
+            encerrarAba();
+            return true;
+        }
+        return false;
+    }
+
+    let _tentativasBusca = 0;
+
     function paginaDeBusca(ean) {
         if (!ean) return;
         enviarPing(ean);
 
-        const semResultado = /0\s*resultados|não encontr|nenhum result/i.test(document.body.innerText);
-        const link = [...document.querySelectorAll('a[href$="/p"]')].find(a => (a.innerText || '').trim());
-
-        if (!link) {
-            if (semResultado) {
-                emitirResultado(montarSentinel(ean, 'NAO_ENCONTRADO', '', '', '', ''));
-                console.log('[assistente-ean] Sao Paulo: nao encontrado:', ean);
-                encerrarAba();
-                return;
+        if (_tentativasBusca === 0) {
+            // 1ª tentativa: API via GM (não interceptada pelo Norton).
+            _buscarApiVtexGM(ean, function (prod) {
+                if (prod && _emitirDeApiVtex(ean, prod)) { encerrarAba(); return; }
+                // API não retornou produto — cai para DOM.
+                _tentativasBusca = 1;
+                if (!_domBusca(ean)) setTimeout(() => paginaDeBusca(ean), 500);
+            });
+        } else {
+            // Retentativas: só DOM (API já foi tentada).
+            if (!_domBusca(ean)) {
+                _tentativasBusca++;
+                setTimeout(() => paginaDeBusca(ean), 500);
             }
-            setTimeout(() => paginaDeBusca(ean), 500);
-            return;
         }
-
-        GM_setValue('ean_buscado', ean);
-        location.href = link.href + '#assistente_ean=' + ean;
     }
 
     let tentativasNome = 0;
 
     function paginaDeBuscaPorNome() {
         enviarPing(EAN_DO_FRAGMENTO);
-        const candidatos = [...document.querySelectorAll('a[href$="/p"]')]
-            .filter(a => (a.innerText || '').trim())
+        const candidatos = [...document.querySelectorAll('a[href$="/p"], a[href*="/p?"]')]
             .map(a => {
                 const cont = a.closest('li, article, div');
                 return { url: a.href, texto: ((cont ? cont.innerText : '') || a.innerText || '') };
-            });
+            })
+            .filter(c => c.texto.trim());
         if (!candidatos.length) {
             tentativasNome++;
-            const semResultado = /0\s*resultados|não encontr|nenhum result/i.test(document.body.innerText);
+            const semResultado = /não encontr|não foi encontrad|nenhum result|nenhum produto|0\s*resultados?/i.test(document.body.innerText);
             if (semResultado || tentativasNome > 20) {
                 emitirResultado(montarSentinel(EAN_DO_FRAGMENTO, 'NAO_ENCONTRADO', '', '', '', ''));
                 console.log('[assistente-ean] Sao Paulo: busca por nome sem resultados');
@@ -614,13 +726,14 @@
             }
         }
 
+        if (produto) produto.offers = _extrairOffer(produto.offers);
         if (!produto || !produto.offers || !produto.offers.price) {
             // Página 404 — mesmo tratamento da Raia/Nissei/Panvel (07/2026):
             // muito 404 aparecendo aqui também é sinal de bloqueio antibot
             // disfarçado, não "não encontrado" de verdade. Emite BLOQUEIO: o
             // app não grava nada, o item volta pendente e a Farmácias São
             // Paulo fica pausada uns minutos antes de tentar de novo.
-            if (/página não encontrada|page not found/i.test(document.body.innerText)) {
+            if (/p[aá]gina.{0,20}n[ãa]o.{0,20}encontrada|n[ãa]o foi encontrada|page not found|error\s*404/i.test(document.body.innerText)) {
                 GM_setValue('ean_buscado', '');
                 emitirResultado(montarSentinel(eanBuscado, 'BLOQUEIO', '', '', '', ''));
                 console.log('[assistente-ean] Sao Paulo: pagina 404 — tratado como BLOQUEIO (possível antibot) para', eanBuscado);
@@ -628,6 +741,17 @@
                 return;
             }
             tentativasProduto++;
+            // Teto real (07/2026): antes o contador subia mas NUNCA era
+            // comparado com nada — a pagina de produto que nao renderizava
+            // preco era repolida a cada 500ms para sempre, sem veredito.
+            if (tentativasProduto > MAX_TENTATIVAS_PRODUTO) {
+                GM_setValue('ean_buscado', '');
+                emitirResultado(montarSentinel(eanBuscado, 'TRAVOU', '', '',
+                    'pagina de produto sem preco apos ' + MAX_TENTATIVAS_PRODUTO + ' tentativas', ''));
+                console.warn('[assistente-ean] pagina de produto sem preco apos', MAX_TENTATIVAS_PRODUTO, 'tentativas:', eanBuscado);
+                encerrarAba();
+                return;
+            }
             const textoIndisponivel = /pre[cç]o\s*indispon|produto\s*indispon/i.test(document.body.innerText);
             if (textoIndisponivel) {
                 const nome = (produto && produto.name) || (document.querySelector('h1') || {}).innerText || '';
@@ -653,14 +777,6 @@
 
         GM_setValue('ean_buscado', '');
         try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { }
-
-        const vendedor = vendedorTerceiro(document.body.innerText);
-        if (vendedor) {
-            emitirResultado(montarSentinel(eanBuscado, 'MARKETPLACE', preco, estoque, `Vendido por: ${vendedor}`, nome));
-            console.log('[assistente-ean] Sao Paulo: MARKETPLACE detectado, vendedor', vendedor, '- preco capturado:', preco);
-            encerrarAba();
-            return;
-        }
 
         const semZerosFunc = (t) => t.replace(/^0+/, '');
 
@@ -738,7 +854,13 @@
             } else if (NOME_ESPERADO && EAN_DO_FRAGMENTO) {
                 paginaDeBuscaPorNome();
             } else if (EAN_DA_BUSCA) {
-                paginaDeBusca(EAN_DA_BUSCA);
+                // URL /{EAN}/ já é a página do produto na São Paulo — vai direto.
+                if (/^\/\d{8,14}\/?$/.test(location.pathname)) {
+                    GM_setValue('ean_buscado', EAN_DA_BUSCA);
+                    paginaDeProduto();
+                } else {
+                    paginaDeBusca(EAN_DA_BUSCA);
+                }
             }
         }, 600);
 })();

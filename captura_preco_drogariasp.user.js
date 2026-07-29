@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Drogaria São Paulo (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      1.2
+// @version      1.3
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_drogariasp.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_drogariasp.user.js
 // @description  Consulta o EAN na API pública do site da Drogaria São Paulo (VTEX) e copia o preço para a área de transferência. Não precisa navegar até o produto.
@@ -151,7 +151,45 @@
     // esse marcador no fragmento da URL quando esta nesse modo.
     const SEM_CLIPBOARD = /assistente_sem_clipboard=1/.test(location.hash || '');
 
+    // fetch com prazo (07/2026): sem isto, uma requisicao que o site pendura
+    // nunca resolve NEM rejeita — a cadeia async morre calada e o .catch() do
+    // fim nao pega (promise pendente nao rejeita). Era a causa dos
+    // travamentos mudos em Drogaria SP / Preco Popular.
+    const FETCH_PRAZO_MS = 6000;
+    function fetchComPrazo(url, opcoes) {
+        const ctrl = new AbortController();
+        const t = setTimeout(function () { ctrl.abort(); }, FETCH_PRAZO_MS);
+        return fetch(url, Object.assign({}, opcoes || {}, { signal: ctrl.signal }))
+            .finally(function () { clearTimeout(t); });
+    }
+
+    // VIGIA (07/2026) — rede de seguranca contra travamento silencioso.
+    // Diagnostico do log de 26/07: 524 consultas mandaram PING e NUNCA
+    // emitiram veredito (laco de polling sem teto; fetch que nao resolve nem
+    // rejeita). O app esperava os 20s do timeout e registrava "provavel
+    // desafio do Cloudflare" — chute errado: quando a pagina responde, ela
+    // responde em ate 6s (p95); nao existe nada na faixa de 15-19s. Agora o
+    // script desiste sozinho e diz a verdade, 3s antes do corte do app.
+    const VIGIA_MS = 17000;
+    let _vereditoEmitido = false;
+    let _vigiaArmado = false;
+    function armarVigia(sentinelPing) {
+        if (_vigiaArmado) return;   // enviarPing() e' chamado a cada retentativa
+        _vigiaArmado = true;
+        const ean = (String(sentinelPing).match(/^EAN=([^;]*)/) || [])[1] || '';
+        setTimeout(function () {
+            if (_vereditoEmitido) return;
+            const onde = (location.pathname || '').slice(0, 40);
+            console.warn('[assistente-ean] VIGIA: sem veredito em', VIGIA_MS / 1000, 's — em', onde);
+            emitirResultado(montarSentinel(ean, 'TRAVOU', '', '',
+                'vigia ' + (VIGIA_MS / 1000) + 's sem veredito em ' + onde, ''));
+            encerrarAba();
+        }, VIGIA_MS);
+    }
+
     function emitirResultado(sentinel) {
+        if (/;STATUS=PING;/.test(sentinel)) { armarVigia(sentinel); }
+        else { _vereditoEmitido = true; }
         if (!SEM_CLIPBOARD) {
             try { GM_setClipboard(sentinel); } catch (e) { }
         }
@@ -193,7 +231,7 @@
     }
 
     function buscarNaApi(termo) {
-        return fetch('/api/catalog_system/pub/products/search?fq=alternateIds_Ean:' + encodeURIComponent(termo))
+        return fetchComPrazo('/api/catalog_system/pub/products/search?fq=alternateIds_Ean:' + encodeURIComponent(termo))
             .then(r => { marcarSeSuspeito(r.status); return r.ok ? r.json() : []; })
             .catch(() => []);
     }
@@ -215,7 +253,7 @@
         let url = '/api/io/_v/api/intelligent-search/product_search/?query=' + encodeURIComponent(consulta);
         if (seg.regionId) url += '&regionId=' + encodeURIComponent(seg.regionId);
         if (seg.channel) url += '&salesChannel=' + encodeURIComponent(seg.channel);
-        return fetch(url)
+        return fetchComPrazo(url)
             .then(r => { marcarSeSuspeito(r.status); return r.ok ? r.json() : {}; })
             .then(j => (j && j.products) || [])
             .catch(() => []);
@@ -276,7 +314,7 @@
 
     async function produtoDaPaginaDoLink(url) {
         try {
-            const html = await fetch(url).then(r => (r.ok ? r.text() : ''));
+            const html = await fetchComPrazo(url).then(r => (r.ok ? r.text() : ''));
             return html ? extrairProdutoDeHtml(html) : null;
         } catch (e) { return null; }
     }
@@ -688,7 +726,7 @@
     // renderizados na própria página. Aceita só acima do limiar.
     async function consultarPorNome(ean) {
         const termo = termoCurto(NOME_ESPERADO);
-        let lista = await fetch('/api/catalog_system/pub/products/search?ft=' + encodeURIComponent(termo) + '&_from=0&_to=20')
+        let lista = await fetchComPrazo('/api/catalog_system/pub/products/search?ft=' + encodeURIComponent(termo) + '&_from=0&_to=20')
             .then(r => (r.ok ? r.json() : []))
             .catch(() => []);
         if (!lista || !lista.length) {

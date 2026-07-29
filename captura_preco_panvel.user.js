@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Panvel (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      2.6
+// @version      2.8
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_panvel.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_panvel.user.js
 // @description  Busca o EAN na Panvel: pega o código do produto no card da busca e lê preço/estoque/princípio ativo pela API de catálogo (sem entrar na página do produto). Copia o resultado para a área de transferência.
@@ -352,7 +352,46 @@
     // que o clipboard - canal unico - causaria. Re-afirma o titulo de tempos
     // em tempos porque o site (SPA) reescreve document.title depois.
     let _aeanIntervaloTitulo = null;
+    const MAX_TENTATIVAS_PRODUTO = 20;   // 20 x 500ms = 10s
+
+    // fetch com prazo (07/2026): sem isto, uma requisicao que o site pendura
+    // nunca resolve NEM rejeita — a cadeia async morre calada e o app so' ve
+    // um timeout mudo.
+    const FETCH_PRAZO_MS = 6000;
+    function fetchComPrazo(url, opcoes) {
+        const ctrl = new AbortController();
+        const t = setTimeout(function () { ctrl.abort(); }, FETCH_PRAZO_MS);
+        return fetch(url, Object.assign({}, opcoes || {}, { signal: ctrl.signal }))
+            .finally(function () { clearTimeout(t); });
+    }
+
+    // VIGIA (07/2026) — rede de seguranca contra travamento silencioso.
+    // Diagnostico do log de 26/07: 524 consultas mandaram PING e NUNCA
+    // emitiram veredito (laco de polling sem teto; fetch que nao resolve nem
+    // rejeita). O app esperava os 20s do timeout e registrava "provavel
+    // desafio do Cloudflare" — chute errado: quando a pagina responde, ela
+    // responde em ate 6s (p95); nao existe nada na faixa de 15-19s. Agora o
+    // script desiste sozinho e diz a verdade, 3s antes do corte do app.
+    const VIGIA_MS = 17000;
+    let _vereditoEmitido = false;
+    let _vigiaArmado = false;
+    function armarVigia(sentinelPing) {
+        if (_vigiaArmado) return;   // enviarPing() e' chamado a cada retentativa
+        _vigiaArmado = true;
+        const ean = (String(sentinelPing).match(/^EAN=([^;]*)/) || [])[1] || '';
+        setTimeout(function () {
+            if (_vereditoEmitido) return;
+            const onde = (location.pathname || '').slice(0, 40);
+            console.warn('[assistente-ean] VIGIA: sem veredito em', VIGIA_MS / 1000, 's — em', onde);
+            emitirResultado(montarSentinel(ean, 'TRAVOU', '', '',
+                'vigia ' + (VIGIA_MS / 1000) + 's sem veredito em ' + onde, ''));
+            encerrarAba();
+        }, VIGIA_MS);
+    }
+
     function emitirResultado(sentinel) {
+        if (/;STATUS=PING;/.test(sentinel)) { armarVigia(sentinel); }
+        else { _vereditoEmitido = true; }
         try { GM_setClipboard(sentinel); } catch (e) { }
         try {
             const marca = 'AEAN|' + sentinel;
@@ -428,7 +467,7 @@
     }
 
     async function buscarCatalogo(code) {
-        const resp = await fetch('/api/v2/catalog/' + code + '?uf=' + UF_CATALOGO,
+        const resp = await fetchComPrazo('/api/v2/catalog/' + code + '?uf=' + UF_CATALOGO,
             { credentials: 'include' });
         if (resp.status === 404) return { naoEncontrado: true };
         if (!resp.ok) return null;
@@ -664,6 +703,17 @@
                 return;
             }
             tentativasProduto++;
+            // Teto real (07/2026): antes o contador subia mas NUNCA era
+            // comparado com nada — a pagina de produto que nao renderizava
+            // preco era repolida a cada 500ms para sempre, sem veredito.
+            if (tentativasProduto > MAX_TENTATIVAS_PRODUTO) {
+                GM_setValue('ean_buscado', '');
+                emitirResultado(montarSentinel(eanBuscado, 'TRAVOU', '', '',
+                    'pagina de produto sem preco apos ' + MAX_TENTATIVAS_PRODUTO + ' tentativas', ''));
+                console.warn('[assistente-ean] pagina de produto sem preco apos', MAX_TENTATIVAS_PRODUTO, 'tentativas:', eanBuscado);
+                encerrarAba();
+                return;
+            }
             const textoIndisponivel = /pre[cç]o\s*indispon|produto\s*indispon/i.test(document.body.innerText);
             if (textoIndisponivel) {
                 const nome = (produto && produto.name)
