@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São Paulo (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      4.8
+// @version      4.9
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @description  Busca o EAN na Farmácias São Paulo, entra no produto, lé o preço via JSON-LD e copia para a área de transferência.
@@ -97,7 +97,26 @@
     })();
 
     function pegarEanPendente() {
-        return EAN_DO_FRAGMENTO || GM_getValue('ean_buscado', '');
+        if (EAN_DO_FRAGMENTO) return EAN_DO_FRAGMENTO;
+        const viaStorage = GM_getValue('ean_buscado', '');
+        if (viaStorage) return viaStorage;
+        // Diagnostico 29/07: mesmo na v4.8 (com enviarPing na pagina de
+        // produto), a busca continuava travando muda apos o PING da pagina
+        // de listagem. Hipotese: o hash #assistente_ean=... some (roteador
+        // da propria pagina normaliza a URL) OU o GM_setValue nao termina
+        // de gravar antes do location.href já ter navegado (escrita
+        // assincrona vs navegacao sincrona). Fallback robusto que nao
+        // depende de nenhum dos dois: document.referrer é setado pelo
+        // proprio navegador na navegacao, nao pela pagina — se veio da
+        // NOSSA pagina de busca (.../{ean}/), extrai o EAN de la.
+        try {
+            const ref = new URL(document.referrer || '', location.href);
+            if (ref.origin === location.origin) {
+                const m = ref.pathname.match(/^\/(\d{8,14})\/?$/);
+                if (m) return m[1];
+            }
+        } catch (e) { }
+        return '';
     }
 
     const NOME_ESPERADO = (() => {
