@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São Paulo (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      4.9
+// @version      5.0
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @description  Busca o EAN na Farmácias São Paulo, entra no produto, lé o preço via JSON-LD e copia para a área de transferência.
@@ -798,7 +798,20 @@
         const disponibilidade = (produto.offers.availability || '').toString();
         const estoque = disponibilidade.includes('InStock') ? 'EM_ESTOQUE' : 'SEM_ESTOQUE';
 
-        const promoDom = detectarPromocao();
+        // A deteccao de promocao e' ENFEITE: nunca pode derrubar a captura do
+        // preco. Bug real de 31/07/2026 — detectarPromocao() lia a variavel
+        // `preco`, que so existe AQUI (outro escopo). Em 'use strict' isso e'
+        // ReferenceError, nao undefined: a excecao subia por paginaDeProduto()
+        // e como a chamada vem de um setTimeout, ninguem capturava —
+        // emitirResultado() nunca rodava e o app registrava TRAVOU. Só
+        // acontecia em produto EM PROMOCAO (a linha do erro so e' alcancada
+        // quando existe preco riscado), o que fazia a falha parecer aleatoria.
+        let promoDom = { precoOriginal: '', fraseLeve: '' };
+        try {
+            promoDom = detectarPromocao(preco);
+        } catch (e) {
+            console.warn('[assistente-ean] falha na deteccao de promocao (ignorada):', e);
+        }
         const obs = montarObservacao(preco, promoDom, nome);
 
         GM_setValue('ean_buscado', '');
@@ -823,7 +836,7 @@
 
     const PADRAO_LEVE = /leve\s*\+?\s*\d+\s*(?:e\s*)?(?:pague\s*\d+|(?:unidades?\s*)?por\s*R\$\s*[\d.,]+(?:\s*cada)?|[^\n]{0,40}?R\$\s*[\d.,]+\s*cada)/i;
 
-    function detectarPromocao() {
+    function detectarPromocao(precoAtual) {
         const resultado = { precoOriginal: '', fraseLeve: '' };
         const precoEl = document.querySelector('.unit-price');
         if (!precoEl) return resultado;
@@ -846,7 +859,7 @@
                     } catch (err) { }
                     if (!riscado) continue;
                     const valorOriginal = extrairValorBR(texto);
-                    if (!valorOriginal || parseFloat(valorOriginal.replace(',', '.')) === parseFloat(String(preco).replace(',', '.'))) continue;
+                    if (!valorOriginal || parseFloat(valorOriginal.replace(',', '.')) === parseFloat(String(precoAtual).replace(',', '.'))) continue;
                     resultado.precoOriginal = valorOriginal;
                     break;
                 }
