@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Drogaria São Paulo (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      1.4
+// @version      1.5
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_drogariasp.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_drogariasp.user.js
 // @description  Consulta o EAN na API pública do site da Drogaria São Paulo (VTEX) e copia o preço para a área de transferência. Não precisa navegar até o produto.
@@ -32,6 +32,22 @@
         if (STATUS_HTTP_SUSPEITOS.has(status)) bloqueioSuspeito = true;
     }
     const RE_BLOQUEIO_PAGINA = /p[aá]gina.{0,20}n[ãa]o.{0,20}encontrada|n[ãa]o foi encontrada a p[aá]gina|page not found|error\s*404/i;
+
+    // BUSCA SEM RESULTADO != BLOQUEIO (31/07/2026). Quando a vitrine nao acha
+    // o termo, a Drogaria Sao Paulo redireciona para /Sistema/buscavazia e
+    // renderiza um 404 grande ("A pagina que voce esta procurando nao foi
+    // encontrada"). Isso significa "nao vendemos esse produto", nunca antibot.
+    // O RE_BLOQUEIO_PAGINA acima nao casa com esse texto por 6 caracteres (o
+    // ".{0,20}" entre "pagina" e "nao" nao cobre " que voce esta procurando "),
+    // e e' so por isso que os 486 NAO_ENCONTRADO do precos.csv nao viraram
+    // BLOQUEIO. Qualquer afrouxada nesse regex poria a farmacia inteira em
+    // quarentena a cada produto que ela nao vende. Esta checagem torna a
+    // distincao explicita, em vez de acidental.
+    const RE_BUSCA_VAZIA = /\/Sistema\/buscavazia/i;
+    function ehBuscaVazia() {
+        return RE_BUSCA_VAZIA.test(location.pathname + location.search)
+            || /nenhum resultado encontrado/i.test((document.body && document.body.innerText) || '');
+    }
 
     // ------------------------------------------------------------------
     // PREPARO DA PÁGINA: aceitar cookies e informar o CEP sozinho.
@@ -208,8 +224,30 @@
         return `EAN=${ean};SITE=${SITE};STATUS=${status};PRECO=${preco || ''};ESTOQUE=${estoque || ''};OBS=${limpar(obs)};NOME=${limpar(nome)};URL=${(URL_DO_RESULTADO || '').replace(/[;\s]/g, '')};PRINCIPIO=${limpar(PRINCIPIO_ATIVO_PAGINA)};MARCA=${limpar(MARCA_PAGINA)}`;
     }
 
+    // Espera antes de levar a aba mantida para a pagina do produto. O app le o
+    // veredito pelo TITULO da aba (prefixo AEAN|, ver _captura_mixin.py) e
+    // navegar destroi esse titulo. Na pratica o app grava ~1s depois do PING;
+    // 6s dao folga larga sem deixar o usuario olhando o 404.
+    const MS_ATE_MOSTRAR_PRODUTO = 6000;
+
     function encerrarAba() {
-        if (/assistente_manter_aba/.test(location.hash || '')) return;  // usuário pediu pra deixar aberta
+        if (/assistente_manter_aba/.test(location.hash || '')) {
+            // Busca avulsa: a aba fica aberta de proposito. So que o script le
+            // o preco pela API de catalogo, nunca pela pagina — e a vitrine,
+            // que nao acha o EAN, ja redirecionou para /Sistema/buscavazia,
+            // aquele 404 grande. O usuario ficava encarando uma tela de erro
+            // de uma consulta que deu certo, e concluia (razoavelmente) que
+            // tinha tomado antibot. Se a captura rendeu uma URL de produto,
+            // leva a aba ate ela. O marcador assistente_ignorar impede o
+            // script de rodar de novo na chegada.
+            const destino = URL_DO_RESULTADO || '';
+            if (destino && destino.split('#')[0] !== location.href.split('#')[0]) {
+                setTimeout(() => {
+                    try { location.href = destino.split('#')[0] + '#assistente_ignorar=1'; } catch (e) { }
+                }, MS_ATE_MOSTRAR_PRODUTO);
+            }
+            return;
+        }
         setTimeout(() => {
             try { window.close(); } catch (e) { /* ignorado */ }
         }, 800);
@@ -305,6 +343,7 @@
                 const links = linksDeResultado();
                 if (links.length) { resolve(links); return; }
                 const semResultado = /não encontr|nenhum result|0\s*resultado/i.test(document.body.innerText);
+                if (ehBuscaVazia()) { resolve([]); return; }   // vitrine sem resultado: nao e' bloqueio
                 if (RE_BLOQUEIO_PAGINA.test(document.body.innerText)) bloqueioSuspeito = true;
                 if (semResultado || n <= 0) { resolve([]); return; }
                 setTimeout(() => tentar(n - 1), 600);
@@ -699,7 +738,7 @@
         }
 
         if (!produto) {
-            if (bloqueioSuspeito) {
+            if (bloqueioSuspeito && !ehBuscaVazia()) {
                 emitirResultado(montarSentinel(ean, 'BLOQUEIO', '', '', '', ''));
                 console.log('[assistente-ean] Drogaria São Paulo: resposta suspeita (bloqueio antibot?) para', ean);
             } else {
@@ -761,7 +800,7 @@
         }
         console.log('[assistente-ean] Drogaria São Paulo: nenhum candidato por nome (melhor:',
             Math.max(melhorNota, notaLink).toFixed(2), ')');
-        if (bloqueioSuspeito) {
+        if (bloqueioSuspeito && !ehBuscaVazia()) {
             emitirResultado(montarSentinel(ean, 'BLOQUEIO', '', '', '', ''));
             console.log('[assistente-ean] Drogaria São Paulo: resposta suspeita (bloqueio antibot?) na busca por nome para', ean);
         } else {
