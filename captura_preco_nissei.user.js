@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias Nissei (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      4.3
+// @version      4.4
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_nissei.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_nissei.user.js
 // @description  Busca o EAN na Nissei, entra no produto, lê o preço via JSON-LD + bloco de preço e copia para a área de transferência.
@@ -95,6 +95,23 @@
 
     function pegarEanPendente() {
         return EAN_DO_FRAGMENTO || GM_getValue('ean_buscado', '');
+    }
+
+    // Marcadores que o app manda no fragmento inicial e que precisam
+    // SOBREVIVER a navegacao interna (listagem -> pagina do produto). Ao
+    // reconstruir o hash so com o EAN eles se perdiam: em coleta paralela o
+    // clipboard voltava a ser escrito (atrapalhando o copiar/colar do usuario)
+    // e na busca avulsa a aba fechava sozinha apesar do pedido de deixar
+    // aberta. assistente_ignorar entra por precaucao (com ele o script ja
+    // desiste antes de navegar).
+    const FLAGS_HERDADOS = ['assistente_manter_aba', 'assistente_sem_clipboard', 'assistente_ignorar'];
+    function sufixoFlags() {
+        const hash = location.hash || '';
+        return FLAGS_HERDADOS
+            .map((f) => (hash.match(new RegExp('(?:^|[#&])(' + f + '(?:=[^&#]*)?)(?=[&#]|$)')) || [])[1])
+            .filter(Boolean)
+            .map((par) => '&' + par)
+            .join('');
     }
 
     // Busca por NOME (retaguarda): o assistente manda o nome esperado no
@@ -617,7 +634,7 @@
         }
 
         GM_setValue('ean_buscado', ean); // reserva, caso o fragmento se perca
-        location.href = link.href + '#assistente_ean=' + ean;
+        location.href = link.href + '#assistente_ean=' + ean + sufixoFlags();
     }
 
     // ---- Busca por NOME (retaguarda) ----
@@ -670,7 +687,7 @@
         }
         console.log('[assistente-ean] Nissei: candidato por nome aceito (nota', melhorNota.toFixed(2), ')');
         GM_setValue('ean_buscado', EAN_DO_FRAGMENTO);
-        location.href = melhor.url.split('#')[0] + '#assistente_ean=' + EAN_DO_FRAGMENTO + '&assistente_por_nome=1';
+        location.href = melhor.url.split('#')[0] + '#assistente_ean=' + EAN_DO_FRAGMENTO + '&assistente_por_nome=1' + sufixoFlags();
     }
 
     let tentativasProduto = 0;

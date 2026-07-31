@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São Paulo (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      5.0
+// @version      5.1
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @description  Busca o EAN na Farmácias São Paulo, entra no produto, lé o preço via JSON-LD e copia para a área de transferência.
@@ -87,6 +87,23 @@
         const m = (location.hash || '').match(/assistente_ean=(\d{8,14})/);
         return m ? m[1] : '';
     })();
+
+    // Marcadores que o app manda no fragmento inicial e que precisam
+    // SOBREVIVER a navegacao interna (listagem -> pagina do produto). Ao
+    // reconstruir o hash so com o EAN eles se perdiam: em coleta paralela o
+    // clipboard voltava a ser escrito (atrapalhando o copiar/colar do usuario)
+    // e na busca avulsa a aba fechava sozinha apesar do pedido de deixar
+    // aberta. assistente_ignorar entra por precaucao (com ele o script ja
+    // desiste antes de navegar).
+    const FLAGS_HERDADOS = ['assistente_manter_aba', 'assistente_sem_clipboard', 'assistente_ignorar'];
+    function sufixoFlags() {
+        const hash = location.hash || '';
+        return FLAGS_HERDADOS
+            .map((f) => (hash.match(new RegExp('(?:^|[#&])(' + f + '(?:=[^&#]*)?)(?=[&#]|$)')) || [])[1])
+            .filter(Boolean)
+            .map((par) => '&' + par)
+            .join('');
+    }
 
     const EAN_DA_BUSCA = (() => {
         const q = (new URLSearchParams(location.search).get('q') || '').trim();
@@ -645,7 +662,7 @@
         if (link) {
             GM_setValue('ean_buscado', ean);
             console.log('[assistente-ean] Sao Paulo: navegando para pagina do produto');
-            location.href = link.href.split('#')[0] + '#assistente_ean=' + ean;
+            location.href = link.href.split('#')[0] + '#assistente_ean=' + ean + sufixoFlags();
             return true;
         }
         if (semResultado) {
@@ -715,7 +732,7 @@
         }
         console.log('[assistente-ean] Sao Paulo: candidato por nome aceito (nota', melhorNota.toFixed(2), ')');
         GM_setValue('ean_buscado', EAN_DO_FRAGMENTO);
-        location.href = melhor.url.split('#')[0] + '#assistente_ean=' + EAN_DO_FRAGMENTO + '&assistente_por_nome=1';
+        location.href = melhor.url.split('#')[0] + '#assistente_ean=' + EAN_DO_FRAGMENTO + '&assistente_por_nome=1' + sufixoFlags();
     }
 
     let tentativasProduto = 0;
