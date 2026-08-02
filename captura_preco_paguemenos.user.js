@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Pague Menos (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      4.4
+// @version      4.5
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_paguemenos.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_paguemenos.user.js
 // @description  Consulta o EAN na API pública do site da Pague Menos (VTEX) e copia o preço para a área de transferência. Não precisa navegar até o produto.
@@ -68,6 +68,15 @@
         return motivoBloqueio || motivoLimite || 'sinal de bloqueio sem status HTTP';
     }
     const RE_BLOQUEIO_PAGINA = /p[aá]gina.{0,20}n[ãa]o.{0,20}encontrada|n[ãa]o foi encontrada a p[aá]gina|page not found|error\s*404/i;
+    // DESAFIO CLOUDFLARE (08/2026): diferente do 404 acima (HTML normal, HTTP
+    // 200), um desafio real do Cloudflare troca a página inteira por uma tela
+    // de verificação — "Just a moment...", checkbox "verifique que você é
+    // humano" etc. Isso também chega como HTTP 200 (o status sozinho não
+    // denuncia nada), então cai fora da checagem de STATUS_BLOQUEIO_DURO/
+    // STATUS_LIMITE_TEMPORARIO. Reforço preventivo: nunca visto em produção
+    // até agora (investigação de 08/2026 descartou antibot no caso real que
+    // motivou isso), mas o 404 sozinho não cobre esse cenário se ele aparecer.
+    const RE_DESAFIO_CLOUDFLARE = /just a moment|verifique que voc[eê] [eé] humano|verificando seu navegador|checking your browser|cf-chl|challenge-platform|unusual traffic/i;
 
     // ------------------------------------------------------------------
     // PREPARO DA PÁGINA: aceitar cookies e informar o CEP sozinho.
@@ -259,9 +268,25 @@
         return [...new Set(v.filter(x => x && x.length >= 8))];
     }
 
+    // JSON INVALIDO EM API QUE DEVERIA RESPONDER JSON (08/2026): um desafio
+    // Cloudflare intercepta a rota da API e devolve HTML (a tela de
+    // verificação) com HTTP 200 — o "r.ok" passa, mas o corpo não é o JSON
+    // esperado. Sem isso, esse cenário nunca marca suspeita (200 não está em
+    // nenhum dos dois Sets de status) e vira NAO_ENCONTRADO silencioso, igual
+    // ao 404 comum. Reforço preventivo (ver RE_DESAFIO_CLOUDFLARE acima).
+    function jsonOuSuspeito(r, ondeApi) {
+        return r.text().then(txt => {
+            try { return JSON.parse(txt); }
+            catch (e) {
+                marcarBloqueioDePagina(`resposta nao-JSON em ${ondeApi} (HTTP ${r.status})`);
+                return [];
+            }
+        });
+    }
+
     function buscarNaApi(termo) {
         return fetchComPrazo('/api/catalog_system/pub/products/search?fq=alternateIds_Ean:' + encodeURIComponent(termo))
-            .then(r => { marcarSeSuspeito(r.status, 'catalog_system'); return r.ok ? r.json() : []; })
+            .then(r => { marcarSeSuspeito(r.status, 'catalog_system'); return r.ok ? jsonOuSuspeito(r, 'catalog_system') : []; })
             .catch(() => []);
     }
 
@@ -283,7 +308,7 @@
         if (seg.regionId) url += '&regionId=' + encodeURIComponent(seg.regionId);
         if (seg.channel) url += '&salesChannel=' + encodeURIComponent(seg.channel);
         return fetchComPrazo(url)
-            .then(r => { marcarSeSuspeito(r.status, 'intelligent-search'); return r.ok ? r.json() : {}; })
+            .then(r => { marcarSeSuspeito(r.status, 'intelligent-search'); return r.ok ? jsonOuSuspeito(r, 'intelligent-search') : {}; })
             .then(j => (j && j.products) || [])
             .catch(() => []);
     }
@@ -335,6 +360,9 @@
                 const semResultado = /não encontr|nenhum result|0\s*resultado/i.test(document.body.innerText);
                 if (RE_BLOQUEIO_PAGINA.test(document.body.innerText)) {
                     marcarBloqueioDePagina('pagina de bloqueio/404 na busca');
+                }
+                if (RE_DESAFIO_CLOUDFLARE.test(document.body.innerText) || RE_DESAFIO_CLOUDFLARE.test(document.title || '')) {
+                    marcarBloqueioDePagina('desafio Cloudflare na busca');
                 }
                 if (semResultado || n <= 0) { resolve([]); return; }
                 setTimeout(() => tentar(n - 1), 600);
