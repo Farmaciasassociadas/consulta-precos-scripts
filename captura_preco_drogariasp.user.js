@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Drogaria São Paulo (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      1.5
+// @version      1.6
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_drogariasp.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_drogariasp.user.js
 // @description  Consulta o EAN na API pública do site da Drogaria São Paulo (VTEX) e copia o preço para a área de transferência. Não precisa navegar até o produto.
@@ -23,13 +23,49 @@
     // como Raia/Nissei/Panvel/Farmácias São Paulo fazem. Em vez disso,
     // rastreia status HTTP suspeitos nas respostas das APIs e o texto de
     // bloqueio/404 no fallback de DOM. Se, no fim, NENHUMA camada achar o
-    // produto E este sinal estiver ligado, emite BLOQUEIO em vez de
-    // NAO_ENCONTRADO — não grava nada, item volta pendente, Drogaria São Paulo pausa
-    // sozinho (ver SITES_COM_BLOQUEIO_ANTIBOT em config_app.py).
-    let bloqueioSuspeito = false;
-    const STATUS_HTTP_SUSPEITOS = new Set([401, 403, 429, 503]);
-    function marcarSeSuspeito(status) {
-        if (STATUS_HTTP_SUSPEITOS.has(status)) bloqueioSuspeito = true;
+    // produto E este sinal estiver ligado, emite BLOQUEIO/LIMITE em vez de
+    // NAO_ENCONTRADO — não grava nada, item volta pendente.
+    //
+    // 31/07/2026 — DUAS CAUSAS, DUAS REAÇÕES. Antes os quatro status viravam o
+    // mesmo BLOQUEIO, que pausava a farmácia inteira por 5 min:
+    //   401/403 -> BLOQUEIO: o site nos recusa de verdade. Esperar não muda
+    //              nada, então pausa a farmácia (SITES_COM_BLOQUEIO_ANTIBOT
+    //              em config_app.py).
+    //   429/503 -> LIMITE:   pedimos rápido demais, ou o site está
+    //              sobrecarregado. Pede espera curta e nova tentativa DO MESMO
+    //              item, sem pausar a farmácia (_tratar_limite_temporario em
+    //              _captura_mixin.py).
+    // O motivo vai no OBS da sentinela (ex.: "HTTP 429 em intelligent-search"):
+    // sem isso os BLOQUEIO chegavam com observação vazia e descobrir a causa
+    // exigia garimpar o precos.csv.
+    // O próprio motivo é a bandeira: string vazia = não vimos nada daquele
+    // tipo. Guardados SEPARADOS de propósito — se um endpoint der 429 e outro
+    // 403, o OBS tem que explicar o status que foi emitido, não o primeiro
+    // sinal que apareceu.
+    let motivoBloqueio = '';        // 401/403, ou página de bloqueio/404
+    let motivoLimite = '';          // 429/503
+    const STATUS_BLOQUEIO_DURO = new Set([401, 403]);
+    const STATUS_LIMITE_TEMPORARIO = new Set([429, 503]);
+    function marcarSeSuspeito(status, ondeApi) {
+        const onde = ondeApi ? ' em ' + ondeApi : '';
+        if (STATUS_BLOQUEIO_DURO.has(status)) {
+            if (!motivoBloqueio) motivoBloqueio = `HTTP ${status}${onde}`;
+        } else if (STATUS_LIMITE_TEMPORARIO.has(status)) {
+            if (!motivoLimite) motivoLimite = `HTTP ${status}${onde}`;
+        }
+    }
+    function marcarBloqueioDePagina(motivo) {
+        if (!motivoBloqueio) motivoBloqueio = motivo;
+    }
+    // 429 num endpoint e 403 em outro: a recusa vence, porque esperar não
+    // resolve recusa.
+    function statusDaSuspeita() {
+        if (motivoBloqueio) return 'BLOQUEIO';
+        if (motivoLimite) return 'LIMITE';
+        return '';
+    }
+    function obsDaSuspeita() {
+        return motivoBloqueio || motivoLimite || 'sinal de bloqueio sem status HTTP';
     }
     const RE_BLOQUEIO_PAGINA = /p[aá]gina.{0,20}n[ãa]o.{0,20}encontrada|n[ãa]o foi encontrada a p[aá]gina|page not found|error\s*404/i;
 
@@ -271,7 +307,7 @@
 
     function buscarNaApi(termo) {
         return fetchComPrazo('/api/catalog_system/pub/products/search?fq=alternateIds_Ean:' + encodeURIComponent(termo))
-            .then(r => { marcarSeSuspeito(r.status); return r.ok ? r.json() : []; })
+            .then(r => { marcarSeSuspeito(r.status, 'catalog_system'); return r.ok ? r.json() : []; })
             .catch(() => []);
     }
 
@@ -293,7 +329,7 @@
         if (seg.regionId) url += '&regionId=' + encodeURIComponent(seg.regionId);
         if (seg.channel) url += '&salesChannel=' + encodeURIComponent(seg.channel);
         return fetchComPrazo(url)
-            .then(r => { marcarSeSuspeito(r.status); return r.ok ? r.json() : {}; })
+            .then(r => { marcarSeSuspeito(r.status, 'intelligent-search'); return r.ok ? r.json() : {}; })
             .then(j => (j && j.products) || [])
             .catch(() => []);
     }
@@ -344,7 +380,9 @@
                 if (links.length) { resolve(links); return; }
                 const semResultado = /não encontr|nenhum result|0\s*resultado/i.test(document.body.innerText);
                 if (ehBuscaVazia()) { resolve([]); return; }   // vitrine sem resultado: nao e' bloqueio
-                if (RE_BLOQUEIO_PAGINA.test(document.body.innerText)) bloqueioSuspeito = true;
+                if (RE_BLOQUEIO_PAGINA.test(document.body.innerText)) {
+                    marcarBloqueioDePagina('pagina de bloqueio/404 na busca');
+                }
                 if (semResultado || n <= 0) { resolve([]); return; }
                 setTimeout(() => tentar(n - 1), 600);
             };
@@ -738,9 +776,10 @@
         }
 
         if (!produto) {
-            if (bloqueioSuspeito && !ehBuscaVazia()) {
-                emitirResultado(montarSentinel(ean, 'BLOQUEIO', '', '', '', ''));
-                console.log('[assistente-ean] Drogaria São Paulo: resposta suspeita (bloqueio antibot?) para', ean);
+            const suspeita = ehBuscaVazia() ? '' : statusDaSuspeita();
+            if (suspeita) {
+                emitirResultado(montarSentinel(ean, suspeita, '', '', obsDaSuspeita(), ''));
+                console.log('[assistente-ean] Drogaria São Paulo:', suspeita, '(' + obsDaSuspeita() + ') para', ean);
             } else {
                 emitirResultado(montarSentinel(ean, 'NAO_ENCONTRADO', '', '', '', ''));
                 console.log('[assistente-ean] Drogaria São Paulo: nao encontrado:', ean);
@@ -800,9 +839,10 @@
         }
         console.log('[assistente-ean] Drogaria São Paulo: nenhum candidato por nome (melhor:',
             Math.max(melhorNota, notaLink).toFixed(2), ')');
-        if (bloqueioSuspeito && !ehBuscaVazia()) {
-            emitirResultado(montarSentinel(ean, 'BLOQUEIO', '', '', '', ''));
-            console.log('[assistente-ean] Drogaria São Paulo: resposta suspeita (bloqueio antibot?) na busca por nome para', ean);
+        const suspeita = ehBuscaVazia() ? '' : statusDaSuspeita();
+        if (suspeita) {
+            emitirResultado(montarSentinel(ean, suspeita, '', '', obsDaSuspeita(), ''));
+            console.log('[assistente-ean] Drogaria São Paulo:', suspeita, '(' + obsDaSuspeita() + ') na busca por nome para', ean);
         } else {
             emitirResultado(montarSentinel(ean, 'NAO_ENCONTRADO', '', '', '', ''));
         }
