@@ -1,0 +1,23 @@
+# Ambientes Python (recriar com: python -m venv .venv && pip install -r requirements)
+.venv/
+.venv2/
+python/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Artefatos de debug/inspecao (nao usados pelo pipeline)
+outputs/**/*.inspect.ndjson
+outputs/**/preview.png
+
+# Diretorios de trabalho/temporarios
+tmp_ean_extract/
+tmp_video/
+work/
+
+# Videos de marketing (nao fazem parte do sistema de precificacao)
+*.mp4
+
+# Rodadas exportadas: regeneraveis via rodada.py + exportar_excel.py,
+# nao precisam ficar versionadas (ficam so localmente).
+PRECIFICACAO_RODADA_*.xlsx

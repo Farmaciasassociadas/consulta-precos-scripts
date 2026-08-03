@@ -1,0 +1,144 @@
+METODOLOGIA PARA OBTENCAO DO PRECO SUGERIDO
+Operacao: drogaria fisica em Maringa/PR
+
+OBJETIVO
+
+O preco sugerido e uma recomendacao auditavel por produto, nao uma alteracao automatica de preco. Ele equilibra tres referencias: custo real de compra, politica economica da categoria e mercado comparavel. A unidade de trabalho e o EAN (codigo de barras) normalizado como texto. Descricao serve somente para conferir apresentacao, nunca para juntar EANs diferentes.
+
+1. FONTES UTILIZADAS
+
+- Relatorio consolidado de entradas/notas: fonte do custo real.
+- Catalogo classificado e taxonomia oficial: fonte da categoria/subcategoria.
+- Politica de markup por categoria: define lucro liquido alvo, papel comercial e fator de conversao de preco web para preco de loja fisica.
+- Pesquisa de concorrentes por EAN: fonte do preco de mercado.
+- BRICK: indicador de giro/relevancia regional; nao e preco de concorrente.
+- Tabela CMED vigente: teto de medicamentos, quando aplicavel.
+
+2. APURACAO E VALIDACAO DO CUSTO
+
+Para cada linha de entrada, calcula-se:
+
+  custo unitario = Valor Total do Item / Qtde. Unitaria
+
+O resultado deve ser conferido contra quantidade x custo = valor total. Quando existirem os campos, tambem se confere:
+
+  custo unitario ~= (valor liquido + ICMS-ST) / quantidade
+
+Depois, as compras sao agrupadas por EAN. Sao mantidos custo medio, minimo, maximo, numero de compras, fornecedores e data da ultima compra. O custo medio das compras validadas e o custo usado na recomendacao, salvo decisao humana documentada.
+
+Itens de MARCA PROPRIA sao retirados antes do calculo; seu preco e definido manualmente. Sem quantidade ou valor total suficiente, o item recebe REVISAO_MANUAL_SEM_CUSTO_VALIDADO e nao recebe preco sugerido.
+
+3. CONFERENCIA DA APRESENTACAO
+
+Antes de comparar ou precificar, confirma-se que custo, concorrente e CMED referem-se a mesma apresentacao: unidade, caixa/kit, volume em ml, peso em g e quantidade de comprimidos. Um preco encontrado pelo nome so pode apoiar um EAN que ja tenha ao menos uma correspondencia confirmada; ele nunca cria equivalencia entre EANs distintos.
+
+Se houver indicio de caixa/kit tratado como unidade, dois ou mais concorrentes abaixo do custo, todos os concorrentes abaixo do custo, ou apresentacao incompativel, a recomendacao e bloqueada com REVISAO_MANUAL_CUSTO_OU_EMBALAGEM. Sem equivalencia comprovada, o status e REVISAO_MANUAL_SEM_EQUIVALENCIA.
+
+4. PRECOS DE CONCORRENTES
+
+Cada farmacia e uma observacao. Usam-se apenas precos numericos comparaveis de apresentacoes identicas. Precos de clube, app, assinatura, leve-mais-pague-menos e promocoes sao separados do preco web regular e nao recebem fator de loja fisica.
+
+Com quatro ou mais precos validos, sao removidos somente os outliers fora de 1,5 x IQR. Precos abaixo do custo nao sao descartados para elevar artificialmente a mediana: eles disparam investigacao de custo ou embalagem. A referencia de mercado e a mediana dos precos validos. Tambem sao calculados quantidade de concorrentes e coeficiente de variacao (CV) para medir dispersao.
+
+Quando a coleta for web regular, converte-se para a referencia estimada da loja fisica:
+
+  mediana fisica estimada = mediana web regular x fator fisico da categoria
+
+O fator varia de 1,00 a 1,10 conforme categoria. Ele nao e um adicional fixo: as despesas de loja ja aparecem no calculo economico. O fator e provisoriamente calibrado e deve ser revisado depois de 30 a 60 dias com observacoes locais.
+
+5. POLITICA ECONOMICA E PISO
+
+Premissas vigentes da rodada:
+
+  taxa de cartao:                 2,50%
+  Simples estimado:                5,98%
+  despesas fixas:                 17,50%
+  lucro liquido alvo:       por categoria/subcategoria
+
+O piso absoluto preserva a operacao sem lucro liquido alvo:
+
+  piso = custo / (1 - 0,025 - 0,0598 - 0,175)
+  piso = custo / 0,7402
+
+Isso equivale a markup minimo de 35,1% sobre custo e margem bruta de 26,0%. Nao se recomenda abaixo dele sem decisao humana explicita.
+
+O alvo economico da categoria e:
+
+  alvo economico = custo / (1 - 0,025 - 0,0598 - 0,175 - lucro alvo)
+
+Exemplo: com lucro alvo de 10%, o divisor e 0,6402; o markup e 56,2% e a margem bruta e 36,0%. Subgrupos prevalecem sobre o macrogrupo. Categoria sem politica vai para REVISAO_MANUAL_SEM_MARKUP.
+
+6. DEFINICAO DO TIER
+
+PRECO_IMAGEM:
+- Quatro ou mais concorrentes e CV <= 0,15; ou
+- item Curva A com CV ausente ou <= 0,35; ou
+- subgrupo definido pela politica como imagem (por exemplo, uso continuo, anticoncepcionais, fraldas e leites).
+
+PADRAO:
+- Item com concorrencia valida que nao se enquadre nas regras de imagem ou de protecao de margem.
+
+PROTECAO_MARGEM:
+- Sem preco concorrente valido;
+- Curva C; ou
+- sem BRICK e com menos de dois precos validos; e, em geral, categorias com menor comparabilidade, como maquiagem, conveniencias e exclusivos nao proprios.
+
+BRICK orienta relevancia e giro; nao substitui concorrencia. Sem BRICK e sem mercado suficiente, protege-se margem em vez de inventar competitividade.
+
+7. REGRA PARA CHEGAR AO ALVO DE VENDA
+
+Para PRECO_IMAGEM e PADRAO:
+
+  alvo competitivo = mediana fisica estimada x 0,99
+
+O preco sugerido parte desse alvo, respeitando sempre o piso. Em PRECO_IMAGEM, se o piso impedir a posicao competitiva, o piso pode prevalecer, mas o fato e registrado na justificativa.
+
+Para PROTECAO_MARGEM:
+
+  alvo = alvo economico da categoria
+
+Se tambem houver concorrencia valida, o alvo de protecao fica limitado a:
+
+  mediana fisica estimada x 1,15
+
+Em PADRAO ou PROTECAO_MARGEM, se o alvo ficar abaixo do piso, o item segue para revisao manual. A decisao pode ser renegociar compra, usar como isca deliberada ou deixar de trabalhar o produto; margem negativa nao e marcada como OK.
+
+8. MEDICAMENTOS E TETO CMED
+
+Medicamentos exigem conferencia do PMC CMED vigente pelo EAN e apresentacao, considerando a tributacao aplicavel ao Parana. Controlados, fracionados, alto custo, judiciais e casos com teto ambiguo sao revisao humana obrigatoria.
+
+O preco final nao pode ultrapassar o teto confirmado. Se nao houver casamento seguro com a tabela CMED, o status e REVISAO_MANUAL_TETO_CMED. Se piso > teto, o status e REVISAO_MANUAL_PISO_ACIMA_DO_TETO: nao se autoriza margem negativa. ALC nao deve ser assumida como isencao automatica para Maringa/PR.
+
+9. ARREDONDAMENTO COMERCIAL
+
+Depois de aplicar piso e, quando aplicavel, teto, o valor e arredondado para a grade local:
+
+  ,49 | ,79 | ,90 | ,95 | ,99
+
+Escolhe-se a terminacao mais proxima do alvo que ainda respeite piso e teto. Nao se arredonda sempre para cima em ,99 ou ,90, pois isso distorce preco-imagem e pode afastar o item da mediana competitiva.
+
+10. CONFIANCA E RESULTADO ENTREGUE
+
+Confianca ALTA: tres ou mais precos validos e sem maioria promocional.
+Confianca MEDIA: demais itens efetivamente precificaveis.
+Confianca BAIXA: qualquer item em revisao manual.
+
+Cada recomendacao deve registrar: EAN, descricao, classificacao, custo e sua validacao, historico de compras, precos por farmacia, exclusoes, mediana, CV, BRICK, piso, teto, tier, alvo economico, preco sugerido, markup, margem bruta, confianca, status e justificativa. A entrega separa itens recomendados de itens em revisao manual e compara preco, tier e status com a rodada anterior quando ela existir.
+
+FORMULA RESUMIDA
+
+1. Validar EAN e apresentacao.
+2. Apurar custo medio validado por EAN.
+3. Aplicar politica da categoria e calcular piso/alvo economico.
+4. Validar concorrentes e obter mediana fisica estimada, se houver.
+5. Definir tier pelo mercado, BRICK e papel da categoria.
+6. Aplicar alvo do tier, respeitar piso e teto CMED.
+7. Arredondar na grade local e registrar confianca, status e justificativa.
+
+PARAMETROS A REVALIDAR PERIODICAMENTE
+
+- Aliquota efetiva do Simples com o contador.
+- Percentual de despesas fixas, incluindo perdas, vencimentos e quebras.
+- Fatores de preco fisico por categoria.
+- Metas de lucro por categoria com venda, giro, ruptura, estoque e validade.
+- Tabela CMED vigente e equivalencia de apresentacao.
