@@ -99,29 +99,42 @@ def test_arredondar_grade_impossivel_quando_piso_maior_que_teto():
     assert r.preco is None
 
 
-def test_travas_sem_custo():
+def test_travas_sem_custo_com_mercado_sugere_preco_por_mercado():
     r = economico.aplicar_travas(
         custo=None, natureza_fiscal_item="padrao", tier="PADRAO", valor_referencia_mercado=20.0,
         divergencia_brick_web=False, lucro_liquido_alvo_pct=0.10, teto_cmed=None, preco_atual=None, params=PARAMS,
     )
-    assert r.status == "REVISAO_MANUAL_SEM_CUSTO_VALIDADO"
+    assert r.status == "OK_SEM_CUSTO_BASE_MERCADO"
+    assert r.preco_sugerido is not None
+    assert r.preco_sugerido <= 20.0
 
 
-def test_travas_divergencia_brick_web_bloqueia_antes_do_resto():
+def test_travas_sem_custo_e_sem_mercado_nao_ha_base():
+    r = economico.aplicar_travas(
+        custo=None, natureza_fiscal_item="padrao", tier="PADRAO", valor_referencia_mercado=None,
+        divergencia_brick_web=False, lucro_liquido_alvo_pct=0.10, teto_cmed=None, preco_atual=None, params=PARAMS,
+    )
+    assert r.status == "REVISAO_MANUAL_SEM_CUSTO_E_SEM_MERCADO"
+    assert r.preco_sugerido is None
+
+
+def test_travas_divergencia_brick_web_sinaliza_mas_ainda_sugere_preco():
     r = economico.aplicar_travas(
         custo=10.0, natureza_fiscal_item="padrao", tier="PADRAO", valor_referencia_mercado=20.0,
         divergencia_brick_web=True, lucro_liquido_alvo_pct=0.10, teto_cmed=None, preco_atual=None, params=PARAMS,
     )
     assert r.status == "DIVERGENCIA_BRICK_WEB"
-    assert r.preco_sugerido is None
+    assert r.preco_sugerido is not None
 
 
-def test_travas_mercado_abaixo_do_custo():
+def test_travas_mercado_abaixo_do_custo_sugere_preco_no_piso():
     r = economico.aplicar_travas(
         custo=15.0, natureza_fiscal_item="padrao", tier="PADRAO", valor_referencia_mercado=12.0,
         divergencia_brick_web=False, lucro_liquido_alvo_pct=0.10, teto_cmed=None, preco_atual=None, params=PARAMS,
     )
     assert r.status == "REVISAO_MANUAL_CUSTO_OU_EMBALAGEM"
+    assert r.preco_sugerido is not None
+    assert r.preco_sugerido >= r.piso - 1e-9
 
 
 def test_travas_piso_acima_do_teto_cmed():
@@ -132,13 +145,25 @@ def test_travas_piso_acima_do_teto_cmed():
     assert r.status == "REVISAO_MANUAL_PISO_ACIMA_DO_TETO"
 
 
-def test_travas_variacao_alta_bloqueia_salto_grande():
+def test_travas_variacao_alta_sinaliza_mas_ainda_sugere_preco():
     r = economico.aplicar_travas(
         custo=10.0, natureza_fiscal_item="padrao", tier="PRECO_IMAGEM", valor_referencia_mercado=30.0,
         divergencia_brick_web=False, lucro_liquido_alvo_pct=0.10, teto_cmed=None, preco_atual=10.0, params=PARAMS,
     )
     assert r.status == "REVISAO_MANUAL_VARIACAO_ALTA"
-    assert r.preco_sugerido is None
+    assert r.preco_sugerido is not None
+
+
+def test_travas_piso_acima_do_mercado_sugere_preco_no_piso():
+    # mercado muito abaixo do alvo economico (margem-alvo alta) mas ainda acima do custo:
+    # antes bloqueava; agora sugere o preco no piso, com margem reduzida.
+    r = economico.aplicar_travas(
+        custo=10.0, natureza_fiscal_item="padrao", tier="PADRAO", valor_referencia_mercado=10.5,
+        divergencia_brick_web=False, lucro_liquido_alvo_pct=0.20, teto_cmed=None, preco_atual=None, params=PARAMS,
+    )
+    assert r.status == "OK_MARGEM_REDUZIDA"
+    assert r.preco_sugerido is not None
+    assert r.preco_sugerido >= r.piso - 1e-9
 
 
 def test_travas_ok_de_ponta_a_ponta():
