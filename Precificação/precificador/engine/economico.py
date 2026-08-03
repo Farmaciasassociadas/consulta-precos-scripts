@@ -159,12 +159,30 @@ def aplicar_travas(
     preco_atual: float | None,
     params: dict[str, Any],
 ) -> ResultadoPrecificacao:
-    if custo is None:
-        return ResultadoPrecificacao("REVISAO_MANUAL_SEM_CUSTO_VALIDADO", None, "Sem custo validado por NF.")
-
+    """Sempre tenta produzir um preco sugerido; so retorna None quando nao ha
+    nenhuma base (nem custo nem mercado) ou o resultado seria matematicamente
+    impossivel (piso > teto). Nos demais casos o status sinaliza o motivo de
+    revisao, mas o preco vem preenchido (conversa 2026-08-03).
+    """
     if tier == "REVISAO_HUMANA":
         return ResultadoPrecificacao(
             "REVISAO_MANUAL", None, "Classificacao exige conferencia humana antes de definir preco.", tier=tier
+        )
+
+    if custo is None:
+        if valor_referencia_mercado is None:
+            return ResultadoPrecificacao(
+                "REVISAO_MANUAL_SEM_CUSTO_E_SEM_MERCADO", None,
+                "Sem custo validado por NF e sem referencia de mercado (Brick/web): nao ha base para sugerir preco.",
+                tier=tier,
+            )
+        alvo_mercado = valor_referencia_mercado * 0.99
+        grade = arredondar_grade(alvo_mercado, 0.0, teto_cmed, params["grade"]["terminacoes"])
+        return ResultadoPrecificacao(
+            "OK_SEM_CUSTO_BASE_MERCADO", grade.preco,
+            "Sem custo validado por NF: preco sugerido apenas pela referencia de mercado (Brick/web), "
+            "sem checagem de margem. Confirme o custo assim que possivel.",
+            alvo=alvo_mercado, tier=tier,
         )
 
     if lucro_liquido_alvo_pct is None:
@@ -172,22 +190,8 @@ def aplicar_travas(
             "REVISAO_MANUAL_SEM_MARKUP", None, "Classificacao sem regra financeira cadastrada.", tier=tier
         )
 
-    if divergencia_brick_web:
-        return ResultadoPrecificacao(
-            "DIVERGENCIA_BRICK_WEB", None,
-            "Mediana web e preco de mercado (Brick) divergem mais de 25%: possivel erro de apresentacao/EAN.",
-            tier=tier,
-        )
-
-    if valor_referencia_mercado is not None and valor_referencia_mercado < custo:
-        return ResultadoPrecificacao(
-            "REVISAO_MANUAL_CUSTO_OU_EMBALAGEM", None,
-            "Mercado (Brick/web) abaixo do custo validado: investigar custo ou apresentacao.", tier=tier,
-        )
-
     piso_valor = piso(custo, params, natureza_fiscal_item)
     alvo_econ = alvo_economico(custo, params, natureza_fiscal_item, lucro_liquido_alvo_pct)
-    alvo_valor = calcular_alvo(tier, valor_referencia_mercado, alvo_econ)
 
     if teto_cmed is not None and piso_valor > teto_cmed:
         return ResultadoPrecificacao(
@@ -196,11 +200,36 @@ def aplicar_travas(
             piso=piso_valor, tier=tier,
         )
 
-    if alvo_valor < piso_valor:
+    if divergencia_brick_web:
+        alvo_valor = max(calcular_alvo(tier, valor_referencia_mercado, alvo_econ), piso_valor)
+        grade = arredondar_grade(alvo_valor, piso_valor, teto_cmed, params["grade"]["terminacoes"])
         return ResultadoPrecificacao(
-            "REVISAO_MANUAL_PISO_ACIMA_DO_MERCADO", None,
-            "O alvo de mercado ficou abaixo do preco minimo tecnico.",
+            "DIVERGENCIA_BRICK_WEB", grade.preco,
+            "Mediana web e preco de mercado (Brick) divergem mais de 25%: possivel erro de apresentacao/EAN. "
+            "Preco sugerido mantido apenas como referencia ate a divergencia ser conferida.",
             piso=piso_valor, alvo=alvo_valor, tier=tier,
+        )
+
+    if valor_referencia_mercado is not None and valor_referencia_mercado < custo:
+        grade = arredondar_grade(piso_valor, piso_valor, teto_cmed, params["grade"]["terminacoes"])
+        return ResultadoPrecificacao(
+            "REVISAO_MANUAL_CUSTO_OU_EMBALAGEM", grade.preco,
+            "Mercado (Brick/web) abaixo do custo validado: investigar custo ou apresentacao. "
+            "Preco sugerido no piso tecnico ate a investigacao.",
+            piso=piso_valor, tier=tier,
+        )
+
+    alvo_valor = calcular_alvo(tier, valor_referencia_mercado, alvo_econ)
+    status_margem = "OK"
+    justificativa_margem = "Preco dentro da politica da categoria, respeitando piso, teto e variacao maxima."
+    if alvo_valor < piso_valor:
+        # Mercado nao sustenta a margem-alvo da categoria, mas o piso ja garante
+        # a contribuicao minima: vender no piso ainda e melhor que nao sugerir nada.
+        alvo_valor = piso_valor
+        status_margem = "OK_MARGEM_REDUZIDA"
+        justificativa_margem = (
+            "O alvo de mercado ficou abaixo do preco minimo tecnico: sugerido o piso "
+            "(margem reduzida a contribuicao minima) em vez de bloquear a sugestao."
         )
 
     grade = arredondar_grade(alvo_valor, piso_valor, teto_cmed, params["grade"]["terminacoes"])
@@ -215,13 +244,14 @@ def aplicar_travas(
         variacao = abs(grade.preco / preco_atual - 1)
         if variacao > variacao_maxima:
             return ResultadoPrecificacao(
-                "REVISAO_MANUAL_VARIACAO_ALTA", None,
+                "REVISAO_MANUAL_VARIACAO_ALTA", grade.preco,
                 f"Preco recomendado ({grade.preco:.2f}) varia {variacao * 100:.1f}% do praticado hoje "
-                f"({preco_atual:.2f}), acima do limite de {variacao_maxima * 100:.0f}% por rodada.",
+                f"({preco_atual:.2f}), acima do limite de {variacao_maxima * 100:.0f}% por rodada. "
+                "Sugestao mantida para referencia; aplicar em rodadas graduais.",
                 piso=piso_valor, alvo=alvo_valor, tier=tier,
             )
 
     return ResultadoPrecificacao(
-        "OK", grade.preco, "Preco dentro da politica da categoria, respeitando piso, teto e variacao maxima.",
+        status_margem, grade.preco, justificativa_margem,
         piso=piso_valor, alvo=alvo_valor, tier=tier,
     )
