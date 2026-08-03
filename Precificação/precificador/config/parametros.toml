@@ -1,0 +1,67 @@
+# Parâmetros do motor de precificação.
+# Nenhuma constante financeira ou fiscal deve viver no código — tudo aqui.
+# Ver PLANO_SISTEMA_PRECIFICACAO.md para a origem de cada número.
+
+[premissas]
+cartao_pct = 0.0250
+despesas_fixas_pct = 0.1750
+contribuicao_minima_reais = 0.60   # piso de contribuição por unidade (item 3.3.1 do plano)
+
+[simples.aliquota_nominal]
+# Alíquota nominal da faixa atual do Anexo I (RBT12 ~R$395 mil -> faixa 3).
+# Revisar quando o faturamento acumulado mudar de faixa.
+faixa_pct = 0.0950
+parcela_deduzir_reais = 13860.00
+rbt12_referencia_reais = 395000.00
+
+[simples.partilha_anexo1]
+# Partilha das faixas 1a-5a do Anexo I (COAF / Contabilizei, ver plano Parte 2.1)
+icms_pct = 0.3400
+cofins_pct = 0.1274
+pis_pct = 0.0276
+
+[simples.segregacao.multiplicador]
+# Multiplicador aplicado à alíquota efetiva nominal, por natureza fiscal do item.
+# medicamento: ICMS-ST + monofásico PIS/COFINS -> remove ambas as parcelas.
+# perfumaria_higiene: só monofásico -> remove só PIS/COFINS.
+# padrao: nenhuma segregação.
+medicamento = 0.505         # 1 - (icms_pct + cofins_pct + pis_pct)
+perfumaria_higiene = 0.845  # 1 - (cofins_pct + pis_pct)
+padrao = 1.000
+
+[mercado.peso_brick]
+# Peso do Brick (w_b) na mediana ponderada, por qualidade da evidência web.
+sem_brick = 0.00
+sem_web = 1.00
+web_n_ate_2 = 0.70
+web_n_3_a_4 = 0.45
+web_n_5_mais_cv_baixo = 0.30   # CV <= cv_baixo_limite
+web_n_5_mais_cv_alto = 0.50    # CV > cv_alto_limite
+cv_baixo_limite = 0.15
+cv_alto_limite = 0.25
+
+[mercado.brick]
+spread_etiqueta = 0.03   # etiqueta física estimada = VUM_brick * (1 + spread)
+divergencia_brick_web_limite = 0.25   # |web/brick - 1| acima disso -> REVISAO
+
+[mercado.fator_fisico]
+# Recalibrado a partir da razão Brick/mediana_web medida em 1.523 EANs (plano 1.1).
+# Chave = segmento Brick (aba RX/GEN/SIM/NMED); "default" cobre o resto do catálogo.
+NMED = 0.91
+GEN = 0.92
+RX = 0.94
+SIM = 0.78
+default = 0.90
+
+[mercado.outliers]
+frescor_dias_max = 45
+banda_ancora_min = 0.60
+banda_ancora_max = 1.60
+mad_n_min = 5
+mad_multiplicador = 3.0
+
+[grade]
+terminacoes = [0.49, 0.79, 0.90, 0.95, 0.99]
+
+[trava]
+variacao_maxima_pct = 0.15   # variação máxima vs. preço praticado hoje, por rodada

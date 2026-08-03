@@ -1,0 +1,51 @@
+linha;categoria_exata;papel;lucro_liquido_alvo_pct;markup_sobre_custo_pct;margem_bruta_pct;fator_fisico_sobre_mediana_web;status_observacao
+1;ETICOS;PADRAO;10;56,2;36,0;1,03;Usar apenas quando não houver subgrupo
+2;ETICOS > ANTICONCEPCIONAL;PRECO_IMAGEM;5;44,9;31,0;1,01;Alta comparação e recorrência
+3;ETICOS > ANTIMICROBIANO;PADRAO;8;51,5;34,0;1,02;Conferir apresentação e PMC
+4;ETICOS > CONTROLADO;REVISAO_HUMANA;10;56,2;36,0;1,03;Controlado e PMC exigem conferência
+5;ETICOS > ETICOS-ALTO CUSTO/JUDICIAIS/COMPRA ESPECIAL;PRECO_IMAGEM;3;40,8;29,0;1,00;Capital alto, PMC e compra especial
+6;ETICOS > FRACIONADO;REVISAO_HUMANA;15;69,4;41,0;1,05;Validar custo e unidade fracionada
+7;ETICOS > O.T.C/MIP;PRECO_IMAGEM;8;51,5;34,0;1,00;Itens conhecidos e comparáveis
+8;ETICOS > RX;PADRAO;10;56,2;36,0;1,02;Conferir PMC por apresentação
+9;ETICOS > USO CONTINUO;PRECO_IMAGEM;5;44,9;31,0;1,01;Recorrência e fidelização
+10;GENERICO;PADRAO;15;69,4;41,0;1,02;Usar apenas quando não houver subgrupo
+11;GENERICO > ANTICONCEPCIONAL;PRECO_IMAGEM;10;56,2;36,0;1,01;Alta comparação e recorrência
+12;GENERICO > ANTIMICROBIANO;PADRAO;12;61,2;38,0;1,02;Conferir apresentação e PMC
+13;GENERICO > CONTROLADO;REVISAO_HUMANA;15;69,4;41,0;1,03;Controlado e PMC exigem conferência
+14;GENERICO > FRACIONADO;REVISAO_HUMANA;18;78,5;44,0;1,05;Validar custo e unidade fracionada
+15;GENERICO > O.T.C/MIP;PRECO_IMAGEM;12;61,2;38,0;1,00;Itens conhecidos e comparáveis
+16;GENERICO > RX;PADRAO;15;69,4;41,0;1,02;Conferir PMC por apresentação
+17;GENERICO > USO CONTINUO;PRECO_IMAGEM;10;56,2;36,0;1,01;Recorrência e fidelização
+18;SIMILAR;PADRAO;15;69,4;41,0;1,02;Corrigido de duplicata GENERICO — espelha GENERICO (linha 10); usar apenas quando não houver subgrupo
+19;SIMILAR > ANTICONCEPCIONAL;PRECO_IMAGEM;10;56,2;36,0;1,01;Corrigido de duplicata GENERICO — espelha GENERICO > ANTICONCEPCIONAL (linha 11); alta comparação e recorrência
+20;SIMILAR > ANTIMICROBIANO;PADRAO;12;61,2;38,0;1,02;Conferir apresentação e PMC
+21;SIMILAR > CONTROLADO;REVISAO_HUMANA;15;69,4;41,0;1,03;Controlado e PMC exigem conferência
+22;SIMILAR > FRACIONADO;REVISAO_HUMANA;18;78,5;44,0;1,05;Validar custo e unidade fracionada
+23;SIMILAR > O.T.C/MIP-SIMILAR;PRECO_IMAGEM;12;61,2;38,0;1,00;Itens conhecidos e comparáveis
+24;SIMILAR > RX-SIMILAR;PADRAO;15;69,4;41,0;1,02;Conferir PMC por apresentação
+25;SIMILAR > USO CONTINUO;PRECO_IMAGEM;10;56,2;36,0;1,01;Recorrência e fidelização
+26;PERFUMARIA;PROTECAO_MARGEM;18;78,5;44,0;1,05;Usar apenas quando não houver subgrupo
+27;PERFUMARIA > BRONZ & HIDRATANTES;PROTECAO_MARGEM;20;85,1;46,0;1,06;Sazonalidade e valor percebido
+28;PERFUMARIA > COLONIAS & DESODORANTES;PROTECAO_MARGEM;18;78,5;44,0;1,05;Comparar marcas líderes
+29;PERFUMARIA > LINHA CAPILAR;PROTECAO_MARGEM;18;78,5;44,0;1,05;Comparar marcas líderes
+30;PERFUMARIA > DERMOCOSMETICOS;PADRAO;15;69,4;41,0;1,03;Ticket alto e forte comparação web
+31;PERFUMARIA > FRALDAS;PRECO_IMAGEM;5;44,9;31,0;1,00;Categoria muito comparável
+32;PERFUMARIA > HIGIENE BUCAL;PADRAO;12;61,2;38,0;1,02;Líderes como preço-imagem
+33;PERFUMARIA > HIGIENE PESSOAL;PADRAO;12;61,2;38,0;1,03;Líderes como preço-imagem
+34;PERFUMARIA > LINHA INFANTIL;PADRAO;10;56,2;36,0;1,01;Alta sensibilidade de preço
+35;PERFUMARIA > MAQUIAGEM;PROTECAO_MARGEM;22;92,2;48,0;1,08;Valor percebido e impulso
+36;PERFUMARIA > TINTURAS;PADRAO;15;69,4;41,0;1,04;Comparar marcas e cores líderes
+37;VAREJO;PROTECAO_MARGEM;20;85,1;46,0;1,07;Usar apenas quando não houver subgrupo
+38;VAREJO > ACESSORIOS;PROTECAO_MARGEM;25;104,0;51,0;1,08;Baixa comparação e conveniência
+39;VAREJO > BEBIDAS E BOMBONIERE;PROTECAO_MARGEM;28;117,3;54,0;1,10;Compra por impulso
+40;VAREJO > CONVENIENCIAS;PROTECAO_MARGEM;25;104,0;51,0;1,10;Urgência e conveniência
+41;VAREJO > FITOTERAPICOS;PROTECAO_MARGEM;18;78,5;44,0;1,04;Validar regulação aplicável
+42;VAREJO > LEITES;PRECO_IMAGEM;5;44,9;31,0;1,00;Categoria muito comparável
+43;VAREJO > LEITES NUTRICAO;PRECO_IMAGEM;8;51,5;34,0;1,00;Comparação e ticket alto
+44;VAREJO > ORTOPEDICOS;PROTECAO_MARGEM;20;85,1;46,0;1,06;Validar equivalência técnica
+45;VAREJO > SUPLEMENTOS;PROTECAO_MARGEM;18;78,5;44,0;1,04;Comparar EAN e gramatura
+46;VAREJO > VAREJINHO;PROTECAO_MARGEM;28;117,3;54,0;1,10;Compra por impulso
+47;VAREJO > VITAMINAS;PROTECAO_MARGEM;18;78,5;44,0;1,04;Comparar EAN e quantidade
+48;EXCLUSIVOS;PROTECAO_MARGEM;25;104,0;51,0;1,08;Somente itens que não sejam marca própria
+49;EXCLUSIVOS > VITAMINAS;PROTECAO_MARGEM;25;104,0;51,0;1,08;Somente itens que não sejam marca própria
+50;EXCLUSIVOS > GERAL;PROTECAO_MARGEM;28;117,3;54,0;1,10;Somente itens que não sejam marca própria
