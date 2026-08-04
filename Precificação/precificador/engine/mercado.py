@@ -12,8 +12,13 @@ from statistics import median
 from typing import Any
 
 PALAVRAS_PROMOCIONAIS = (
-    "promo", "clube", "assinante", "assinatura", "leve mais", "leve ", "desconto",
+    "clube", "assinante", "assinatura", "leve mais", "leve ", "desconto",
 )
+# "promoção: de R$ X por R$ Y" (sem "leve"/"clube"/"assinante") e o formato padrao
+# de exibicao do preco de venda normal em quase todo site -- NAO e clube/assinatura
+# nem leve-mais, entao nao distorce o preco unitario e deve ser mantido como
+# preco de venda real (caso BUPROVIL 600mg C/20, 2026-08-04: 7.215 observacoes no
+# banco eram descartadas so por conter "promo", mascarando o preco de concorrencia).
 
 
 @dataclass(frozen=True)
@@ -48,6 +53,7 @@ class ResultadoMercado:
     valor_referencia: float | None
     divergencia_brick_web: bool
     filtro: ResultadoFiltro
+    cluster_acima_brick: bool = False
 
 
 def parse_data_hora(valor: str | None) -> date | None:
@@ -214,6 +220,7 @@ def calcular_mercado(
 
     # Camadas 3-4 (ancora + MAD) para chegar na mediana final usada no blend.
     atual, novas = _camada_3_ancora(pre_ancora, vum_brick, cfg["banda_ancora_min"], cfg["banda_ancora_max"])
+    descartadas_ancora = novas
     descartadas += novas
     atual, novas = _camada_4_mad(atual, cfg["mad_n_min"], cfg["mad_multiplicador"])
     descartadas += novas
@@ -226,6 +233,31 @@ def calcular_mercado(
     mercado_web = mediana_bruta * fator_fisico if mediana_bruta is not None else None
 
     peso = _peso_brick(n, cv, mercado_brick is not None, params["mercado"]["peso_brick"])
+
+    # Cluster consistente de concorrentes ACIMA da banda do Brick: a camada de
+    # ancora existe para descartar ruido/erro de apresentacao, nao para jogar
+    # fora um preco de mercado real so porque o Brick esta desatualizado/baixo.
+    # Se os proprios preços descartados por estarem acima do teto da banda
+    # formam um cluster apertado (baixa dispersao, n minimo), confiamos nesse
+    # cluster como piso do valor de referencia em vez de colar no Brick puro
+    # (evita deixar dinheiro na mesa quando o concorrente sustenta preco maior).
+    cluster_acima = False
+    cfg_cluster = params["mercado"].get("cluster_acima_brick")
+    if cfg_cluster and vum_brick and mercado_brick:
+        teto_banda = vum_brick * cfg["banda_ancora_max"]
+        precos_acima = [
+            d.observacao.preco for d in descartadas_ancora
+            if d.camada == "ancora" and d.observacao.preco > teto_banda
+        ]
+        if len(precos_acima) >= cfg_cluster["n_min"]:
+            cv_cluster = _cv(precos_acima)
+            if cv_cluster is not None and cv_cluster <= cfg_cluster["cv_max"]:
+                mediana_cluster = median(precos_acima)
+                referencia_cluster = mediana_cluster * fator_fisico
+                if referencia_cluster > (mercado_web if mercado_web is not None else mercado_brick):
+                    cluster_acima = True
+                    mercado_web = referencia_cluster
+                    peso = cfg_cluster["peso_brick"]
 
     if mercado_brick is not None and mercado_web is not None:
         valor_referencia = peso * mercado_brick + (1 - peso) * mercado_web
@@ -250,4 +282,5 @@ def calcular_mercado(
         valor_referencia=valor_referencia,
         divergencia_brick_web=divergencia,
         filtro=filtro,
+        cluster_acima_brick=cluster_acima,
     )

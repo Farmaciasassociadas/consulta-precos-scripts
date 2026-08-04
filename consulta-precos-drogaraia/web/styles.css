@@ -116,7 +116,11 @@ body {
   overflow-x: hidden;
 }
 
-::selection { background: var(--accent); color: var(--accent-contrast); }
+::selection { background: #1a1a1a; color: #ffffff; }
+:root[data-theme="dark"] ::selection { background: #f2f2f2; color: #1a1a1a; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) ::selection { background: #f2f2f2; color: #1a1a1a; }
+}
 
 button, input, select { font-family: inherit; font-size: inherit; color: inherit; }
 

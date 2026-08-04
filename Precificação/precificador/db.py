@@ -129,6 +129,10 @@ def criar_schema(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE produto ADD COLUMN marca_propria INTEGER NOT NULL DEFAULT 0")
     except sqlite3.OperationalError:
         pass  # coluna ja existe (rodadas anteriores)
+    try:
+        conn.execute("ALTER TABLE produto ADD COLUMN marca_exclusiva_preco REAL")
+    except sqlite3.OperationalError:
+        pass  # coluna ja existe (rodadas anteriores)
     conn.commit()
 
 

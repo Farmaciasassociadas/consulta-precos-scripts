@@ -1,0 +1,36 @@
+{
+  "files": {
+    "code": [
+      "web/app.js"
+    ],
+    "document": [
+      "PRODUCT.md",
+      "web/index.html"
+    ],
+    "paper": [],
+    "image": [],
+    "video": []
+  },
+  "total_files": 3,
+  "total_words": 3012,
+  "needs_graph": false,
+  "warning": "Corpus is ~3.012 words - fits in a single context window. You may not need a graph.",
+  "skipped_sensitive": [],
+  "graphifyignore_patterns": 0,
+  "scope": {
+    "requested_mode": "auto",
+    "resolved_mode": "committed",
+    "source": "default-auto",
+    "root": ".",
+    "git_root": "..",
+    "head": "9376b08e4b1b8dc8e68fda49a462fa839f738b05",
+    "candidate_count": 4,
+    "included_count": 3,
+    "excluded_untracked_count": 0,
+    "excluded_ignored_count": 0,
+    "excluded_sensitive_count": 0,
+    "missing_committed_count": 0,
+    "warnings": [],
+    "recommendation": "Use --scope all or graphify.yaml inputs.corpus for a knowledge-base folder."
+  }
+}

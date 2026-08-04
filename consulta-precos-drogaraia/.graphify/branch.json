@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "branchName": "master",
+  "worktreePath": "C:\\Claude",
+  "upstream": null,
+  "mergeBase": null,
+  "firstSeenHead": "9376b08e4b1b8dc8e68fda49a462fa839f738b05",
+  "lastSeenHead": "9376b08e4b1b8dc8e68fda49a462fa839f738b05",
+  "lastAnalyzedHead": "9376b08e4b1b8dc8e68fda49a462fa839f738b05",
+  "stale": false,
+  "staleReason": null,
+  "staleSince": null,
+  "lifecycleEvent": null,
+  "createdAt": "2026-07-29T02:12:13.238Z",
+  "updatedAt": "2026-07-29T02:12:13.238Z"
+}

@@ -145,12 +145,27 @@ def test_travas_piso_acima_do_teto_cmed():
     assert r.status == "REVISAO_MANUAL_PISO_ACIMA_DO_TETO"
 
 
-def test_travas_variacao_alta_sinaliza_mas_ainda_sugere_preco():
+def test_travas_preco_atual_nao_disponivel_nao_trava_mais():
+    # preco_atual (cadastro) e reconhecidamente nao confiavel: mesmo distante
+    # do preco sugerido, nao deve mais travar a sugestao.
     r = economico.aplicar_travas(
-        custo=10.0, natureza_fiscal_item="padrao", tier="PRECO_IMAGEM", valor_referencia_mercado=30.0,
-        divergencia_brick_web=False, lucro_liquido_alvo_pct=0.10, teto_cmed=None, preco_atual=10.0, params=PARAMS,
+        custo=10.0, natureza_fiscal_item="padrao", tier="PADRAO", valor_referencia_mercado=15.0,
+        divergencia_brick_web=False, lucro_liquido_alvo_pct=0.10, teto_cmed=None, preco_atual=2.0, params=PARAMS,
     )
-    assert r.status == "REVISAO_MANUAL_VARIACAO_ALTA"
+    assert r.status != "REVISAO_MANUAL_VARIACAO_ALTA"
+    assert r.status == "OK"
+    assert r.preco_sugerido is not None
+
+
+def test_travas_divergencia_mercado_forte_sinaliza_mas_ainda_sugere_preco():
+    # tier PROTECAO_MARGEM tolera ate 30% de variacao vs. mercado. Com
+    # lucro-alvo muito alto, o piso tecnico (custo/divisor) supera o teto de
+    # calcular_alvo (mercado*1.15) e domina o alvo -- passando dos 30%.
+    r = economico.aplicar_travas(
+        custo=10.0, natureza_fiscal_item="padrao", tier="PROTECAO_MARGEM", valor_referencia_mercado=10.5,
+        divergencia_brick_web=False, lucro_liquido_alvo_pct=0.50, teto_cmed=None, preco_atual=None, params=PARAMS,
+    )
+    assert r.status == "REVISAO_MANUAL_DIVERGENCIA_MERCADO_FORTE"
     assert r.preco_sugerido is not None
 
 
