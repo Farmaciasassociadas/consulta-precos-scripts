@@ -9,6 +9,104 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+RAZOES_EMBALAGEM_FIXAS = [2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 24, 25, 30, 40, 48, 50, 60, 100]
+
+
+def corrigir_preco_atual(
+    venda_unit: float | None,
+    preco_anterior: float | None,
+    custo_final: float | None,
+    pmc_val: float | None,
+    vum_brick: float | None,
+) -> tuple[float | None, str | None]:
+    """Detecta e corrige (ou descarta) um preco unitario absurdo.
+    PMC/CMED nao serve como ancora unica: o cadastro oficial pode estar preso
+    a uma apresentacao (qtde de unidades) diferente da caixa comercial.
+    Prioridade de ancora: Brick > PMC > preco anterior > custo."""
+    if venda_unit is None:
+        return None, None
+
+    ancoras = []
+    if vum_brick:
+        ancoras.append(("Brick", vum_brick, 2.0))
+    if pmc_val:
+        ancoras.append(("PMC/CMED", pmc_val, 1.05))
+    if preco_anterior:
+        ancoras.append(("preco anterior no banco", preco_anterior, 3.0))
+    if custo_final:
+        ancoras.append(("custo (markup maximo 10x)", custo_final, 10.0))
+    if not ancoras:
+        return venda_unit, None
+
+    nome_ref, ancora, tolerancia = ancoras[0]
+    if venda_unit <= ancora * tolerancia:
+        return venda_unit, None
+
+    melhor_razao, melhor_dif, melhor_ref = None, None, None
+    for razao in RAZOES_EMBALAGEM_FIXAS:
+        corrigido = venda_unit / razao
+        if ancora * 0.2 <= corrigido <= ancora * tolerancia:
+            dif = abs(corrigido - ancora)
+            if melhor_dif is None or dif < melhor_dif:
+                melhor_razao, melhor_dif, melhor_ref = razao, dif, nome_ref
+
+    if not melhor_razao:
+        razao_bruta = venda_unit / ancora
+        banda_min = max(0.10, 1.5 / razao_bruta) if razao_bruta > 0 else 0.10
+        for razao in range(2, 101):
+            if razao in RAZOES_EMBALAGEM_FIXAS:
+                continue
+            corrigido = venda_unit / razao
+            if ancora * banda_min <= corrigido <= ancora * tolerancia:
+                dif = abs(corrigido - ancora)
+                if melhor_dif is None or dif < melhor_dif:
+                    melhor_razao, melhor_dif, melhor_ref = razao, dif, nome_ref
+
+    if not melhor_razao:
+        outras_ancoras = []
+        if pmc_val and pmc_val != ancora:
+            outras_ancoras.append(("PMC/CMED", pmc_val, 1.05))
+        if vum_brick and vum_brick != ancora:
+            outras_ancoras.append(("Brick", vum_brick, 2.0))
+        if custo_final and custo_final != ancora:
+            outras_ancoras.append(("custo", custo_final, 10.0))
+        for ref_nome, ref_valor, ref_tol in outras_ancoras:
+            for razao in range(2, 101):
+                corrigido = venda_unit / razao
+                razao_bruta = venda_unit / ref_valor
+                banda_min = max(0.10, 1.5 / razao_bruta) if razao_bruta > 0 else 0.10
+                if ref_valor * banda_min <= corrigido <= ref_valor * ref_tol:
+                    dif = abs(corrigido - ref_valor)
+                    if melhor_dif is None or dif < melhor_dif:
+                        melhor_razao, melhor_dif, melhor_ref = razao, dif, ref_nome
+
+    if melhor_razao:
+        corrigido = venda_unit / melhor_razao
+        return corrigido, (
+            f"preco incoerente corrigido: dividido por {melhor_razao} "
+            f"(erro de embalagem/apresentacao no ERP)."
+        )
+
+    return None, (
+        f"preco descartado: R$ {venda_unit:.2f} incoerente com {nome_ref} "
+        f"(R$ {ancora:.2f}) e nenhuma razao de embalagem ate 100x explicou a diferenca."
+    )
+
+
+def preco_atual_e_outlier_historico(
+    preco_atual: float | None,
+    mediana_sugerido_historico: float | None,
+    banda_min: float = 0.5,
+    banda_max: float = 2.0,
+) -> bool:
+    """True se preco_atual estiver fora de uma banda ampla em torno da mediana
+    de preco_sugerido nas rodadas anteriores do mesmo EAN. Puramente informativo:
+    reforca na justificativa que o cadastro esta desatualizado, nao trava preco."""
+    if preco_atual is None or mediana_sugerido_historico is None or mediana_sugerido_historico <= 0:
+        return False
+    razao = preco_atual / mediana_sugerido_historico
+    return razao < banda_min or razao > banda_max
+
 # Categorias cuja natureza legal e "medicamento" para fins de Lei 10.147/2000
 # (regime monofasico) -- taxonomia antiga (grupo pai do relatorio de NF) e
 # nova (POLITICA_MARKUP_POR_CATEGORIA.csv) misturadas, ate o de-para oficial
@@ -239,15 +337,21 @@ def aplicar_travas(
             piso=piso_valor, alvo=alvo_valor, tier=tier,
         )
 
-    if preco_atual is not None and preco_atual > 0:
-        variacao_maxima = params["trava"]["variacao_maxima_pct"]
-        variacao = abs(grade.preco / preco_atual - 1)
+    # preco_atual (praticado hoje) e reconhecidamente nao confiavel (cadastro
+    # com erro de embalagem/apresentacao): nao trava mais a sugestao. A trava
+    # de bom senso passa a comparar contra o mercado (Brick/web), a ancora
+    # confiavel, com tolerancia variavel por tier (config/parametros.toml).
+    if valor_referencia_mercado is not None and valor_referencia_mercado > 0:
+        variacao_maxima = params["trava"]["variacao_maxima_mercado_por_tier"].get(
+            tier, params["trava"]["variacao_maxima_mercado_por_tier"]["PADRAO"]
+        )
+        variacao = abs(grade.preco / valor_referencia_mercado - 1)
         if variacao > variacao_maxima:
             return ResultadoPrecificacao(
-                "REVISAO_MANUAL_VARIACAO_ALTA", grade.preco,
-                f"Preco recomendado ({grade.preco:.2f}) varia {variacao * 100:.1f}% do praticado hoje "
-                f"({preco_atual:.2f}), acima do limite de {variacao_maxima * 100:.0f}% por rodada. "
-                "Sugestao mantida para referencia; aplicar em rodadas graduais.",
+                "REVISAO_MANUAL_DIVERGENCIA_MERCADO_FORTE", grade.preco,
+                f"Preco recomendado ({grade.preco:.2f}) varia {variacao * 100:.1f}% da referencia de "
+                f"mercado ({valor_referencia_mercado:.2f}), acima do limite de {variacao_maxima * 100:.0f}% "
+                f"do tier {tier}. Sugestao mantida para referencia; conferir antes de aplicar.",
                 piso=piso_valor, alvo=alvo_valor, tier=tier,
             )
 

@@ -16,8 +16,13 @@ Antes de implementar qualquer mudança neste repositório (ou no repo irmão
    (novos componentes, novo protocolo de comunicação, nova farmácia),
    regenere com as skills `archify` e `graphify` e atualize
    `docs/architecture.json`/`.html`.
+4. **`docs/CODEMAPS/index.md`** — aponta pros dois acima e cobre o que
+   eles não cobrem (detalhe de função do protótipo `web/`). Regenere com
+   `/update-codemaps` se o protótipo mudar bastante.
 
-Este repo é privado e contém o app desktop (`assistente_eans.py`) e o
-protótipo web (`web/`). O repo `consulta-precos-scripts` é público e
-distribui só os userscripts (Violentmonkey) + `dicionario_termos.json`,
-sem dados de negócio.
+Este repo é privado e contém só o protótipo web (`web/`) e a documentação
+de arquitetura (`docs/`). O app desktop de produção (`assistente_eans.py`
+e os mixins) **não** fica aqui — fica em `C:\Users\docze\ConsultaPrecosEAN`
+(ver `docs/CODEMAPS/architecture.md` de lá). O repo `consulta-precos-scripts`
+é público e distribui só os userscripts (Violentmonkey) +
+`dicionario_termos.json`, sem dados de negócio.

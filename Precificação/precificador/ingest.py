@@ -24,6 +24,9 @@ POLITICA_CSV = ROOT / "POLITICA_MARKUP_POR_CATEGORIA.csv"
 PRECOS_CSV = CONSULTA_PRECOS / "precos.csv"
 EANS_NEGATIVOS_CSV = CONSULTA_PRECOS / "eans_negativos.csv"
 SUBCATEGORIA_XLSX = Path(r"C:\Users\docze\Downloads\Pedro 2.xlsx")
+MARCA_EXCLUSIVA_XLSX = Path(
+    r"G:\.shortcut-targets-by-id\1q0IRmUp06SR55V7qNb7wVLwWjEauQntR\DROGARIA\PRECIFICAÇÃO\Marca Exclusiva Associados TRATADO.xlsx"
+)
 
 
 def normalizar_ean(valor) -> str:
@@ -267,6 +270,45 @@ def carregar_subcategoria_classificada(conn: sqlite3.Connection) -> int:
     return len(linhas)
 
 
+def carregar_marca_exclusiva(conn: sqlite3.Connection) -> int:
+    """Preco de venda dos itens de Marca Exclusiva Associados (planilha do
+    usuario, coluna K = 'Preco Venda'), gravado em produto.marca_exclusiva_preco.
+    Preco fixado manualmente pelo usuario -- nunca recalculado pela rodada
+    (ver rodada_v2.py). Cria o produto se o EAN ainda nao existir na base
+    mestre (item pode nao estar no estoque atual).
+    """
+    if not MARCA_EXCLUSIVA_XLSX.exists():
+        return 0
+    ws = load_workbook(MARCA_EXCLUSIVA_XLSX, read_only=True, data_only=True)["LISTA PR TRIMESTRAL"]
+    itens = {}
+    for row in ws.iter_rows(min_row=3, values_only=True):
+        ean = normalizar_ean(row[1])
+        preco = _numero(row[10])
+        descricao = row[4]
+        if ean and preco:
+            itens[ean] = (descricao, round(preco, 2))
+
+    conn.execute("UPDATE produto SET marca_exclusiva_preco = NULL")
+    for ean, (descricao, preco) in itens.items():
+        existe = conn.execute("SELECT 1 FROM produto WHERE ean = ?", (ean,)).fetchone()
+        if existe:
+            conn.execute(
+                "UPDATE produto SET marca_exclusiva_preco = ? WHERE ean = ?", (preco, ean)
+            )
+        else:
+            conn.execute(
+                "INSERT INTO produto (ean, descricao, marca_exclusiva_preco) VALUES (?, ?, ?)",
+                (ean, descricao, preco),
+            )
+        if not conn.execute("SELECT 1 FROM estoque WHERE ean = ?", (ean,)).fetchone():
+            conn.execute(
+                "INSERT INTO estoque (ean, estoque_atual, preco_venda_atual) VALUES (?, 0, ?)",
+                (ean, preco),
+            )
+    conn.commit()
+    return len(itens)
+
+
 def main() -> None:
     conn = db.connect()
     db.criar_schema(conn)
@@ -295,6 +337,10 @@ def main() -> None:
     n_subcategoria = carregar_subcategoria_classificada(conn)
     db.registrar_carga(conn, "subcategoria_classificada", SUBCATEGORIA_XLSX.name, n_subcategoria)
     print(f"{'subcategoria':20s} {n_subcategoria:6d} EANs classificados")
+
+    n_marca_exclusiva = carregar_marca_exclusiva(conn)
+    db.registrar_carga(conn, "marca_exclusiva", MARCA_EXCLUSIVA_XLSX.name, n_marca_exclusiva)
+    print(f"{'marca_exclusiva':20s} {n_marca_exclusiva:6d} EANs com preco manual")
 
     n_produto = conn.execute("SELECT COUNT(*) FROM produto").fetchone()[0]
     print(f"{'produto (total)':20s} {n_produto:6d} EANs distintos")

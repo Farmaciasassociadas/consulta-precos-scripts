@@ -39,6 +39,15 @@ def test_camada_1_descarta_preco_promocional():
     assert r.descartadas[0].camada == "natureza"
 
 
+def test_camada_1_mantem_preco_sem_palavras_promocionais():
+    # Promoção sem "leve", "clube", "assinante" é retida como preço real
+    lista = [obs(20.0, observacoes="Promoção: de R$ 25 por R$ 20"), obs(18.0)]
+    r = mercado.filtrar_outliers(lista, PARAMS, HOJE)
+    precos = sorted(o.preco for o in r.mantidas)
+    assert precos == [18.0, 20.0]
+    assert len(r.descartadas) == 0
+
+
 def test_camada_2_descarta_preco_velho():
     lista = [obs(10.0, dias_atras=90), obs(11.0, dias_atras=5)]
     r = mercado.filtrar_outliers(lista, PARAMS, HOJE)
@@ -112,6 +121,31 @@ def test_divergencia_brick_web_e_sinalizada():
     lista = [obs(50.0), obs(52.0), obs(48.0)]
     r = mercado.calcular_mercado(lista, PARAMS, HOJE, vum_brick=20.0, segmento_brick="GEN")
     assert r.divergencia_brick_web is True
+
+
+def test_cluster_acima_brick_e_adotado_quando_concorrentes_convergem():
+    # caso real BUPROVIL 600mg C/20 (2026-08-04): Brick 13,93, mas todos os
+    # concorrentes vendem entre 22 e 24 -- fora da banda de ancora (x1,6), mas
+    # convergentes entre si. O motor deve confiar nesse cluster em vez de
+    # colar no Brick puro, para nao deixar margem na mesa.
+    lista = [obs(22.99), obs(23.99), obs(22.07), obs(23.99)]
+    r = mercado.calcular_mercado(lista, PARAMS, HOJE, vum_brick=13.93, segmento_brick="GEN")
+    assert r.cluster_acima_brick is True
+    assert r.valor_referencia > 13.93 * (1 + PARAMS["mercado"]["brick"]["spread_etiqueta"])
+
+
+def test_cluster_acima_brick_nao_atua_se_concorrentes_dispersos():
+    # concorrentes acima da banda mas sem convergencia (CV alto): fica como antes,
+    # colado no Brick, porque nao ha evidencia solida de um preco de mercado real.
+    lista = [obs(22.0), obs(60.0)]
+    r = mercado.calcular_mercado(lista, PARAMS, HOJE, vum_brick=13.93, segmento_brick="GEN")
+    assert r.cluster_acima_brick is False
+
+
+def test_cluster_acima_brick_nao_atua_com_menos_que_n_minimo():
+    lista = [obs(22.99)]
+    r = mercado.calcular_mercado(lista, PARAMS, HOJE, vum_brick=13.93, segmento_brick="GEN")
+    assert r.cluster_acima_brick is False
 
 
 def test_sanidade_ratio_brick_web_no_banco_real():
