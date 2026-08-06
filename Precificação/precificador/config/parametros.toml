@@ -53,6 +53,18 @@ RX = 0.94
 SIM = 0.78
 default = 0.90
 
+[mercado.premio_balcao]
+# Premio (fator >= 1) aplicado a mediana web quando NAO ha segmento Brick
+# conhecido para o item (sem auditoria fisica propria) -- ver _fator_fisico
+# em engine/mercado.py. Baseado no estudo Procon-SP 2025 (site das redes e
+# 13,88% mais barato que o balcao em generico, 3,73% em referencia) e na
+# observacao operacional do usuario para as demais categorias. Premissa a
+# recalibrar com amostra propria (visita fisica ou dado Febrafar) assim que
+# houver dados -- ver relatorio "Motor de Precificacao v5", secao 1.
+medicamento = 1.04        # equivalente ao dado de referencia (marca) do Procon-SP
+perfumaria_higiene = 1.10  # MIP/higiene/conveniencia: sem dado direto, tratado perto do genergico
+padrao = 1.10               # fraldas/puericultura/conveniencia geral: mesma logica de perfumaria_higiene
+
 [mercado.outliers]
 frescor_dias_max = 45
 banda_ancora_min = 0.60
@@ -72,6 +84,42 @@ peso_brick = 0.30   # peso do Brick no blend quando o cluster e adotado
 
 [grade]
 terminacoes = [0.49, 0.79, 0.90, 0.95, 0.99]
+
+[ranking]
+# Decisao de negocio 2026-08-05: a loja nao precisa ser a mais barata. Em vez
+# de mediana_fisica * 0.99, posiciona o preco deliberadamente na N-esima
+# posicao (mais barata) entre os concorrentes elegiveis, escolhendo o MAIOR
+# preco que ainda garanta essa posicao. So se aplica com concorrentes
+# suficientes (n_min_observacoes); abaixo disso, cai na regra antiga (*0.99).
+n_min_observacoes = 3
+[ranking.rank_alvo_por_tier]
+PRECO_IMAGEM = 2   # itens de alta visibilidade: 2o menor preco
+PADRAO = 2         # demais itens com mercado (sem Curva ABC conhecida): 2o menor preco
+
+[ranking.rank_alvo_por_curva]
+# Quando a Curva ABC (giro/faturamento) e conhecida, ela manda mais que o
+# tier: Curva A fica mais perto do mercado (2o lugar, risco de evasao maior),
+# Curva B/C protege mais margem (3o lugar, cliente compara menos).
+A = 2
+B = 3
+C = 3
+
+[chamariz]
+# Excecao estrategica controlada (Secao 4 do relatorio "Diagnostico e Plano
+# v4"): lista pequena de itens chamariz/KVI, selecionada automaticamente
+# (engine/chamariz.py) a partir do ranking de mais vendidos do Brick por
+# segmento (RX/GEN/SIM/NMED). Nunca aplicado ao catalogo inteiro.
+top_n_por_segmento = 8
+n_concorrentes_minimo = 3
+desconto_maximo_pct = 0.02   # ate 2% abaixo do menor concorrente elegivel -- nunca desconto livre
+revisar_a_cada_dias = 90
+
+[custo_estimado]
+# Item sem custo validado por NF (ex.: herdado de compra de ponto de venda):
+# estima um custo retroativo como fracao do preco de mercado, so para o
+# painel nao ficar "sem margem calculavel". Nunca usado para bloquear o
+# preco -- so para relatorio/monitoramento. Revisar quando houver NF real.
+pct_do_preco_mercado = 0.60
 
 [trava.variacao_maxima_mercado_por_tier]
 # Variação máxima do preço final vs. referência de mercado (Brick/web), por

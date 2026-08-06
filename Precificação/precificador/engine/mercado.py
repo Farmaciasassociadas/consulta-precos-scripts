@@ -182,23 +182,60 @@ def _peso_brick(n_web: int, cv: float | None, tem_brick: bool, cfg: dict[str, An
     return (cfg["web_n_5_mais_cv_baixo"] + cfg["web_n_5_mais_cv_alto"]) / 2
 
 
+def _fator_fisico(
+    segmento_brick: str | None,
+    natureza_fiscal_item: str | None,
+    params: dict[str, Any],
+) -> float:
+    """Fator que converte a mediana web (preco de site) em estimativa de
+    balcao fisico.
+
+    Para medicamentos com segmento Brick conhecido (RX/GEN/SIM/NMED), o fator
+    e calibrado empiricamente contra auditoria fisica real (Brick) -- pode
+    ser < 1 (balcao mais barato que o site) quando os dados confirmarem isso
+    para aquele segmento especifico.
+
+    Para o restante do catalogo (sem segmento Brick -- tipicamente perfumaria,
+    conveniencia, puericultura), NAO ha auditoria fisica propria: nesse caso
+    usa-se `mercado.premio_balcao`, um PREMIO (fator >= 1) por natureza
+    fiscal, calibrado a partir do estudo Procon-SP 2025 (site das proprias
+    redes e, em media, 13,88% mais barato que o balcao em generico e 3,73%
+    em referencia) e da observacao operacional do usuario de que o balcao
+    tende a ser mais caro que o site, nao mais barato (decisao 2026-08-05).
+    Isso substitui o antigo fallback fixo `fator_fisico.default` (0.90, que
+    presumia balcao mais barato para QUALQUER categoria sem base real).
+    """
+    cfg_fator = params["mercado"]["fator_fisico"]
+    if segmento_brick and segmento_brick in cfg_fator:
+        return cfg_fator[segmento_brick]
+
+    cfg_premio = params["mercado"].get("premio_balcao")
+    if cfg_premio and natureza_fiscal_item and natureza_fiscal_item in cfg_premio:
+        return cfg_premio[natureza_fiscal_item]
+
+    return cfg_fator["default"]
+
+
 def calcular_mercado(
     observacoes: list[Observacao],
     params: dict[str, Any],
     data_referencia: date,
     vum_brick: float | None = None,
     segmento_brick: str | None = None,
+    natureza_fiscal_item: str | None = None,
 ) -> ResultadoMercado:
     """Calcula a referencia de mercado de um EAN, combinando web filtrada e Brick.
 
     `vum_brick` e o preco de mercado (Brick) ja em R$; `segmento_brick` seleciona
     o fator fisico por categoria (RX/GEN/SIM/NMED) para converter a mediana web
-    em estimativa de loja fisica antes do blend.
+    em estimativa de loja fisica antes do blend. `natureza_fiscal_item`
+    ('medicamento'/'perfumaria_higiene'/'padrao') so e usado quando NAO ha
+    segmento Brick, para aplicar o premio de balcao por categoria em vez do
+    fator fixo antigo -- ver `_fator_fisico`.
     """
     cfg = params["mercado"]["outliers"]
-    cfg_fator = params["mercado"]["fator_fisico"]
     cfg_brick = params["mercado"]["brick"]
-    fator_fisico = cfg_fator.get(segmento_brick or "", cfg_fator["default"])
+    fator_fisico = _fator_fisico(segmento_brick, natureza_fiscal_item, params)
     mercado_brick = vum_brick * (1 + cfg_brick["spread_etiqueta"]) if vum_brick else None
 
     # Camadas 1-2 primeiro (natureza + frescor), sem depender do Brick.

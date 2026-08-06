@@ -107,6 +107,14 @@ CREATE TABLE IF NOT EXISTS recomendacao (
 CREATE INDEX IF NOT EXISTS idx_recomendacao_rodada ON recomendacao(rodada_id);
 CREATE INDEX IF NOT EXISTS idx_recomendacao_ean ON recomendacao(ean);
 
+CREATE TABLE IF NOT EXISTS chamariz_vigente (
+    ean TEXT PRIMARY KEY,
+    segmento TEXT NOT NULL,
+    score REAL NOT NULL,
+    selecionado_em TEXT NOT NULL DEFAULT (datetime('now')),
+    revisar_ate TEXT
+);
+
 CREATE TABLE IF NOT EXISTS carga_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     fonte TEXT NOT NULL,

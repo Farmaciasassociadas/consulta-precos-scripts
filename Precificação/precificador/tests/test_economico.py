@@ -70,6 +70,45 @@ def test_calcular_alvo_imagem_usa_99_da_mediana_fisica():
     assert alvo == 20.0 * 0.99
 
 
+def test_calcular_alvo_ranking_2o_lugar_com_concorrentes_suficientes():
+    # decisao 2026-08-05: nao perseguir o menor preco -- ficar no 2o lugar
+    # (config PADRAO=2), escolhendo o maior preco que ainda garanta a posicao.
+    precos = [10.0, 12.0, 15.0, 20.0]  # 4 concorrentes, ordenado
+    alvo = economico.calcular_alvo(
+        "PADRAO", valor_referencia_mercado=14.0, alvo_econ=8.0,
+        precos_concorrentes=precos, params=PARAMS,
+    )
+    # 2o lugar = media entre o 1o (10.0) e o 2o (12.0) concorrente
+    assert alvo == pytest.approx((10.0 + 12.0) / 2)
+
+
+def test_calcular_alvo_ranking_cai_para_regra_antiga_com_poucos_concorrentes():
+    # com menos de n_min_observacoes (3), nao ha base estatistica para ranking:
+    # mantem a regra antiga (mediana_fisica * 0.99).
+    alvo = economico.calcular_alvo(
+        "PADRAO", valor_referencia_mercado=20.0, alvo_econ=15.0,
+        precos_concorrentes=[18.0, 19.0], params=PARAMS,
+    )
+    assert alvo == 20.0 * 0.99
+
+
+def test_calcular_alvo_imagem_sem_precos_concorrentes_mantem_regra_antiga():
+    # compatibilidade: chamada sem precos_concorrentes (parametro opcional)
+    # continua igual a antes.
+    alvo = economico.calcular_alvo("PRECO_IMAGEM", valor_referencia_mercado=20.0, alvo_econ=15.0)
+    assert alvo == 20.0 * 0.99
+
+
+def test_travas_sem_custo_estima_custo_a_60pct_do_preco_de_mercado():
+    r = economico.aplicar_travas(
+        custo=None, natureza_fiscal_item="padrao", tier="PADRAO", valor_referencia_mercado=20.0,
+        divergencia_brick_web=False, lucro_liquido_alvo_pct=0.10, teto_cmed=None, preco_atual=None, params=PARAMS,
+    )
+    assert r.status == "OK_SEM_CUSTO_BASE_MERCADO"
+    assert r.custo_estimado is not None
+    assert r.custo_estimado == pytest.approx(r.preco_sugerido * 0.60)
+
+
 def test_calcular_alvo_protecao_margem_limitada_por_mercado():
     # alvo economico bem alto, mas mercado existe: protecao fica limitada a mercado*1.15
     alvo = economico.calcular_alvo("PROTECAO_MARGEM", valor_referencia_mercado=10.0, alvo_econ=50.0)
