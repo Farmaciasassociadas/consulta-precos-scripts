@@ -43,11 +43,14 @@ O app **não** fica em `C:\Claude` — fica em `C:\Users\docze\ConsultaPrecosEAN
 
 Os userscripts existem em **duas** cópias, e a que vale é a pública:
 
-- `C:\Claude\consulta-precos-scripts` — **fonte da verdade em produção.** O
-  `@updateURL` dos scripts aponta para
+- `C:\Claude\repo_scripts` — **fonte da verdade em produção.** É o clone do
+  repo público (`origin` = `github.com/Farmaciasassociadas/consulta-precos-scripts`).
+  O `@updateURL` dos scripts aponta para
   `raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/…`,
   e é daí que o Violentmonkey baixa. **Correção que não chega aqui não roda.**
   Repo público: nunca colocar preço, EAN ou dado de negócio.
+  (A pasta `C:\Claude\consulta-precos-scripts` está **vazia** e não é usada —
+  o nome parecido já causou edição no lugar errado.)
 - `C:\Users\docze\ConsultaPrecosEAN\*.user.js` — cópia versionada no repo
   privado, sincronizada com o 2º PC (SRVBIG-LJ1) pelo `iniciar.py`. Manter
   idêntica à pública.
