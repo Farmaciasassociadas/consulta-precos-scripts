@@ -286,8 +286,7 @@ def calcular_mercado(
     # Divergencia Brick x web e calculada ANTES da camada de ancora: se a camada de
     # ancora rodasse primeiro, ela apagaria justamente os pontos que provam a
     # divergencia (o Brick e a propria ancora do filtro), mascarando o problema.
-    precos_pre_ancora = [o.preco for o in pre_ancora]
-    mediana_pre_ancora = median(precos_pre_ancora) if precos_pre_ancora else None
+    mediana_pre_ancora = _mediana_ponderada(pre_ancora, params)
     mercado_web_pre_ancora = mediana_pre_ancora * fator_fisico if mediana_pre_ancora is not None else None
     divergencia = False
     if mercado_brick is not None and mercado_web_pre_ancora is not None and mercado_brick > 0:
@@ -303,7 +302,7 @@ def calcular_mercado(
 
     precos = [o.preco for o in filtro.mantidas]
     n = len(precos)
-    mediana_bruta = median(precos) if precos else None
+    mediana_bruta = _mediana_ponderada(filtro.mantidas, params)
     cv = _cv(precos)
     mercado_web = mediana_bruta * fator_fisico if mediana_bruta is not None else None
 
