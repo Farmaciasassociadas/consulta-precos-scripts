@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São Paulo (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      5.1
+// @version      5.2
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @description  Busca o EAN na Farmácias São Paulo, entra no produto, lé o preço via JSON-LD e copia para a área de transferência.
@@ -17,6 +17,8 @@
 
 (function () {
     'use strict';
+
+    if (/^\/freight\/shipping-simulation\//i.test(location.pathname)) return;
 
     const SITE = 'farmasp';  // renomeado de 'saopaulo' em 07/2026 para não
     // confundir com 'drogariasp' (Drogaria São Paulo, empresa diferente)
@@ -46,7 +48,8 @@
             if (i.offsetParent === null || i.disabled || i.readOnly) return false;
             const a = ((i.placeholder || '') + ' ' + (i.name || '') + ' ' + (i.id || '') + ' '
                 + (i.className || '') + ' ' + (i.getAttribute('aria-label') || '')).toLowerCase();
-            return /cep|postal/.test(a);
+            const destinoForm = i.form ? (i.form.action || '') : '';
+            return /cep|postal/.test(a) && !/\/freight\/shipping-simulation\//i.test(destinoForm);
         });
         if (!alvo) return false;
         if ((alvo.value || '').replace(/\D/g, '').length >= 8) return false; // já preenchido
@@ -65,8 +68,6 @@
             }
             alvo.dispatchEvent(new KeyboardEvent('keydown',
                 { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
-            const form = alvo.closest('form');
-            if (form) { try { form.requestSubmit ? form.requestSubmit() : form.submit(); } catch (e) { } }
         }, 300);
         console.log('[assistente-ean] CEP preenchido automaticamente:', CEP_ROBO);
         return true;
