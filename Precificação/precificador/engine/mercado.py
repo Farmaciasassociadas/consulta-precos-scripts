@@ -72,10 +72,19 @@ def _e_promocional(observacoes: str | None) -> bool:
     return any(palavra in texto for palavra in PALAVRAS_PROMOCIONAIS)
 
 
+STATUS_PRECO_VALIDO = ("OK", "MARKETPLACE")
+# MARKETPLACE = vendedor terceiro dentro do site da farmácia (ex.: Droga Raia
+# marketplace). Decisão 2026-08-05: não descartar mais -- passa a compor o
+# preço de referência, só que com peso reduzido (mercado.marketplace.peso,
+# default 0.90) na mediana final, porque é um canal menos confiável que o
+# preço vendido pela própria farmácia (pode ter ágio ou desconto de vendedor
+# independente). Continua sujeito às mesmas camadas de frescor/âncora/MAD.
+
+
 def _camada_1_natureza(obs: list[Observacao]) -> tuple[list[Observacao], list[Descarte]]:
     mantidas, descartadas = [], []
     for o in obs:
-        if o.status != "OK" or o.preco is None or o.preco <= 0:
+        if o.status not in STATUS_PRECO_VALIDO or o.preco is None or o.preco <= 0:
             descartadas.append(Descarte(o, "natureza", f"status={o.status!r} sem preco valido"))
         elif _e_promocional(o.observacoes):
             descartadas.append(Descarte(o, "natureza", "observacoes indicam clube/promocao/assinatura"))
@@ -154,6 +163,35 @@ def filtrar_outliers(
     descartadas += novas
 
     return ResultadoFiltro(mantidas=tuple(atual), descartadas=tuple(descartadas))
+
+
+def _peso_observacao(status: str, params: dict[str, Any]) -> float:
+    if status == "MARKETPLACE":
+        return params["mercado"].get("marketplace", {}).get("peso", 1.0)
+    return 1.0
+
+
+def _mediana_ponderada(observacoes: list[Observacao], params: dict[str, Any]) -> float | None:
+    """Mediana da lista de precos, dando peso reduzido a observacoes de
+    marketplace (vendedor terceiro). Quando todos os pesos sao iguais
+    (nenhuma observacao de marketplace no grupo), cai exatamente na mediana
+    padrao (statistics.median) -- sem essa igualdade de pesos, uma lista de
+    tamanho par teria a media dos dois centrais; a versao ponderada abaixo
+    devolve so um deles, entao so diverge quando ha peso misto de verdade."""
+    pares = [(o.preco, _peso_observacao(o.status, params)) for o in observacoes if o.preco is not None]
+    if not pares:
+        return None
+    if len({peso for _, peso in pares}) <= 1:
+        return median(preco for preco, _ in pares)
+
+    ordenado = sorted(pares, key=lambda par: par[0])
+    peso_total = sum(peso for _, peso in ordenado)
+    acumulado = 0.0
+    for preco, peso in ordenado:
+        acumulado += peso
+        if acumulado >= peso_total / 2:
+            return preco
+    return ordenado[-1][0]
 
 
 def _cv(precos: list[float]) -> float | None:
