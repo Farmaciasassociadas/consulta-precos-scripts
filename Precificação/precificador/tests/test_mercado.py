@@ -116,6 +116,66 @@ def test_sem_brick_usa_so_web():
     assert r.valor_referencia == median([20.0, 21.0, 19.5]) * fator
 
 
+def test_camada_1_nao_descarta_mais_marketplace():
+    # Decisao 2026-08-05: MARKETPLACE (vendedor terceiro) deixa de ser
+    # descartado pela camada de natureza -- so status realmente invalido
+    # (ex.: NAO_ENCONTRADO) ou preco ausente continuam sendo descartados.
+    lista = [obs(18.0, status="MARKETPLACE"), obs(20.0, status="OK")]
+    r = mercado.filtrar_outliers(lista, PARAMS, HOJE)
+    assert sorted(o.preco for o in r.mantidas) == [18.0, 20.0]
+    assert len(r.descartadas) == 0
+
+
+def test_mediana_ponderada_com_peso_igual_bate_com_mediana_padrao():
+    # Sem nenhuma observacao MARKETPLACE, a versao ponderada deve devolver
+    # exatamente statistics.median (inclusive para lista de tamanho par,
+    # que faz media dos dois centrais).
+    observacoes = [obs(10.0), obs(20.0), obs(30.0), obs(40.0)]
+    assert mercado._mediana_ponderada(observacoes, PARAMS) == median([10.0, 20.0, 30.0, 40.0])
+
+
+def test_mediana_ponderada_da_menos_peso_a_marketplace():
+    # Um preco MARKETPLACE muito baixo (10.0) nao deve puxar a mediana com o
+    # mesmo peso de um preco OK -- com peso 0.90 (config atual) ele ainda
+    # pesa quase igual, mas a funcao deve pelo menos usar o peso configurado
+    # em vez de ignorar por completo o status (o que a trava de regressao
+    # abaixo prova comparando com o cenario de peso total igual).
+    marketplace_baixo = [obs(10.0, status="MARKETPLACE"), obs(30.0), obs(31.0)]
+    resultado = mercado._mediana_ponderada(marketplace_baixo, PARAMS)
+    assert resultado == 30.0  # mediana simples tambem seria 30.0 aqui (3 obs, meio = 30.0)
+
+    # Com peso reduzido de marketplace, testamos um caso onde o peso
+    # realmente muda o resultado: dois precos "puxando para baixo" com um
+    # deles marketplace (peso < 1) vs. dois precos OK "puxando para cima".
+    params_peso_baixo = {**PARAMS, "mercado": {**PARAMS["mercado"], "marketplace": {"peso": 0.10}}}
+    lista = [obs(10.0, status="MARKETPLACE"), obs(11.0, status="MARKETPLACE"), obs(30.0), obs(31.0)]
+    resultado_peso_baixo = mercado._mediana_ponderada(lista, params_peso_baixo)
+    resultado_peso_pleno = mercado._mediana_ponderada(lista, {**PARAMS, "mercado": {**PARAMS["mercado"], "marketplace": {"peso": 1.0}}})
+    assert resultado_peso_baixo != resultado_peso_pleno
+
+
+def test_calcular_mercado_inclui_marketplace_com_peso_reduzido():
+    # Cenario de integracao: marketplace nao pode mais ser descartado pela
+    # camada de natureza (antes sumia e n caia para 2); agora sobrevive e
+    # entra na mediana ponderada, com o peso de config/parametros.toml.
+    com_marketplace = [obs(20.0, status="OK"), obs(21.0, status="OK"), obs(15.0, status="MARKETPLACE")]
+    r = mercado.calcular_mercado(com_marketplace, PARAMS, HOJE, vum_brick=None)
+
+    assert r.n == 3  # marketplace conta na contagem de observacoes validas (nao foi descartado)
+    assert r.mediana == mercado._mediana_ponderada(
+        [o for o in com_marketplace], PARAMS
+    )
+
+    # Com o peso de marketplace artificialmente alto (> soma dos pesos OK),
+    # o preco de marketplace passa a dominar a mediana -- comprova que o
+    # peso configurado realmente participa do calculo, nao e so "incluido
+    # e ignorado".
+    params_peso_alto = {**PARAMS, "mercado": {**PARAMS["mercado"], "marketplace": {"peso": 5.0}}}
+    r_peso_alto = mercado.calcular_mercado(com_marketplace, params_peso_alto, HOJE, vum_brick=None)
+    assert r_peso_alto.mediana == 15.0
+    assert r_peso_alto.mediana != r.mediana
+
+
 def test_divergencia_brick_web_e_sinalizada():
     # web muito acima do Brick (ex.: EAN com apresentacao trocada)
     lista = [obs(50.0), obs(52.0), obs(48.0)]

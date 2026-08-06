@@ -65,6 +65,13 @@ medicamento = 1.04        # equivalente ao dado de referencia (marca) do Procon-
 perfumaria_higiene = 1.10  # MIP/higiene/conveniencia: sem dado direto, tratado perto do genergico
 padrao = 1.10               # fraldas/puericultura/conveniencia geral: mesma logica de perfumaria_higiene
 
+[mercado.marketplace]
+# Decisao de negocio 2026-08-05: preco de vendedor terceiro dentro do site da
+# farmacia (status "MARKETPLACE") deixa de ser descartado e passa a compor a
+# mediana de referencia, com peso reduzido (menos confiavel que preco proprio
+# do site) -- ver _peso_observacao/_mediana_ponderada em engine/mercado.py.
+peso = 0.90
+
 [mercado.outliers]
 frescor_dias_max = 45
 banda_ancora_min = 0.60
