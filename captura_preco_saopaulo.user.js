@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São Paulo (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      3.7
+// @version      5.1
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @description  Busca o EAN na Farmácias São Paulo, entra no produto, lé o preço via JSON-LD e copia para a área de transferência.
@@ -11,13 +11,16 @@
 // @grant        GM_getValue
 // @grant        GM_xmlhttpRequest
 // @connect      raw.githubusercontent.com
+// @connect      www.farmaciassaopaulo.com.br
 // @run-at       document-idle
 // ==/UserScript==
 
 (function () {
     'use strict';
 
-    const SITE = 'saopaulo';
+    const SITE = 'farmasp';  // renomeado de 'saopaulo' em 07/2026 para não
+    // confundir com 'drogariasp' (Drogaria São Paulo, empresa diferente)
+    // nos relatórios/logs/CSV.
 
     // ------------------------------------------------------------------
     // PREPARO DA PÁGINA: aceitar cookies e informar o CEP sozinho.
@@ -85,6 +88,23 @@
         return m ? m[1] : '';
     })();
 
+    // Marcadores que o app manda no fragmento inicial e que precisam
+    // SOBREVIVER a navegacao interna (listagem -> pagina do produto). Ao
+    // reconstruir o hash so com o EAN eles se perdiam: em coleta paralela o
+    // clipboard voltava a ser escrito (atrapalhando o copiar/colar do usuario)
+    // e na busca avulsa a aba fechava sozinha apesar do pedido de deixar
+    // aberta. assistente_ignorar entra por precaucao (com ele o script ja
+    // desiste antes de navegar).
+    const FLAGS_HERDADOS = ['assistente_manter_aba', 'assistente_sem_clipboard', 'assistente_ignorar'];
+    function sufixoFlags() {
+        const hash = location.hash || '';
+        return FLAGS_HERDADOS
+            .map((f) => (hash.match(new RegExp('(?:^|[#&])(' + f + '(?:=[^&#]*)?)(?=[&#]|$)')) || [])[1])
+            .filter(Boolean)
+            .map((par) => '&' + par)
+            .join('');
+    }
+
     const EAN_DA_BUSCA = (() => {
         const q = (new URLSearchParams(location.search).get('q') || '').trim();
         if (/^\d{8,14}$/.test(q)) return q;
@@ -94,7 +114,26 @@
     })();
 
     function pegarEanPendente() {
-        return EAN_DO_FRAGMENTO || GM_getValue('ean_buscado', '');
+        if (EAN_DO_FRAGMENTO) return EAN_DO_FRAGMENTO;
+        const viaStorage = GM_getValue('ean_buscado', '');
+        if (viaStorage) return viaStorage;
+        // Diagnostico 29/07: mesmo na v4.8 (com enviarPing na pagina de
+        // produto), a busca continuava travando muda apos o PING da pagina
+        // de listagem. Hipotese: o hash #assistente_ean=... some (roteador
+        // da propria pagina normaliza a URL) OU o GM_setValue nao termina
+        // de gravar antes do location.href já ter navegado (escrita
+        // assincrona vs navegacao sincrona). Fallback robusto que nao
+        // depende de nenhum dos dois: document.referrer é setado pelo
+        // proprio navegador na navegacao, nao pela pagina — se veio da
+        // NOSSA pagina de busca (.../{ean}/), extrai o EAN de la.
+        try {
+            const ref = new URL(document.referrer || '', location.href);
+            if (ref.origin === location.origin) {
+                const m = ref.pathname.match(/^\/(\d{8,14})\/?$/);
+                if (m) return m[1];
+            }
+        } catch (e) { }
+        return '';
     }
 
     const NOME_ESPERADO = (() => {
@@ -453,8 +492,44 @@
     // que o clipboard - canal unico - causaria. Re-afirma o titulo de tempos
     // em tempos porque o site (SPA) reescreve document.title depois.
     let _aeanIntervaloTitulo = null;
+    // Modo paralelo (coleta automatica com 5 abas ao mesmo tempo): o app
+    // ja le o resultado pelo TITULO da aba, o clipboard vira redundante e so
+    // atrapalha quem usa copiar/colar no PC enquanto a coleta roda. O app manda
+    // esse marcador no fragmento da URL quando esta nesse modo.
+    const SEM_CLIPBOARD = /assistente_sem_clipboard=1/.test(location.hash || '');
+
+    const MAX_TENTATIVAS_PRODUTO = 20;   // 20 x 500ms = 10s
+
+    // VIGIA (07/2026) — rede de seguranca contra travamento silencioso.
+    // Diagnostico do log de 26/07: 524 consultas mandaram PING e NUNCA
+    // emitiram veredito (laco de polling sem teto; fetch que nao resolve nem
+    // rejeita). O app esperava os 20s do timeout e registrava "provavel
+    // desafio do Cloudflare" — chute errado: quando a pagina responde, ela
+    // responde em ate 6s (p95); nao existe nada na faixa de 15-19s. Agora o
+    // script desiste sozinho e diz a verdade, 3s antes do corte do app.
+    const VIGIA_MS = 17000;
+    let _vereditoEmitido = false;
+    let _vigiaArmado = false;
+    function armarVigia(sentinelPing) {
+        if (_vigiaArmado) return;   // enviarPing() e' chamado a cada retentativa
+        _vigiaArmado = true;
+        const ean = (String(sentinelPing).match(/^EAN=([^;]*)/) || [])[1] || '';
+        setTimeout(function () {
+            if (_vereditoEmitido) return;
+            const onde = (location.pathname || '').slice(0, 40);
+            console.warn('[assistente-ean] VIGIA: sem veredito em', VIGIA_MS / 1000, 's — em', onde);
+            emitirResultado(montarSentinel(ean, 'TRAVOU', '', '',
+                'vigia ' + (VIGIA_MS / 1000) + 's sem veredito em ' + onde, ''));
+            encerrarAba();
+        }, VIGIA_MS);
+    }
+
     function emitirResultado(sentinel) {
-        try { GM_setClipboard(sentinel); } catch (e) { }
+        if (/;STATUS=PING;/.test(sentinel)) { armarVigia(sentinel); }
+        else { _vereditoEmitido = true; }
+        if (!SEM_CLIPBOARD) {
+            try { GM_setClipboard(sentinel); } catch (e) { }
+        }
         try {
             const marca = 'AEAN|' + sentinel;
             document.title = marca;
@@ -471,6 +546,7 @@
     }
 
     function encerrarAba() {
+        if (/assistente_manter_aba/.test(location.hash || '')) return;  // usuário pediu pra deixar aberta
         setTimeout(() => {
             try { window.close(); } catch (e) { }
         }, 800);
@@ -499,41 +575,141 @@
         emitirResultado(`EAN=${ean};SITE=${SITE};STATUS=PING;PRECO=;ESTOQUE=;OBS=;NOME=`);
     }
 
+    // Extrai o offer de um produto VTEX — handles tanto objeto quanto array.
+    function _extrairOffer(offers) {
+        if (!offers) return null;
+        return Array.isArray(offers) ? (offers[0] || null) : offers;
+    }
+
+    // Consulta a API VTEX via GM_xmlhttpRequest — não passa pelo contexto da
+    // página (e portanto não é interceptado pelo Norton). Callback recebe o
+    // primeiro produto encontrado ou null.
+    function _buscarApiVtexGM(ean, callback) {
+        const variacoes = [...new Set(
+            [ean, ean.replace(/^0+/, ''), ean.padStart(13, '0')].filter(v => v.length >= 8)
+        )];
+        function tentarVariacao(i) {
+            if (i >= variacoes.length) { callback(null); return; }
+            GM_xmlhttpRequest({
+                method: 'GET',
+                url: location.origin + '/api/catalog_system/pub/products/search?fq=alternateIds_Ean:'
+                    + encodeURIComponent(variacoes[i]),
+                timeout: 8000,
+                onload: function (resp) {
+                    try {
+                        const lista = JSON.parse(resp.responseText);
+                        if (Array.isArray(lista) && lista.length) { callback(lista[0]); return; }
+                    } catch (e) { }
+                    tentarVariacao(i + 1);
+                },
+                onerror: function () { tentarVariacao(i + 1); },
+                ontimeout: function () { tentarVariacao(i + 1); },
+            });
+        }
+        tentarVariacao(0);
+    }
+
+    function _emitirDeApiVtex(ean, prod) {
+        const nome = prod.productName || '';
+        const item = (prod.items || [])[0] || {};
+        const gtinRaw = ((item.referenceId || [])[0] || {});
+        const eanItem = item.ean || (typeof gtinRaw === 'object' ? gtinRaw.Value : gtinRaw) || '';
+        const offer = ((item.sellers || [])[0] || {}).commertialOffer || {};
+        const preco = offer.Price;
+        if (!preco) return false;
+        const precoStr = String(preco);
+        const estoque = offer.IsAvailable !== false ? 'EM_ESTOQUE' : 'SEM_ESTOQUE';
+        URL_DO_RESULTADO = location.href.split('#')[0];
+        PRINCIPIO_ATIVO_PAGINA = principioAtivoDaPagina(document.body.innerText);
+        MARCA_PAGINA = marcaDaPagina(document.body.innerText);
+        let obs = '';
+        if (offer.ListPrice && offer.ListPrice > preco) {
+            obs = 'Promoção: de R$ ' + offer.ListPrice.toFixed(2).replace('.', ',')
+                + ' por R$ ' + preco.toFixed(2).replace('.', ',');
+        }
+        const sz = t => String(t || '').replace(/^0+/, '');
+        if (eanItem && sz(eanItem) !== sz(ean)) {
+            emitirResultado(montarSentinel(ean, 'DIVERGENTE', precoStr, estoque, obs, nome + ' (gtin real: ' + eanItem + ')'));
+        } else {
+            emitirResultado(montarSentinel(ean, 'OK', precoStr, estoque, obs, nome));
+        }
+        console.log('[assistente-ean] Sao Paulo: preco via API (GM):', preco, estoque);
+        return true;
+    }
+
+    // Tenta extrair resultado diretamente do DOM da página atual.
+    // Retorna true se achou (e age); false se deve continuar aguardando.
+    function _domBusca(ean) {
+        PRINCIPIO_ATIVO_PAGINA = principioAtivoDaPagina(document.body.innerText);
+        MARCA_PAGINA = marcaDaPagina(document.body.innerText);
+        URL_DO_RESULTADO = location.href.split('#')[0];
+        for (const s of document.querySelectorAll('script[type="application/ld+json"]')) {
+            try {
+                const d = JSON.parse(s.textContent);
+                if (d && d['@type'] === 'Product') {
+                    const offer = _extrairOffer(d.offers);
+                    if (offer && offer.price) {
+                        GM_setValue('ean_buscado', ean);
+                        console.log('[assistente-ean] Sao Paulo: JSON-LD na pagina');
+                        paginaDeProduto();
+                        return true;
+                    }
+                }
+            } catch (e) { }
+        }
+        const semResultado = /não encontr|não foi encontrad|nenhum result|nenhum produto|0\s*resultados?/i.test(document.body.innerText);
+        const link = document.querySelector('a[href$="/p"], a[href*="/p?"]');
+        if (link) {
+            GM_setValue('ean_buscado', ean);
+            console.log('[assistente-ean] Sao Paulo: navegando para pagina do produto');
+            location.href = link.href.split('#')[0] + '#assistente_ean=' + ean + sufixoFlags();
+            return true;
+        }
+        if (semResultado) {
+            emitirResultado(montarSentinel(ean, 'NAO_ENCONTRADO', '', '', '', ''));
+            console.log('[assistente-ean] Sao Paulo: nao encontrado:', ean);
+            encerrarAba();
+            return true;
+        }
+        return false;
+    }
+
+    let _tentativasBusca = 0;
+
     function paginaDeBusca(ean) {
         if (!ean) return;
         enviarPing(ean);
 
-        const semResultado = /0\s*resultados|não encontr|nenhum result/i.test(document.body.innerText);
-        const link = [...document.querySelectorAll('a[href$="/p"]')].find(a => (a.innerText || '').trim());
-
-        if (!link) {
-            if (semResultado) {
-                emitirResultado(montarSentinel(ean, 'NAO_ENCONTRADO', '', '', '', ''));
-                console.log('[assistente-ean] Sao Paulo: nao encontrado:', ean);
-                encerrarAba();
-                return;
+        if (_tentativasBusca === 0) {
+            // 1ª tentativa: API via GM (não interceptada pelo Norton).
+            _buscarApiVtexGM(ean, function (prod) {
+                if (prod && _emitirDeApiVtex(ean, prod)) { encerrarAba(); return; }
+                // API não retornou produto — cai para DOM.
+                _tentativasBusca = 1;
+                if (!_domBusca(ean)) setTimeout(() => paginaDeBusca(ean), 500);
+            });
+        } else {
+            // Retentativas: só DOM (API já foi tentada).
+            if (!_domBusca(ean)) {
+                _tentativasBusca++;
+                setTimeout(() => paginaDeBusca(ean), 500);
             }
-            setTimeout(() => paginaDeBusca(ean), 500);
-            return;
         }
-
-        GM_setValue('ean_buscado', ean);
-        location.href = link.href + '#assistente_ean=' + ean;
     }
 
     let tentativasNome = 0;
 
     function paginaDeBuscaPorNome() {
         enviarPing(EAN_DO_FRAGMENTO);
-        const candidatos = [...document.querySelectorAll('a[href$="/p"]')]
-            .filter(a => (a.innerText || '').trim())
+        const candidatos = [...document.querySelectorAll('a[href$="/p"], a[href*="/p?"]')]
             .map(a => {
                 const cont = a.closest('li, article, div');
                 return { url: a.href, texto: ((cont ? cont.innerText : '') || a.innerText || '') };
-            });
+            })
+            .filter(c => c.texto.trim());
         if (!candidatos.length) {
             tentativasNome++;
-            const semResultado = /0\s*resultados|não encontr|nenhum result/i.test(document.body.innerText);
+            const semResultado = /não encontr|não foi encontrad|nenhum result|nenhum produto|0\s*resultados?/i.test(document.body.innerText);
             if (semResultado || tentativasNome > 20) {
                 emitirResultado(montarSentinel(EAN_DO_FRAGMENTO, 'NAO_ENCONTRADO', '', '', '', ''));
                 console.log('[assistente-ean] Sao Paulo: busca por nome sem resultados');
@@ -556,7 +732,7 @@
         }
         console.log('[assistente-ean] Sao Paulo: candidato por nome aceito (nota', melhorNota.toFixed(2), ')');
         GM_setValue('ean_buscado', EAN_DO_FRAGMENTO);
-        location.href = melhor.url.split('#')[0] + '#assistente_ean=' + EAN_DO_FRAGMENTO + '&assistente_por_nome=1';
+        location.href = melhor.url.split('#')[0] + '#assistente_ean=' + EAN_DO_FRAGMENTO + '&assistente_por_nome=1' + sufixoFlags();
     }
 
     let tentativasProduto = 0;
@@ -567,6 +743,12 @@
         PRINCIPIO_ATIVO_PAGINA = principioAtivoDaPagina(document.body.innerText);
         MARCA_PAGINA = marcaDaPagina(document.body.innerText);
         if (!eanBuscado) return;
+        // Diagnostico 29/07: paginaDeProduto() nunca chamava enviarPing(), so
+        // paginaDeBusca/paginaDeBuscaPorNome armavam o vigia de 17s. Toda
+        // consulta que chega direto numa pagina de produto (URL direta OU a
+        // navegacao de _domBusca) ficava SEM rede de seguranca propria — so
+        // sobrava o timeout cego de 20s do lado Python, sem motivo nenhum.
+        enviarPing(eanBuscado);
 
         const scripts = document.querySelectorAll('script[type="application/ld+json"]');
         let produto = null;
@@ -587,15 +769,32 @@
             }
         }
 
+        if (produto) produto.offers = _extrairOffer(produto.offers);
         if (!produto || !produto.offers || !produto.offers.price) {
-            if (/página não encontrada|page not found/i.test(document.body.innerText)) {
+            // Página 404 — mesmo tratamento da Raia/Nissei/Panvel (07/2026):
+            // muito 404 aparecendo aqui também é sinal de bloqueio antibot
+            // disfarçado, não "não encontrado" de verdade. Emite BLOQUEIO: o
+            // app não grava nada, o item volta pendente e a Farmácias São
+            // Paulo fica pausada uns minutos antes de tentar de novo.
+            if (/p[aá]gina.{0,20}n[ãa]o.{0,20}encontrada|n[ãa]o foi encontrada|page not found|error\s*404/i.test(document.body.innerText)) {
                 GM_setValue('ean_buscado', '');
-                emitirResultado(montarSentinel(eanBuscado, 'NAO_ENCONTRADO', '', '', '', ''));
-                console.log('[assistente-ean] Sao Paulo: pagina 404 — NAO_ENCONTRADO para', eanBuscado);
+                emitirResultado(montarSentinel(eanBuscado, 'BLOQUEIO', '', '', '', ''));
+                console.log('[assistente-ean] Sao Paulo: pagina 404 — tratado como BLOQUEIO (possível antibot) para', eanBuscado);
                 encerrarAba();
                 return;
             }
             tentativasProduto++;
+            // Teto real (07/2026): antes o contador subia mas NUNCA era
+            // comparado com nada — a pagina de produto que nao renderizava
+            // preco era repolida a cada 500ms para sempre, sem veredito.
+            if (tentativasProduto > MAX_TENTATIVAS_PRODUTO) {
+                GM_setValue('ean_buscado', '');
+                emitirResultado(montarSentinel(eanBuscado, 'TRAVOU', '', '',
+                    'pagina de produto sem preco apos ' + MAX_TENTATIVAS_PRODUTO + ' tentativas', ''));
+                console.warn('[assistente-ean] pagina de produto sem preco apos', MAX_TENTATIVAS_PRODUTO, 'tentativas:', eanBuscado);
+                encerrarAba();
+                return;
+            }
             const textoIndisponivel = /pre[cç]o\s*indispon|produto\s*indispon/i.test(document.body.innerText);
             if (textoIndisponivel) {
                 const nome = (produto && produto.name) || (document.querySelector('h1') || {}).innerText || '';
@@ -616,7 +815,20 @@
         const disponibilidade = (produto.offers.availability || '').toString();
         const estoque = disponibilidade.includes('InStock') ? 'EM_ESTOQUE' : 'SEM_ESTOQUE';
 
-        const promoDom = detectarPromocao();
+        // A deteccao de promocao e' ENFEITE: nunca pode derrubar a captura do
+        // preco. Bug real de 31/07/2026 — detectarPromocao() lia a variavel
+        // `preco`, que so existe AQUI (outro escopo). Em 'use strict' isso e'
+        // ReferenceError, nao undefined: a excecao subia por paginaDeProduto()
+        // e como a chamada vem de um setTimeout, ninguem capturava —
+        // emitirResultado() nunca rodava e o app registrava TRAVOU. Só
+        // acontecia em produto EM PROMOCAO (a linha do erro so e' alcancada
+        // quando existe preco riscado), o que fazia a falha parecer aleatoria.
+        let promoDom = { precoOriginal: '', fraseLeve: '' };
+        try {
+            promoDom = detectarPromocao(preco);
+        } catch (e) {
+            console.warn('[assistente-ean] falha na deteccao de promocao (ignorada):', e);
+        }
         const obs = montarObservacao(preco, promoDom, nome);
 
         GM_setValue('ean_buscado', '');
@@ -641,7 +853,7 @@
 
     const PADRAO_LEVE = /leve\s*\+?\s*\d+\s*(?:e\s*)?(?:pague\s*\d+|(?:unidades?\s*)?por\s*R\$\s*[\d.,]+(?:\s*cada)?|[^\n]{0,40}?R\$\s*[\d.,]+\s*cada)/i;
 
-    function detectarPromocao() {
+    function detectarPromocao(precoAtual) {
         const resultado = { precoOriginal: '', fraseLeve: '' };
         const precoEl = document.querySelector('.unit-price');
         if (!precoEl) return resultado;
@@ -655,11 +867,18 @@
                     const texto = el.textContent || '';
                     if (!/R\$\s*\d/.test(texto)) continue;
                     let riscado = false;
-                    try { riscado = getComputedStyle(el).textDecorationLine.includes('line-through'); } catch (err) { }
-                    if (riscado) {
-                        resultado.precoOriginal = extrairValorBR(texto);
-                        break;
-                    }
+                    try {
+                        const cs = getComputedStyle(el);
+                        riscado = cs.textDecorationLine.includes('line-through')
+                            && cs.display !== 'none'
+                            && cs.visibility !== 'hidden'
+                            && el.offsetParent !== null;
+                    } catch (err) { }
+                    if (!riscado) continue;
+                    const valorOriginal = extrairValorBR(texto);
+                    if (!valorOriginal || parseFloat(valorOriginal.replace(',', '.')) === parseFloat(String(precoAtual).replace(',', '.'))) continue;
+                    resultado.precoOriginal = valorOriginal;
+                    break;
                 }
             }
             if (!resultado.fraseLeve) {
@@ -691,6 +910,14 @@
             } else if (NOME_ESPERADO && EAN_DO_FRAGMENTO) {
                 paginaDeBuscaPorNome();
             } else if (EAN_DA_BUSCA) {
+                // Diagnostico 29/07: /{EAN}/ NEM SEMPRE e' a pagina do produto —
+                // as vezes a São Paulo devolve uma pagina de LISTAGEM de busca
+                // (sem JSON-LD de Product, so um card com link para /produto/p)
+                // em vez do produto direto. O atalho antigo assumia produto
+                // direto e chamava paginaDeProduto(), que esperava um JSON-LD
+                // que nunca chegava nesses casos — ficava girando ate TRAVOU.
+                // paginaDeBusca() cobre os dois casos: tenta a API VTEX, e se a
+                // pagina for so listagem, segue o link do card ate o produto.
                 paginaDeBusca(EAN_DA_BUSCA);
             }
         }, 600);

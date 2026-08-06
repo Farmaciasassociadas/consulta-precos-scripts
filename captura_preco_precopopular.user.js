@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Preço Popular (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      1.0
+// @version      1.5
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_precopopular.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_precopopular.user.js
 // @description  Consulta o EAN na API pública do site da Preço Popular (VTEX) e copia o preço para a área de transferência. Não precisa navegar até o produto.
@@ -18,6 +18,56 @@
     'use strict';
 
     const SITE = 'precopopular';
+    // BLOQUEIO ANTIBOT (07/2026): Preço Popular consulta via API/fetch (não navega
+    // até a página do produto), então não dá pra olhar o texto da página
+    // como Raia/Nissei/Panvel/Farmácias São Paulo fazem. Em vez disso,
+    // rastreia status HTTP suspeitos nas respostas das APIs e o texto de
+    // bloqueio/404 no fallback de DOM. Se, no fim, NENHUMA camada achar o
+    // produto E este sinal estiver ligado, emite BLOQUEIO/LIMITE em vez de
+    // NAO_ENCONTRADO — não grava nada, item volta pendente.
+    //
+    // 31/07/2026 — DUAS CAUSAS, DUAS REAÇÕES. Antes os quatro status viravam o
+    // mesmo BLOQUEIO, que pausava a farmácia inteira por 5 min:
+    //   401/403 -> BLOQUEIO: o site nos recusa de verdade. Esperar não muda
+    //              nada, então pausa a farmácia (SITES_COM_BLOQUEIO_ANTIBOT
+    //              em config_app.py).
+    //   429/503 -> LIMITE:   pedimos rápido demais, ou o site está
+    //              sobrecarregado. Pede espera curta e nova tentativa DO MESMO
+    //              item, sem pausar a farmácia (_tratar_limite_temporario em
+    //              _captura_mixin.py).
+    // O motivo vai no OBS da sentinela (ex.: "HTTP 429 em intelligent-search"):
+    // sem isso os BLOQUEIO chegavam com observação vazia e descobrir a causa
+    // exigia garimpar o precos.csv.
+    // O próprio motivo é a bandeira: string vazia = não vimos nada daquele
+    // tipo. Guardados SEPARADOS de propósito — se um endpoint der 429 e outro
+    // 403, o OBS tem que explicar o status que foi emitido, não o primeiro
+    // sinal que apareceu.
+    let motivoBloqueio = '';        // 401/403, ou página de bloqueio/404
+    let motivoLimite = '';          // 429/503
+    const STATUS_BLOQUEIO_DURO = new Set([401, 403]);
+    const STATUS_LIMITE_TEMPORARIO = new Set([429, 503]);
+    function marcarSeSuspeito(status, ondeApi) {
+        const onde = ondeApi ? ' em ' + ondeApi : '';
+        if (STATUS_BLOQUEIO_DURO.has(status)) {
+            if (!motivoBloqueio) motivoBloqueio = `HTTP ${status}${onde}`;
+        } else if (STATUS_LIMITE_TEMPORARIO.has(status)) {
+            if (!motivoLimite) motivoLimite = `HTTP ${status}${onde}`;
+        }
+    }
+    function marcarBloqueioDePagina(motivo) {
+        if (!motivoBloqueio) motivoBloqueio = motivo;
+    }
+    // 429 num endpoint e 403 em outro: a recusa vence, porque esperar não
+    // resolve recusa.
+    function statusDaSuspeita() {
+        if (motivoBloqueio) return 'BLOQUEIO';
+        if (motivoLimite) return 'LIMITE';
+        return '';
+    }
+    function obsDaSuspeita() {
+        return motivoBloqueio || motivoLimite || 'sinal de bloqueio sem status HTTP';
+    }
+    const RE_BLOQUEIO_PAGINA = /p[aá]gina.{0,20}n[ãa]o.{0,20}encontrada|n[ãa]o foi encontrada a p[aá]gina|page not found|error\s*404/i;
 
     // ------------------------------------------------------------------
     // PREPARO DA PÁGINA: aceitar cookies e informar o CEP sozinho.
@@ -137,7 +187,45 @@
     // esse marcador no fragmento da URL quando esta nesse modo.
     const SEM_CLIPBOARD = /assistente_sem_clipboard=1/.test(location.hash || '');
 
+    // fetch com prazo (07/2026): sem isto, uma requisicao que o site pendura
+    // nunca resolve NEM rejeita — a cadeia async morre calada e o .catch() do
+    // fim nao pega (promise pendente nao rejeita). Era a causa dos
+    // travamentos mudos em Drogaria SP / Preco Popular.
+    const FETCH_PRAZO_MS = 6000;
+    function fetchComPrazo(url, opcoes) {
+        const ctrl = new AbortController();
+        const t = setTimeout(function () { ctrl.abort(); }, FETCH_PRAZO_MS);
+        return fetch(url, Object.assign({}, opcoes || {}, { signal: ctrl.signal }))
+            .finally(function () { clearTimeout(t); });
+    }
+
+    // VIGIA (07/2026) — rede de seguranca contra travamento silencioso.
+    // Diagnostico do log de 26/07: 524 consultas mandaram PING e NUNCA
+    // emitiram veredito (laco de polling sem teto; fetch que nao resolve nem
+    // rejeita). O app esperava os 20s do timeout e registrava "provavel
+    // desafio do Cloudflare" — chute errado: quando a pagina responde, ela
+    // responde em ate 6s (p95); nao existe nada na faixa de 15-19s. Agora o
+    // script desiste sozinho e diz a verdade, 3s antes do corte do app.
+    const VIGIA_MS = 17000;
+    let _vereditoEmitido = false;
+    let _vigiaArmado = false;
+    function armarVigia(sentinelPing) {
+        if (_vigiaArmado) return;   // enviarPing() e' chamado a cada retentativa
+        _vigiaArmado = true;
+        const ean = (String(sentinelPing).match(/^EAN=([^;]*)/) || [])[1] || '';
+        setTimeout(function () {
+            if (_vereditoEmitido) return;
+            const onde = (location.pathname || '').slice(0, 40);
+            console.warn('[assistente-ean] VIGIA: sem veredito em', VIGIA_MS / 1000, 's — em', onde);
+            emitirResultado(montarSentinel(ean, 'TRAVOU', '', '',
+                'vigia ' + (VIGIA_MS / 1000) + 's sem veredito em ' + onde, ''));
+            encerrarAba();
+        }, VIGIA_MS);
+    }
+
     function emitirResultado(sentinel) {
+        if (/;STATUS=PING;/.test(sentinel)) { armarVigia(sentinel); }
+        else { _vereditoEmitido = true; }
         if (!SEM_CLIPBOARD) {
             try { GM_setClipboard(sentinel); } catch (e) { }
         }
@@ -157,6 +245,7 @@
     }
 
     function encerrarAba() {
+        if (/assistente_manter_aba/.test(location.hash || '')) return;  // usuário pediu pra deixar aberta
         setTimeout(() => {
             try { window.close(); } catch (e) { /* ignorado */ }
         }, 800);
@@ -179,8 +268,8 @@
     }
 
     function buscarNaApi(termo) {
-        return fetch('/api/catalog_system/pub/products/search?fq=alternateIds_Ean:' + encodeURIComponent(termo))
-            .then(r => (r.ok ? r.json() : []))
+        return fetchComPrazo('/api/catalog_system/pub/products/search?fq=alternateIds_Ean:' + encodeURIComponent(termo))
+            .then(r => { marcarSeSuspeito(r.status, 'catalog_system'); return r.ok ? r.json() : []; })
             .catch(() => []);
     }
 
@@ -201,8 +290,8 @@
         let url = '/api/io/_v/api/intelligent-search/product_search/?query=' + encodeURIComponent(consulta);
         if (seg.regionId) url += '&regionId=' + encodeURIComponent(seg.regionId);
         if (seg.channel) url += '&salesChannel=' + encodeURIComponent(seg.channel);
-        return fetch(url)
-            .then(r => (r.ok ? r.json() : {}))
+        return fetchComPrazo(url)
+            .then(r => { marcarSeSuspeito(r.status, 'intelligent-search'); return r.ok ? r.json() : {}; })
             .then(j => (j && j.products) || [])
             .catch(() => []);
     }
@@ -252,6 +341,9 @@
                 const links = linksDeResultado();
                 if (links.length) { resolve(links); return; }
                 const semResultado = /não encontr|nenhum result|0\s*resultado/i.test(document.body.innerText);
+                if (RE_BLOQUEIO_PAGINA.test(document.body.innerText)) {
+                    marcarBloqueioDePagina('pagina de bloqueio/404 na busca');
+                }
                 if (semResultado || n <= 0) { resolve([]); return; }
                 setTimeout(() => tentar(n - 1), 600);
             };
@@ -261,7 +353,7 @@
 
     async function produtoDaPaginaDoLink(url) {
         try {
-            const html = await fetch(url).then(r => (r.ok ? r.text() : ''));
+            const html = await fetchComPrazo(url).then(r => (r.ok ? r.text() : ''));
             return html ? extrairProdutoDeHtml(html) : null;
         } catch (e) { return null; }
     }
@@ -645,8 +737,14 @@
         }
 
         if (!produto) {
-            emitirResultado(montarSentinel(ean, 'NAO_ENCONTRADO', '', '', '', ''));
-            console.log('[assistente-ean] Preço Popular: nao encontrado:', ean);
+            const suspeita = statusDaSuspeita();
+            if (suspeita) {
+                emitirResultado(montarSentinel(ean, suspeita, '', '', obsDaSuspeita(), ''));
+                console.log('[assistente-ean] Preço Popular:', suspeita, '(' + obsDaSuspeita() + ') para', ean);
+            } else {
+                emitirResultado(montarSentinel(ean, 'NAO_ENCONTRADO', '', '', '', ''));
+                console.log('[assistente-ean] Preço Popular: nao encontrado:', ean);
+            }
             encerrarAba();
             return;
         }
@@ -668,7 +766,7 @@
     // renderizados na própria página. Aceita só acima do limiar.
     async function consultarPorNome(ean) {
         const termo = termoCurto(NOME_ESPERADO);
-        let lista = await fetch('/api/catalog_system/pub/products/search?ft=' + encodeURIComponent(termo) + '&_from=0&_to=20')
+        let lista = await fetchComPrazo('/api/catalog_system/pub/products/search?ft=' + encodeURIComponent(termo) + '&_from=0&_to=20')
             .then(r => (r.ok ? r.json() : []))
             .catch(() => []);
         if (!lista || !lista.length) {
@@ -702,7 +800,13 @@
         }
         console.log('[assistente-ean] Preço Popular: nenhum candidato por nome (melhor:',
             Math.max(melhorNota, notaLink).toFixed(2), ')');
-        emitirResultado(montarSentinel(ean, 'NAO_ENCONTRADO', '', '', '', ''));
+        const suspeita = statusDaSuspeita();
+        if (suspeita) {
+            emitirResultado(montarSentinel(ean, suspeita, '', '', obsDaSuspeita(), ''));
+            console.log('[assistente-ean] Preço Popular:', suspeita, '(' + obsDaSuspeita() + ') na busca por nome para', ean);
+        } else {
+            emitirResultado(montarSentinel(ean, 'NAO_ENCONTRADO', '', '', '', ''));
+        }
         encerrarAba();
     }
 
@@ -718,6 +822,20 @@
         let item = itens.find(i => semZeros(i.ean) === semZeros(ean)) || itens[0];
         if (!item || !item.sellers || !item.sellers.length) {
             emitirResultado(montarSentinel(ean, 'NAO_ENCONTRADO', '', '', '', ''));
+            encerrarAba();
+            return;
+        }
+
+        // Marketplace: na VTEX, sellerId "1" é o vendedor OFICIAL da loja —
+        // qualquer outro é um terceiro (marketplace) e o preço não é da
+        // farmácia. Não interessa pra captura (pedido real: preço de
+        // marketplace poluindo a comparação entre farmácias).
+        const sellerEscolhido = item.sellers[0] || {};
+        if (sellerEscolhido.sellerId && sellerEscolhido.sellerId !== '1') {
+            const nomeVendedor = sellerEscolhido.sellerName || sellerEscolhido.sellerId;
+            const precoMarketplace = String((item.sellers[0].commertialOffer || {}).Price || '');
+            emitirResultado(montarSentinel(ean, 'MARKETPLACE', precoMarketplace, '', `Vendido por: ${nomeVendedor}`, produto.productName || ''));
+            console.log('[assistente-ean] Preço Popular: MARKETPLACE detectado, vendedor', nomeVendedor, '- preco capturado:', precoMarketplace);
             encerrarAba();
             return;
         }

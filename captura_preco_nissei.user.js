@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias Nissei (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      3.9
+// @version      4.4
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_nissei.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_nissei.user.js
 // @description  Busca o EAN na Nissei, entra no produto, lê o preço via JSON-LD + bloco de preço e copia para a área de transferência.
@@ -18,6 +18,9 @@
     'use strict';
 
     const SITE = 'nissei';
+    // Nome oficial da loja: usado pra distinguir "vendido por Nissei" (é a
+    // própria farmácia) de "vendido por <terceiro>" (marketplace).
+    const NOME_OFICIAL_RE = /nissei/i;
 
     // ------------------------------------------------------------------
     // PREPARO DA PÁGINA: aceitar cookies e informar o CEP sozinho.
@@ -92,6 +95,23 @@
 
     function pegarEanPendente() {
         return EAN_DO_FRAGMENTO || GM_getValue('ean_buscado', '');
+    }
+
+    // Marcadores que o app manda no fragmento inicial e que precisam
+    // SOBREVIVER a navegacao interna (listagem -> pagina do produto). Ao
+    // reconstruir o hash so com o EAN eles se perdiam: em coleta paralela o
+    // clipboard voltava a ser escrito (atrapalhando o copiar/colar do usuario)
+    // e na busca avulsa a aba fechava sozinha apesar do pedido de deixar
+    // aberta. assistente_ignorar entra por precaucao (com ele o script ja
+    // desiste antes de navegar).
+    const FLAGS_HERDADOS = ['assistente_manter_aba', 'assistente_sem_clipboard', 'assistente_ignorar'];
+    function sufixoFlags() {
+        const hash = location.hash || '';
+        return FLAGS_HERDADOS
+            .map((f) => (hash.match(new RegExp('(?:^|[#&])(' + f + '(?:=[^&#]*)?)(?=[&#]|$)')) || [])[1])
+            .filter(Boolean)
+            .map((par) => '&' + par)
+            .join('');
     }
 
     // Busca por NOME (retaguarda): o assistente manda o nome esperado no
@@ -479,7 +499,35 @@
     // que o clipboard - canal unico - causaria. Re-afirma o titulo de tempos
     // em tempos porque o site (SPA) reescreve document.title depois.
     let _aeanIntervaloTitulo = null;
+    const MAX_TENTATIVAS_PRODUTO = 20;   // 20 x 500ms = 10s
+
+    // VIGIA (07/2026) — rede de seguranca contra travamento silencioso.
+    // Diagnostico do log de 26/07: 524 consultas mandaram PING e NUNCA
+    // emitiram veredito (laco de polling sem teto; fetch que nao resolve nem
+    // rejeita). O app esperava os 20s do timeout e registrava "provavel
+    // desafio do Cloudflare" — chute errado: quando a pagina responde, ela
+    // responde em ate 6s (p95); nao existe nada na faixa de 15-19s. Agora o
+    // script desiste sozinho e diz a verdade, 3s antes do corte do app.
+    const VIGIA_MS = 17000;
+    let _vereditoEmitido = false;
+    let _vigiaArmado = false;
+    function armarVigia(sentinelPing) {
+        if (_vigiaArmado) return;   // enviarPing() e' chamado a cada retentativa
+        _vigiaArmado = true;
+        const ean = (String(sentinelPing).match(/^EAN=([^;]*)/) || [])[1] || '';
+        setTimeout(function () {
+            if (_vereditoEmitido) return;
+            const onde = (location.pathname || '').slice(0, 40);
+            console.warn('[assistente-ean] VIGIA: sem veredito em', VIGIA_MS / 1000, 's — em', onde);
+            emitirResultado(montarSentinel(ean, 'TRAVOU', '', '',
+                'vigia ' + (VIGIA_MS / 1000) + 's sem veredito em ' + onde, ''));
+            encerrarAba();
+        }, VIGIA_MS);
+    }
+
     function emitirResultado(sentinel) {
+        if (/;STATUS=PING;/.test(sentinel)) { armarVigia(sentinel); }
+        else { _vereditoEmitido = true; }
         try { GM_setClipboard(sentinel); } catch (e) { }
         try {
             const marca = 'AEAN|' + sentinel;
@@ -496,7 +544,22 @@
         return `EAN=${ean};SITE=${SITE};STATUS=${status};PRECO=${preco || ''};ESTOQUE=${estoque || ''};OBS=${limpar(obs)};NOME=${limpar(nome)};URL=${(URL_DO_RESULTADO || '').replace(/[;\s]/g, '')};PRINCIPIO=${limpar(PRINCIPIO_ATIVO_PAGINA)};MARCA=${limpar(MARCA_PAGINA)}`;
     }
 
+    // Marketplace: quando a página mostra "vendido por"/"vendido e entregue
+    // por" um vendedor QUE NÃO é a própria loja, o preço é do terceiro, não
+    // da farmácia — não interessa pra captura. Retorna o nome do vendedor
+    // detectado, ou null se não achar o texto ou se for a própria loja.
+    function vendedorTerceiro(textoPagina) {
+        const m = textoPagina.match(/vendido(?:\s+e\s+entregue)?\s+por[:\s]+([^\n\r]{2,60})/i);
+        if (!m) return null;
+        const vendedor = m[1].trim().replace(/\s{2,}/g, ' ');
+        // Falsos-positivos comuns: "vendido por unidade/kg/caixa" etc. (não é nome de loja).
+        if (/^(unidade|un\.?|kg|g|l|ml|caixa|pacote|display|fardo|cento|d[uú]zia|pe[çc]a)\b/i.test(vendedor)) return null;
+        if (NOME_OFICIAL_RE.test(vendedor)) return null; // é a própria farmácia, não é marketplace
+        return vendedor;
+    }
+
     function encerrarAba() {
+        if (/assistente_manter_aba/.test(location.hash || '')) return;  // usuário pediu pra deixar aberta
         setTimeout(() => {
             try { window.close(); } catch (e) { /* ignorado */ }
         }, 800);
@@ -571,7 +634,7 @@
         }
 
         GM_setValue('ean_buscado', ean); // reserva, caso o fragmento se perca
-        location.href = link.href + '#assistente_ean=' + ean;
+        location.href = link.href + '#assistente_ean=' + ean + sufixoFlags();
     }
 
     // ---- Busca por NOME (retaguarda) ----
@@ -624,7 +687,7 @@
         }
         console.log('[assistente-ean] Nissei: candidato por nome aceito (nota', melhorNota.toFixed(2), ')');
         GM_setValue('ean_buscado', EAN_DO_FRAGMENTO);
-        location.href = melhor.url.split('#')[0] + '#assistente_ean=' + EAN_DO_FRAGMENTO + '&assistente_por_nome=1';
+        location.href = melhor.url.split('#')[0] + '#assistente_ean=' + EAN_DO_FRAGMENTO + '&assistente_por_nome=1' + sufixoFlags();
     }
 
     let tentativasProduto = 0;
@@ -655,11 +718,16 @@
             }
         }
         if (!produto || !produto.offers || !produto.offers.price) {
-            // Página 404 (link morto): conclui como NAO_ENCONTRADO na hora.
+            // Página 404 (link morto) — mesmo tratamento da Raia (07/2026):
+            // a Nissei também tem proteção antibot e essa mesma página pode
+            // ser o bloqueio disfarçado de "não encontrado". Emite BLOQUEIO
+            // em vez de NAO_ENCONTRADO: o app não grava nada, o item volta
+            // pendente e a Nissei fica pausada uns minutos antes de tentar
+            // de novo.
             if (/página não encontrada|page not found/i.test(document.body.innerText)) {
                 GM_setValue('ean_buscado', '');
-                emitirResultado(montarSentinel(eanBuscado, 'NAO_ENCONTRADO', '', '', '', ''));
-                console.log('[assistente-ean] Nissei: pagina 404 — NAO_ENCONTRADO para', eanBuscado);
+                emitirResultado(montarSentinel(eanBuscado, 'BLOQUEIO', '', '', '', ''));
+                console.log('[assistente-ean] Nissei: pagina 404 — tratado como BLOQUEIO (possível antibot) para', eanBuscado);
                 encerrarAba();
                 return;
             }
@@ -669,6 +737,17 @@
             // assistente dar timeout (fica em branco/pendente: foi erro, não
             // indisponibilidade).
             tentativasProduto++;
+            // Teto real (07/2026): antes o contador subia mas NUNCA era
+            // comparado com nada — a pagina de produto que nao renderizava
+            // preco era repolida a cada 500ms para sempre, sem veredito.
+            if (tentativasProduto > MAX_TENTATIVAS_PRODUTO) {
+                GM_setValue('ean_buscado', '');
+                emitirResultado(montarSentinel(eanBuscado, 'TRAVOU', '', '',
+                    'pagina de produto sem preco apos ' + MAX_TENTATIVAS_PRODUTO + ' tentativas', ''));
+                console.warn('[assistente-ean] pagina de produto sem preco apos', MAX_TENTATIVAS_PRODUTO, 'tentativas:', eanBuscado);
+                encerrarAba();
+                return;
+            }
             const textoIndisponivel = /pre[cç]o\s*indispon|produto\s*indispon/i.test(document.body.innerText);
             if (textoIndisponivel) {
                 const nome = (produto && produto.name)
@@ -760,6 +839,14 @@
 
         GM_setValue('ean_buscado', '');
         try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { }
+
+        const vendedor = vendedorTerceiro(document.body.innerText);
+        if (vendedor) {
+            emitirResultado(montarSentinel(eanBuscado, 'MARKETPLACE', preco, estoque, `Vendido por: ${vendedor}`, nome));
+            console.log('[assistente-ean] Nissei: MARKETPLACE detectado, vendedor', vendedor, '- preco capturado:', preco);
+            encerrarAba();
+            return;
+        }
 
         if (MODO_POR_NOME) {
             // Produto aceito pela SEMELHANÇA DE NOME (o EAN não bateu na busca).
