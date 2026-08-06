@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from engine.chamariz import alvo_chamariz
+
 RAZOES_EMBALAGEM_FIXAS = [2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 24, 25, 30, 40, 48, 50, 60, 100]
 
 
@@ -200,12 +202,73 @@ def determinar_tier(
     return "PADRAO"
 
 
+def alvo_por_ranking(
+    tier: str,
+    precos_concorrentes: list[float],
+    params: dict[str, Any],
+    curva_abc: str | None = None,
+) -> float | None:
+    """Posiciona o preço num RANKING de concorrentes elegíveis, em vez de
+    perseguir sempre o menor preço (mediana_fisica * 0.99). Decisão de negócio
+    2026-08-05: a loja não precisa ser a mais barata -- fica deliberadamente em
+    2º/3º lugar (ou pior, conforme configurado por tier), escolhendo o MAIOR
+    preço que ainda garanta essa posição. Chamariz/KVI continuam fora desta
+    função (tratados como exceção comercial à parte, cadastro futuro).
+
+    Com poucas observações (abaixo de `ranking.n_min_observacoes`) o ranking
+    não é estatisticamente confiável: devolve None para o chamador cair de
+    volta na regra antiga (mediana_fisica * 0.99).
+    """
+    cfg = params.get("ranking")
+    if not cfg:
+        return None
+    if len(precos_concorrentes) < cfg["n_min_observacoes"]:
+        return None
+
+    ordenados = sorted(precos_concorrentes)
+    # Curva ABC, quando conhecida, tem prioridade sobre o default por tier:
+    # Curva A (KVI/alta visibilidade) fica mais perto do mercado (2o lugar);
+    # Curva B/C (cauda longa) pode ficar mais atras (3o lugar), protegendo
+    # margem sem risco relevante de perda de cliente (decisao 2026-08-05).
+    cfg_curva = cfg.get("rank_alvo_por_curva", {})
+    if curva_abc and curva_abc in cfg_curva:
+        rank_alvo = cfg_curva[curva_abc]
+    else:
+        rank_alvo = cfg["rank_alvo_por_tier"].get(tier, cfg["rank_alvo_por_tier"]["PADRAO"])
+    rank_alvo = min(rank_alvo, len(ordenados))
+
+    if rank_alvo <= 1:
+        return ordenados[0] * 0.99
+
+    # Preço-alvo fica no meio-termo entre quem ocupa a posição logo abaixo do
+    # rank-alvo e quem ocupa o rank-alvo: mais caro que o de baixo, mais
+    # barato que o de cima -- garante a posição sem colar no concorrente.
+    abaixo = ordenados[rank_alvo - 2]
+    no_alvo = ordenados[rank_alvo - 1]
+    return (abaixo + no_alvo) / 2
+
+
 def calcular_alvo(
     tier: str,
     valor_referencia_mercado: float | None,
     alvo_econ: float,
+    precos_concorrentes: list[float] | None = None,
+    params: dict[str, Any] | None = None,
+    curva_abc: str | None = None,
+    e_chamariz: bool = False,
 ) -> float:
+    if e_chamariz and precos_concorrentes and params is not None:
+        cfg_chamariz = params.get("chamariz", {})
+        alvo_chz = alvo_chamariz(precos_concorrentes, cfg_chamariz.get("desconto_maximo_pct", 0.0))
+        if alvo_chz is not None:
+            return alvo_chz
     if tier in ("PRECO_IMAGEM", "PADRAO") and valor_referencia_mercado is not None:
+        if precos_concorrentes and params is not None:
+            alvo_ranking = alvo_por_ranking(tier, precos_concorrentes, params, curva_abc)
+            if alvo_ranking is not None:
+                return alvo_ranking
+        # Sem concorrentes suficientes para um ranking confiável: mantem a
+        # regra antiga (mediana fisica * 0.99) como guarda-corpo.
         return valor_referencia_mercado * 0.99
     if tier == "PROTECAO_MARGEM" and valor_referencia_mercado is not None:
         return min(alvo_econ, valor_referencia_mercado * 1.15)
@@ -243,6 +306,7 @@ class ResultadoPrecificacao:
     piso: float | None = None
     alvo: float | None = None
     tier: str | None = None
+    custo_estimado: float | None = None
 
 
 def aplicar_travas(
@@ -256,6 +320,9 @@ def aplicar_travas(
     teto_cmed: float | None,
     preco_atual: float | None,
     params: dict[str, Any],
+    precos_concorrentes: list[float] | None = None,
+    curva_abc: str | None = None,
+    e_chamariz: bool = False,
 ) -> ResultadoPrecificacao:
     """Sempre tenta produzir um preco sugerido; so retorna None quando nao ha
     nenhuma base (nem custo nem mercado) ou o resultado seria matematicamente
@@ -276,11 +343,19 @@ def aplicar_travas(
             )
         alvo_mercado = valor_referencia_mercado * 0.99
         grade = arredondar_grade(alvo_mercado, 0.0, teto_cmed, params["grade"]["terminacoes"])
+        # Custo ausente (ex.: item herdado da compra do ponto, sem NF): estima
+        # um custo retroativo a partir do preco de mercado, so para nao deixar
+        # o item "sem margem calculavel" no painel. Nao bloqueia -- e so
+        # referencia ate a NF real de reposicao chegar (decisao 2026-08-05).
+        pct_estimativa = params.get("custo_estimado", {}).get("pct_do_preco_mercado", 0.60)
+        custo_estimado = (grade.preco or alvo_mercado) * pct_estimativa
         return ResultadoPrecificacao(
             "OK_SEM_CUSTO_BASE_MERCADO", grade.preco,
-            "Sem custo validado por NF: preco sugerido apenas pela referencia de mercado (Brick/web), "
-            "sem checagem de margem. Confirme o custo assim que possivel.",
-            alvo=alvo_mercado, tier=tier,
+            "Sem custo validado por NF (ex.: item herdado de compra de ponto, sem NF de reposicao): "
+            f"preco sugerido pela referencia de mercado; custo estimado em R$ {custo_estimado:.2f} "
+            f"({pct_estimativa:.0%} do preco de mercado) apenas para calculo de margem no painel. "
+            "Revisar com custo real assim que houver NF de reposicao.",
+            alvo=alvo_mercado, tier=tier, custo_estimado=custo_estimado,
         )
 
     if lucro_liquido_alvo_pct is None:
@@ -299,7 +374,12 @@ def aplicar_travas(
         )
 
     if divergencia_brick_web:
-        alvo_valor = max(calcular_alvo(tier, valor_referencia_mercado, alvo_econ), piso_valor)
+        alvo_valor = max(
+            calcular_alvo(
+                tier, valor_referencia_mercado, alvo_econ, precos_concorrentes, params, curva_abc, e_chamariz
+            ),
+            piso_valor,
+        )
         grade = arredondar_grade(alvo_valor, piso_valor, teto_cmed, params["grade"]["terminacoes"])
         return ResultadoPrecificacao(
             "DIVERGENCIA_BRICK_WEB", grade.preco,
@@ -317,9 +397,17 @@ def aplicar_travas(
             piso=piso_valor, tier=tier,
         )
 
-    alvo_valor = calcular_alvo(tier, valor_referencia_mercado, alvo_econ)
-    status_margem = "OK"
+    alvo_valor = calcular_alvo(
+        tier, valor_referencia_mercado, alvo_econ, precos_concorrentes, params, curva_abc, e_chamariz
+    )
+    status_margem = "OK" if not e_chamariz else "OK_CHAMARIZ"
     justificativa_margem = "Preco dentro da politica da categoria, respeitando piso, teto e variacao maxima."
+    if e_chamariz:
+        justificativa_margem = (
+            "Item selecionado como chamariz/KVI (Top vendidos do Brick + alta comparabilidade): "
+            "preco alinhado ao menor concorrente elegivel, dentro do desconto maximo parametrizado, "
+            "respeitando piso e teto."
+        )
     if alvo_valor < piso_valor:
         # Mercado nao sustenta a margem-alvo da categoria, mas o piso ja garante
         # a contribuicao minima: vender no piso ainda e melhor que nao sugerir nada.

@@ -85,10 +85,15 @@ def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = N
     rodada_id = cur.lastrowid
 
     produtos = buscar_produtos(conn)
+    try:
+        chamariz_eans = {r[0] for r in conn.execute("SELECT ean FROM chamariz_vigente")}
+    except sqlite3.OperationalError:
+        chamariz_eans = set()  # schema antigo (rodar db.criar_schema para criar a tabela)
     linhas = []
     for row in produtos:
         ean = row["ean"]
         descricao = row["descricao"]
+        e_chamariz = ean in chamariz_eans
 
         if row["marca_exclusiva_preco"] is not None:
             linhas.append((
@@ -125,11 +130,9 @@ def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = N
         )
         preco_atual_final = preco_atual_corrigido
 
-        obs = observacoes_do_ean(conn, ean)
-        resultado_mercado = mercado.calcular_mercado(
-            obs, params, data_referencia, vum_brick=row["vum_brick"], segmento_brick=row["segmento"],
-        )
-
+        # Categoria/natureza fiscal calculadas ANTES do mercado: o motor de
+        # mercado precisa da natureza para aplicar o premio de balcao correto
+        # quando nao ha segmento Brick (ver engine/mercado._fator_fisico).
         subcategoria = conn.execute(
             "SELECT classificacao_exata FROM subcategoria_classificada WHERE ean = ?", (ean,)
         ).fetchone()
@@ -143,6 +146,13 @@ def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = N
 
         tem_icms_st = bool(row["tem_icms_st"])
         natureza = economico.natureza_fiscal(categoria, tem_icms_st)
+
+        obs = observacoes_do_ean(conn, ean)
+        resultado_mercado = mercado.calcular_mercado(
+            obs, params, data_referencia, vum_brick=row["vum_brick"], segmento_brick=row["segmento"],
+            natureza_fiscal_item=natureza,
+        )
+
         tier = economico.determinar_tier(
             papel_politica=politica[0] if politica else None,
             curva_abc=row["curva_abc"],
@@ -155,6 +165,15 @@ def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = N
         if tier == "REVISAO_HUMANA":
             tier = "PROTECAO_MARGEM"
 
+        # Um preco por site (o mais recente sobrevivente ao filtro de outliers),
+        # para o motor de ranking decidir a posicao competitiva (2o/3o lugar)
+        # em vez de sempre perseguir o menor preco.
+        precos_por_site: dict[str, float] = {}
+        for o in resultado_mercado.filtro.mantidas:
+            if o.preco is not None:
+                precos_por_site[o.site] = o.preco
+        precos_concorrentes = list(precos_por_site.values())
+
         resultado = economico.aplicar_travas(
             custo=row["custo_medio"],
             natureza_fiscal_item=natureza,
@@ -165,6 +184,9 @@ def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = N
             teto_cmed=row["pmc"],
             preco_atual=preco_atual_final,
             params=params,
+            precos_concorrentes=precos_concorrentes,
+            curva_abc=row["curva_abc"],
+            e_chamariz=e_chamariz,
         )
 
         justificativa_final = resultado.justificativa
