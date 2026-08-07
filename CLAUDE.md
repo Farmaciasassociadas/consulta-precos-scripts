@@ -68,7 +68,44 @@ no mesmo `main`. Se um push de código for rejeitado por divergência de dados,
 publique só o código (ex.: `git worktree` a partir de `origin/main` +
 `cherry-pick`) e deixe os dados para o sync do app.
 
-## 5. Nunca buscar dentro das pastas de runtime/backup
+## 5. Nunca resetar para `origin/main` — confira a branch antes
+
+Aconteceu em 07/08/2026: uma sessão rodou `git reset --hard origin/main`
+estando em `redesign-ui`. Isso **descartou a ponta da branch** — três commits
+de código (redesign do painel do MiniPreço, piso competitivo, codemaps) mais
+dois de precificação de outra sessão. Do lado do usuário apareceu como
+"sumiu o preço sugerido do painel": o app voltou a uma versão antiga.
+
+Este repo trabalha em **`redesign-ui`**, não em `main`. Além disso, **várias
+sessões mexem nele ao mesmo tempo** — a ponta da branch pode conter trabalho
+que não é seu.
+
+Antes de qualquer operação destrutiva de git:
+
+```bash
+git branch --show-current      # confirme onde você está
+git log --oneline -5           # veja o que vai perder
+```
+
+Para desfazer, resete para a **própria** branch, nunca para `main`:
+
+```bash
+git reset --hard origin/$(git branch --show-current)
+```
+
+Se o objetivo era só descartar mudanças de um arquivo, use
+`git checkout -- <arquivo>` em vez de resetar a branch inteira.
+
+**Commite e dê push cedo.** Foi o `push` que salvou o trabalho nesse
+incidente: os commits sobreviveram em `origin/redesign-ui` e a recuperação
+foi um reset de volta. Trabalho não commitado teria sumido — como sumiu mais
+cedo no mesmo dia, quando o sync do `iniciar.py` sobrescreveu edições que
+ainda estavam só no working tree.
+
+Se algo já se perdeu: `git reflog` guarda tudo por 90 dias, e
+`git branch <nome> <sha>` resgata o commit antes de qualquer outra manobra.
+
+## 6. Nunca buscar dentro das pastas de runtime/backup
 
 `chrome_perfil_robo/`, `backups_locais/`, `__pycache__/`, `terceiro_pc/` e
 `.graphify/` não têm código relevante — uma busca recursiva solta cai em
