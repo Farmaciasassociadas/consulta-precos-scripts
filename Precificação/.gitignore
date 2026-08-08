@@ -5,7 +5,7 @@ python/
 __pycache__/
 *.pyc
 .pytest_cache/
-precificador/precificador.db
+# precificador/precificador.db  # desativado: DB com classificacoes versionado para sync automatico
 
 # Artefatos de debug/inspecao (nao usados pelo pipeline)
 outputs/**/*.inspect.ndjson
@@ -21,4 +21,4 @@ work/
 
 # Rodadas exportadas: regeneraveis via rodada.py + exportar_excel.py,
 # nao precisam ficar versionadas (ficam so localmente).
-PRECIFICACAO_RODADA_*.xlsx
+# PRECIFICACAO_RODADA_*.xlsx  # desativado: RODADA_10 com classificacoes corretas versionada
