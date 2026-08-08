@@ -137,6 +137,21 @@ def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = N
             "SELECT classificacao_exata FROM subcategoria_classificada WHERE ean = ?", (ean,)
         ).fetchone()
         categoria = subcategoria[0] if subcategoria else _categoria_provisoria(row["grupo_pai_nf"])
+
+        # Paridade com o motor do app (precificacao/ do ConsultaPrecosEAN): o
+        # segmento auditado do Brick corrige o eixo (GENERICO/ETICOS/SIMILAR)
+        # antes da politica financeira -- sem isso, generico cadastrado como
+        # etico usa lucro-alvo de etico (10%) em vez de generico (15%).
+        motivo_eixo = ""
+        cfg_classificacao = params.get("classificacao", {})
+        if cfg_classificacao.get("corrigir_eixo_por_brick", False) and categoria:
+            permitidas = {r[0] for r in conn.execute(
+                "SELECT classificacao_exata FROM politica_categoria")}
+            permitidas |= {r[0] for r in conn.execute(
+                "SELECT DISTINCT classificacao_exata FROM subcategoria_classificada")}
+            categoria, motivo_eixo = economico.corrigir_eixo_por_brick(
+                categoria, row["segmento"], permitidas)
+
         politica = None
         if categoria:
             politica = conn.execute(
@@ -149,7 +164,11 @@ def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = N
 
         obs = observacoes_do_ean(conn, ean)
         resultado_mercado = mercado.calcular_mercado(
-            obs, params, data_referencia, vum_brick=row["vum_brick"], segmento_brick=row["segmento"],
+            obs, params, data_referencia,
+            # Paridade com o app: sem custo validado por NF nao ha base para
+            # ancorar no Brick (auditoria nacional) -- o item sai so com a web.
+            vum_brick=row["vum_brick"] if row["custo_medio"] is not None else None,
+            segmento_brick=row["segmento"],
             natureza_fiscal_item=natureza,
         )
 
@@ -165,14 +184,17 @@ def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = N
         if tier == "REVISAO_HUMANA":
             tier = "PROTECAO_MARGEM"
 
-        # Um preco por site (o mais recente sobrevivente ao filtro de outliers),
-        # para o motor de ranking decidir a posicao competitiva (2o/3o lugar)
-        # em vez de sempre perseguir o menor preco.
-        precos_por_site: dict[str, float] = {}
-        for o in resultado_mercado.filtro.mantidas:
-            if o.preco is not None:
-                precos_por_site[o.site] = o.preco
-        precos_concorrentes = list(precos_por_site.values())
+        # Paridade com o app: o ranking e o piso competitivo usam so os precos
+        # da VIZINHANCA local quando ela e confiavel (mercado.selecionar_vizinhanca);
+        # os sites remotos continuam valendo para n/cv/divergencia. menor/maior
+        # local alimentam o piso competitivo e os status honestos.
+        precos_concorrentes = list(resultado_mercado.precos_alvo)
+        menor_local = (min(resultado_mercado.precos_alvo)
+                       if resultado_mercado.alvo_so_local and resultado_mercado.precos_alvo
+                       else None)
+        maior_local = (max(resultado_mercado.precos_alvo)
+                       if resultado_mercado.alvo_so_local and resultado_mercado.precos_alvo
+                       else None)
 
         resultado = economico.aplicar_travas(
             custo=row["custo_medio"],
@@ -187,11 +209,63 @@ def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = N
             precos_concorrentes=precos_concorrentes,
             curva_abc=row["curva_abc"],
             e_chamariz=e_chamariz,
+            menor_concorrente_local=menor_local,
+            maior_concorrente_local=maior_local,
         )
+        status_gravado = resultado.status
+
+        # Paridade com o app: sem regra financeira cadastrada (categoria sem
+        # politica), tenta com a margem mediana das categorias como estimativa
+        # em vez de bloquear o item sem preco.
+        if resultado.preco_sugerido is None and resultado.status == "REVISAO_MANUAL_SEM_MARKUP":
+            lucros = [r[0] for r in conn.execute(
+                "SELECT lucro_liquido_alvo_pct FROM politica_categoria "
+                "WHERE lucro_liquido_alvo_pct IS NOT NULL")]
+            lucro_mediano_fallback = median(lucros) if lucros else 0.15
+            retry = economico.aplicar_travas(
+                custo=row["custo_medio"],
+                natureza_fiscal_item=natureza,
+                tier=tier,
+                valor_referencia_mercado=resultado_mercado.valor_referencia,
+                divergencia_brick_web=resultado_mercado.divergencia_brick_web,
+                lucro_liquido_alvo_pct=lucro_mediano_fallback,
+                teto_cmed=row["pmc"],
+                preco_atual=preco_atual_final,
+                params=params,
+                precos_concorrentes=precos_concorrentes,
+                curva_abc=row["curva_abc"],
+                e_chamariz=e_chamariz,
+                menor_concorrente_local=menor_local,
+                maior_concorrente_local=maior_local,
+            )
+            if retry.preco_sugerido is not None:
+                status_gravado = "REVISAO_MANUAL_SEM_MARKUP_MARGEM_ESTIMADA"
+                resultado = economico.ResultadoPrecificacao(
+                    status=status_gravado,
+                    preco_sugerido=retry.preco_sugerido,
+                    justificativa=(f"{retry.justificativa} Sem categoria cadastrada: "
+                                   f"aplicada margem mediana de {lucro_mediano_fallback:.0%} "
+                                   "como estimativa; revisar a classificacao."),
+                    piso=retry.piso, alvo=retry.alvo, tier=retry.tier,
+                    custo_estimado=retry.custo_estimado,
+                )
 
         justificativa_final = resultado.justificativa
         if nota_outlier:
             justificativa_final = f"[OUTLIER CORRIGIDO] {nota_outlier} {resultado.justificativa}"
+        if motivo_eixo:
+            justificativa_final += f" Categoria: {motivo_eixo}."
+        # Rastreabilidade (paridade com o app): quem definiu o alvo aparece na
+        # justificativa -- vizinhanca local x todos os concorrentes.
+        if resultado_mercado.alvo_so_local:
+            justificativa_final += (
+                f" Alvo definido pelos {resultado_mercado.n_local} concorrentes "
+                f"da vizinhanca (de {resultado_mercado.n} coletados); os demais "
+                f"validaram o preco.")
+        elif resultado_mercado.n_local or resultado_mercado.n:
+            justificativa_final += (
+                f" Vizinhanca insuficiente ({resultado_mercado.n_local} de "
+                f"{resultado_mercado.n}): alvo usou todos os concorrentes.")
 
         mediana_historico = mediana_sugerido_historico(conn, ean, rodada_id)
         if economico.preco_atual_e_outlier_historico(preco_atual_final, mediana_historico):
@@ -202,7 +276,7 @@ def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = N
             )
 
         linhas.append((
-            rodada_id, ean, row["descricao"], categoria, natureza, tier, resultado.status,
+            rodada_id, ean, row["descricao"], categoria, natureza, tier, status_gravado,
             row["custo_medio"], row["n_compras"], resultado_mercado.valor_referencia,
             resultado_mercado.n, resultado_mercado.cv, resultado_mercado.peso_brick, row["vum_brick"],
             resultado.piso, resultado.alvo, row["pmc"], preco_atual_final,

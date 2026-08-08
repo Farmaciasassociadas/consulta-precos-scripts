@@ -118,6 +118,63 @@ PREFIXOS_MEDICAMENTO = ("ETICOS", "GENERICO", "GENÉRICO", "SIMILAR", "REFERENCI
 PREFIXOS_PERFUMARIA_HIGIENE = ("PERFUMARIA",)
 
 
+# De-para do segmento auditado do Brick para o eixo da taxonomia interna.
+# NMED (nao-medicamento) fica de fora de proposito: ele nao diz QUAL categoria
+# de perfumaria/varejo o item e, entao nao da para corrigir nada com ele.
+EIXO_POR_SEGMENTO_BRICK = {"GEN": "GENERICO", "RX": "ETICOS", "SIM": "SIMILAR"}
+EIXOS_MEDICAMENTO = ("ETICOS", "GENERICO", "SIMILAR")
+
+
+def corrigir_eixo_por_brick(
+    categoria: str | None, segmento_brick: str | None, categorias_validas
+) -> tuple[str | None, str]:
+    """Corrige o EIXO (GENERICO/ETICOS/SIMILAR) usando o segmento do Brick.
+
+    Medido em 2026-08-06: dos 434 itens com segmento Brick e eixo cadastrado,
+    111 divergem (26%), quase todos com brick=GEN e ERP=ETICOS. Isso NAO muda
+    aliquota (natureza_fiscal olha o prefixo de medicamento + ICMS-ST, e os tres
+    eixos sao medicamento), mas muda o lucro-alvo da politica: ETICOS > RX pede
+    10% e GENERICO > RX pede 15%. Classificar generico como etico subprecifica.
+
+    So a primeira parte muda; a subcategoria (RX, USO CONTINUO, CONTROLADO...)
+    e preservada, porque o Brick nao sabe dela. Se a categoria resultante nao
+    existir na taxonomia oficial, nada e alterado.
+
+    Devolve (categoria, motivo). `motivo` vazio significa "nada mudou".
+    """
+    eixo_brick = EIXO_POR_SEGMENTO_BRICK.get((segmento_brick or "").upper())
+    if not eixo_brick or not categoria or " > " not in categoria:
+        return categoria, ""
+    eixo_atual, _, subcategoria = categoria.partition(" > ")
+    eixo_atual = eixo_atual.strip()
+    if eixo_atual not in EIXOS_MEDICAMENTO or eixo_atual == eixo_brick:
+        return categoria, ""
+    subcategoria = subcategoria.strip()
+    for candidata in _subcategorias_equivalentes(eixo_brick, subcategoria):
+        corrigida = f"{eixo_brick} > {candidata}"
+        if corrigida in categorias_validas:
+            return corrigida, (f"eixo corrigido de {eixo_atual} para {eixo_brick} "
+                               f"pelo segmento Brick")
+    return categoria, ""
+
+
+def _subcategorias_equivalentes(eixo: str, subcategoria: str):
+    """Mesma subcategoria escrita de formas diferentes conforme o eixo.
+
+    A taxonomia usa "SIMILAR > RX-SIMILAR" e "SIMILAR > O.T.C/MIP-SIMILAR",
+    enquanto os outros eixos usam "RX" e "O.T.C/MIP" puros. Sem este de-para,
+    66 dos 111 itens divergentes ficariam sem correcao so por causa do nome.
+    """
+    yield subcategoria
+    if eixo == "SIMILAR":
+        yield f"{subcategoria}-SIMILAR"
+    else:
+        # Caminho inverso: vindo de SIMILAR para GENERICO/ETICOS.
+        for sufixo in ("-SIMILAR",):
+            if subcategoria.endswith(sufixo):
+                yield subcategoria[: -len(sufixo)]
+
+
 def natureza_fiscal(classificacao: str | None, tem_icms_st: bool) -> str:
     """Classifica o item em 'medicamento' / 'perfumaria_higiene' / 'padrao'.
 
@@ -149,8 +206,32 @@ def aliquota_simples_efetiva(params: dict[str, Any], natureza: str) -> float:
 
 
 def divisor_piso(params: dict[str, Any], natureza: str) -> float:
+    """Divisor do ALVO economico: rateia a estrutura inteira (fixa + variavel).
+
+    Continua incluindo `despesas_fixas_pct` de proposito -- e o preco que a loja
+    precisa praticar NO MIX para pagar a estrutura. Nao confundir com o piso
+    minimo de venda, que usa `divisor_piso_contribuicao` (ver `piso`).
+    """
     premissas = params["premissas"]
     return 1 - premissas["cartao_pct"] - premissas["despesas_fixas_pct"] - aliquota_simples_efetiva(params, natureza)
+
+
+def divisor_piso_contribuicao(params: dict[str, Any], natureza: str) -> float:
+    """Divisor do PISO de venda: so o que custa POR UNIDADE VENDIDA.
+
+    Despesa fixa (aluguel, folha, energia) e custo do PERIODO, nao do produto:
+    ela nao desaparece se a unidade nao for vendida. Ratea-la por unidade no piso
+    faz o motor recusar venda que ainda daria contribuicao positiva -- medido em
+    2026-08-07: 33,6% do catalogo tinha markup ate o menor concorrente local
+    abaixo dos 23% de margem bruta que o piso antigo exigia, 354 itens ficavam
+    presos em `alvo == piso` e 142 saiam mais caros que TODOS os concorrentes.
+
+    A despesa fixa continua coberta -- pelo ALVO (divisor_piso) e pela meta de
+    margem do mix, nao por uma trava item a item.
+    """
+    premissas = params["premissas"]
+    variaveis = premissas.get("despesas_variaveis_pct", 0.0)
+    return 1 - premissas["cartao_pct"] - variaveis - aliquota_simples_efetiva(params, natureza)
 
 
 def divisor_alvo(params: dict[str, Any], natureza: str, lucro_liquido_alvo_pct: float) -> float:
@@ -158,7 +239,7 @@ def divisor_alvo(params: dict[str, Any], natureza: str, lucro_liquido_alvo_pct: 
 
 
 def piso(custo: float, params: dict[str, Any], natureza: str) -> float:
-    piso_simples = custo / divisor_piso(params, natureza)
+    piso_simples = custo / divisor_piso_contribuicao(params, natureza)
     piso_contribuicao = custo + params["premissas"]["contribuicao_minima_reais"]
     return max(piso_simples, piso_contribuicao)
 
@@ -309,6 +390,108 @@ class ResultadoPrecificacao:
     custo_estimado: float | None = None
 
 
+@dataclass(frozen=True)
+class BandaBalcao:
+    """Os tres precos que o vendedor ve no balcao."""
+    vitrine: float           # preco cheio, da etiqueta
+    cortesia: float | None   # concessao pequena, para o cliente que hesita
+    cobrimos: float | None   # ultimo degrau, so contra preco citado pelo cliente
+    ancora_pmc: float | None = None   # "de R$ X" so quando o desconto e' crivel
+    motivo: str = ""
+
+
+def _arredondar_para_grade_abaixo(valor: float, piso_valor: float,
+                                  terminacoes: list[float]) -> float | None:
+    """Maior preco da grade que nao passa de `valor` e respeita o piso.
+
+    Desconto tem de cair numa terminacao (R$ 22,90 le como preco; R$ 22,71 le
+    como calculo -- e calculo convida o cliente a negociar de novo).
+    """
+    candidatas = [
+        reais + termo
+        for reais in range(max(0, int(piso_valor) - 1), int(valor) + 2)
+        for termo in terminacoes
+    ]
+    dentro = [v for v in candidatas if piso_valor - 1e-9 <= v <= valor + 1e-9]
+    if dentro:
+        return max(dentro)
+    # Janela estreita demais entre piso e alvo (ex.: piso == alvo == 85,00, e a
+    # grade nao tem terminacao ali). Sobe para a menor terminacao acima do piso:
+    # perder o degrau inteiro seria pior que dar alguns centavos a menos de
+    # desconto.
+    acima = [v for v in candidatas if v >= piso_valor - 1e-9]
+    return min(acima) if acima else None
+
+
+def calcular_banda_balcao(
+    preco_vitrine: float | None,
+    piso_valor: float | None,
+    params: dict[str, Any],
+    menor_concorrente_local: float | None = None,
+    teto_cmed: float | None = None,
+) -> BandaBalcao | None:
+    """Preco maximo e minimo que o vendedor pode praticar no balcao.
+
+    Tres degraus NOMEADOS, nao um intervalo continuo: intervalo faz o vendedor
+    ir direto ao minimo. A concessao e' decrescente (5%, depois o resto) para
+    sinalizar que o limite chegou -- concessao de tamanho constante convida a
+    mais uma rodada.
+
+    - vitrine:  preco cheio (etiqueta, sistema, anuncio).
+    - cortesia: concessao pequena para o cliente que hesita ou leva 2+ itens.
+    - cobrimos: ultimo degrau. So sai quando o cliente CITA um preco concreto
+      -- desconto reativo salva a venda; desconto preventivo so queima margem.
+
+    `ancora_pmc` so vem preenchida quando o desconto contra o PMC fica numa
+    faixa CRIVEL (ver [balcao] no TOML): anunciar "50% de desconto" destroi a
+    credibilidade em vez de construi-la, porque o mercado inteiro pratica ~47%
+    abaixo do PMC e o cliente que ja comprou o item sabe disso.
+
+    Devolve None quando nao ha preco ou piso -- sem piso nao ha limite seguro.
+    """
+    cfg = params.get("balcao")
+    if not cfg or not cfg.get("ativo") or preco_vitrine is None or piso_valor is None:
+        return None
+
+    terminacoes = params["grade"]["terminacoes"]
+    piso_balcao = max(piso_valor, preco_vitrine * (1 - cfg.get("desconto_maximo_pct", 0.15)))
+
+    cortesia = _arredondar_para_grade_abaixo(
+        preco_vitrine * (1 - cfg.get("desconto_cortesia_pct", 0.05)),
+        piso_balcao, terminacoes)
+    if cortesia is not None and cortesia >= preco_vitrine:
+        cortesia = None
+
+    # "Cobrimos" encosta no menor concorrente local, nunca abaixo do piso.
+    cobrimos = None
+    if menor_concorrente_local and menor_concorrente_local > 0:
+        alvo_cobrir = max(menor_concorrente_local, piso_balcao)
+        if alvo_cobrir < preco_vitrine:
+            cobrimos = _arredondar_para_grade_abaixo(alvo_cobrir, piso_balcao, terminacoes)
+    if cobrimos is None:
+        cobrimos = _arredondar_para_grade_abaixo(piso_balcao, piso_balcao, terminacoes)
+    if cobrimos is not None and cobrimos >= preco_vitrine:
+        cobrimos = None
+    if cortesia is not None and cobrimos is not None and cobrimos >= cortesia:
+        cortesia = None  # degraus colados nao ajudam ninguem
+
+    ancora = None
+    motivo = ""
+    if teto_cmed and teto_cmed > preco_vitrine:
+        desconto = 1 - preco_vitrine / teto_cmed
+        minimo = cfg.get("ancora_pmc_desconto_min", 0.08)
+        maximo = cfg.get("ancora_pmc_desconto_max", 0.30)
+        if minimo <= desconto <= maximo:
+            ancora = teto_cmed
+            motivo = f"PMC R$ {teto_cmed:.2f} ({desconto:.0%} de desconto)"
+        else:
+            motivo = (f"PMC omitido: desconto de {desconto:.0%} fora da faixa crivel "
+                      f"({minimo:.0%}-{maximo:.0%})")
+
+    return BandaBalcao(vitrine=preco_vitrine, cortesia=cortesia, cobrimos=cobrimos,
+                       ancora_pmc=ancora, motivo=motivo)
+
+
 def aplicar_travas(
     *,
     custo: float | None,
@@ -323,6 +506,8 @@ def aplicar_travas(
     precos_concorrentes: list[float] | None = None,
     curva_abc: str | None = None,
     e_chamariz: bool = False,
+    menor_concorrente_local: float | None = None,
+    maior_concorrente_local: float | None = None,
 ) -> ResultadoPrecificacao:
     """Sempre tenta produzir um preco sugerido; so retorna None quando nao ha
     nenhuma base (nem custo nem mercado) ou o resultado seria matematicamente
@@ -368,8 +553,10 @@ def aplicar_travas(
 
     if teto_cmed is not None and piso_valor > teto_cmed:
         return ResultadoPrecificacao(
-            "REVISAO_MANUAL_PISO_ACIMA_DO_TETO", None,
-            "Piso minimo tecnico ultrapassa o teto CMED: nao se autoriza margem negativa.",
+            "REVISAO_MANUAL_PISO_ACIMA_DO_TETO", teto_cmed,
+            f"ATENCAO: piso minimo baseado no custo (R$ {piso_valor:.2f}) ultrapassa o teto "
+            f"CMED (R$ {teto_cmed:.2f}). Sugestao limitada ao preco maximo CMED; margem minima "
+            "nao atingida, revisar custo antes de aplicar.",
             piso=piso_valor, tier=tier,
         )
 
@@ -418,6 +605,25 @@ def aplicar_travas(
             "(margem reduzida a contribuicao minima) em vez de bloquear a sugestao."
         )
 
+    # PISO COMPETITIVO: nao ficar abaixo de quem esta do lado sem motivo.
+    # Ver [piso_competitivo] em parametros.toml para a medicao que motivou a
+    # regra. Chamariz fica isento: la o preco abaixo do menor concorrente e
+    # decisao comercial deliberada, nao acidente de dado.
+    piso_competitivo_aplicado = False
+    cfg_comp = params.get("piso_competitivo", {})
+    if (cfg_comp.get("ativo") and not e_chamariz
+            and menor_concorrente_local and menor_concorrente_local > 0):
+        alvo_competitivo = menor_concorrente_local * (
+            1 - cfg_comp.get("desconto_tolerado_pct", 0.0))
+        if alvo_competitivo > alvo_valor:
+            alvo_valor = alvo_competitivo
+            piso_competitivo_aplicado = True
+            justificativa_margem += (
+                f" Preço elevado ao piso competitivo (R$ {alvo_competitivo:.2f}): o alvo"
+                f" calculado ficava abaixo do menor concorrente da vizinhança e o item"
+                f" não é chamariz -- desconto que nenhum concorrente local pratica não"
+                f" atrai cliente, só reduz margem.")
+
     grade = arredondar_grade(alvo_valor, piso_valor, teto_cmed, params["grade"]["terminacoes"])
     if grade.preco is None:
         return ResultadoPrecificacao(
@@ -429,7 +635,12 @@ def aplicar_travas(
     # com erro de embalagem/apresentacao): nao trava mais a sugestao. A trava
     # de bom senso passa a comparar contra o mercado (Brick/web), a ancora
     # confiavel, com tolerancia variavel por tier (config/parametros.toml).
-    if valor_referencia_mercado is not None and valor_referencia_mercado > 0:
+    # O piso competitivo e' ancorado num concorrente LOCAL real e observado, que
+    # e' evidencia melhor que `valor_referencia_mercado` (contaminado por Brick e
+    # por sites remotos). Sem esta isencao a trava reclamaria justamente da
+    # correcao que acabou de ser feita.
+    if (valor_referencia_mercado is not None and valor_referencia_mercado > 0
+            and not piso_competitivo_aplicado):
         variacao_maxima = params["trava"]["variacao_maxima_mercado_por_tier"].get(
             tier, params["trava"]["variacao_maxima_mercado_por_tier"]["PADRAO"]
         )
@@ -442,6 +653,34 @@ def aplicar_travas(
                 f"do tier {tier}. Sugestao mantida para referencia; conferir antes de aplicar.",
                 piso=piso_valor, alvo=alvo_valor, tier=tier,
             )
+
+    # STATUS HONESTO: um preco acima de TODO concorrente local nao e' "OK".
+    # Medido em 2026-08-07: 84 itens saiam mais caros que todos os locais com
+    # status comecando em "OK_", o que escondia o problema de quem revisa. A
+    # distincao importa porque a ACAO e' diferente em cada caso:
+    #   custo > menor local  -> a compra e' que esta ruim: renegociar, nao subir preco
+    #   custo <= menor local -> o piso e' que esta apertado para este item
+    if (maior_concorrente_local and grade.preco > maior_concorrente_local
+            and not e_chamariz):
+        compra_ruim = bool(menor_concorrente_local and custo > menor_concorrente_local)
+        if compra_ruim:
+            return ResultadoPrecificacao(
+                "CUSTO_ACIMA_DO_MERCADO", grade.preco,
+                f"ATENCAO: o custo de aquisicao (R$ {custo:.2f}) ja supera o menor "
+                f"concorrente da regiao (R$ {menor_concorrente_local:.2f}). O preco "
+                f"sugerido fica acima de TODOS os concorrentes locais e nao vende. "
+                f"A acao aqui e' RENEGOCIAR A COMPRA (caixa fechada, outro "
+                f"distribuidor), nao subir o preco.",
+                piso=piso_valor, alvo=alvo_valor, tier=tier,
+            )
+        return ResultadoPrecificacao(
+            "PISO_ACIMA_DO_MERCADO", grade.preco,
+            f"ATENCAO: o preco sugerido (R$ {grade.preco:.2f}) fica acima de TODOS os "
+            f"concorrentes locais (maior: R$ {maior_concorrente_local:.2f}) porque o "
+            f"piso tecnico nao cabe abaixo deles. Conferir custo e margem-alvo da "
+            f"categoria antes de aplicar.",
+            piso=piso_valor, alvo=alvo_valor, tier=tier,
+        )
 
     return ResultadoPrecificacao(
         status_margem, grade.preco, justificativa_margem,

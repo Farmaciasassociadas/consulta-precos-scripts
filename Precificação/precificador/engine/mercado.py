@@ -54,6 +54,12 @@ class ResultadoMercado:
     divergencia_brick_web: bool
     filtro: ResultadoFiltro
     cluster_acima_brick: bool = False
+    # Vizinhanca: quantos concorrentes LOCAIS sobraram apos as 4 camadas e se o
+    # alvo foi calculado so com eles. `n` continua sendo o total (locais +
+    # remotos), porque os remotos seguem validando o preco.
+    n_local: int = 0
+    alvo_so_local: bool = False
+    precos_alvo: tuple[float, ...] = ()
 
 
 def parse_data_hora(valor: str | None) -> date | None:
@@ -177,7 +183,16 @@ def _mediana_ponderada(observacoes: list[Observacao], params: dict[str, Any]) ->
     (nenhuma observacao de marketplace no grupo), cai exatamente na mediana
     padrao (statistics.median) -- sem essa igualdade de pesos, uma lista de
     tamanho par teria a media dos dois centrais; a versao ponderada abaixo
-    devolve so um deles, entao so diverge quando ha peso misto de verdade."""
+    devolve so um deles, entao so diverge quando ha peso misto de verdade.
+
+    ATENCAO (medido em 2026-08-06): com peso misto e n pequeno esta funcao e
+    um DEGRAU, nao uma media. Para [10,12,20,22], descontar uma observacao
+    devolve 20 ou 12 conforme QUAL foi descontada -- nunca 16 (a mediana
+    simples). Isso esta matematicamente correto para mediana ponderada, mas
+    significa que generalizar pesos por site tornaria o preco instavel: um
+    site a menos na coleta mudaria a referencia em ~60%. Por isso a
+    preferencia de vizinhanca e resolvida SELECIONANDO quem entra no alvo
+    (local x remoto), e nao atribuindo peso numerico por site aqui."""
     pares = [(o.preco, _peso_observacao(o.status, params)) for o in observacoes if o.preco is not None]
     if not pares:
         return None
@@ -194,6 +209,49 @@ def _mediana_ponderada(observacoes: list[Observacao], params: dict[str, Any]) ->
     return ordenado[-1][0]
 
 
+def selecionar_vizinhanca(
+    mantidas: list[Observacao], params: dict[str, Any]
+) -> tuple[list[Observacao], int, bool]:
+    """Escolhe QUEM define o alvo de preco: so os concorrentes locais, quando
+    houver o minimo configurado, senao todos.
+
+    Os sites remotos nunca sao descartados -- eles ja passaram pelas 4 camadas e
+    continuam contando para `n`, para o CV e para a divergencia Brick/web. O que
+    esta funcao decide e apenas de quem sai a mediana que vira preco.
+
+    Devolve (observacoes_do_alvo, n_local, alvo_so_local).
+    """
+    cfg = params["mercado"].get("vizinhanca")
+    if not cfg or not cfg.get("ativo"):
+        return mantidas, 0, False
+    locais_cfg = set(cfg.get("sites_locais") or ())
+    locais = [o for o in mantidas if o.site in locais_cfg]
+    # "saopaulo" e o nome ANTIGO de "farmasp": e a MESMA loja. Contar os dois
+    # inflava a vizinhanca (medido em 2026-08-07: 64 EANs atingiam o minimo de 3
+    # com so 2 lojas distintas, e a loja duplicada pesava dobrado na mediana).
+    apelidos = {k: v for k, v in (cfg.get("apelidos_site") or {}).items()}
+    lojas_distintas = {apelidos.get(o.site, o.site) for o in locais}
+    if len(lojas_distintas) >= cfg.get("n_min_local", 3):
+        return locais, len(lojas_distintas), True
+    return mantidas, len(lojas_distintas), False
+
+
+def evidencia_remota_confiavel(
+    n_total: int, cv: float | None, params: dict[str, Any]
+) -> bool:
+    """Ha concorrencia remota boa o bastante para NAO rebaixar o item?
+
+    Sem isto, um item de Curva A popular que os locais ainda nao vendem cairia
+    para PROTECAO_MARGEM justamente quando mais precisa de preco competitivo.
+    """
+    cfg = params["mercado"].get("vizinhanca")
+    if not cfg or not cfg.get("ativo"):
+        return True
+    if n_total < cfg.get("n_remoto_confiavel", 4):
+        return False
+    return cv is not None and cv <= cfg.get("cv_remoto_confiavel", 0.20)
+
+
 def _cv(precos: list[float]) -> float | None:
     if len(precos) < 2:
         return None
@@ -204,9 +262,30 @@ def _cv(precos: list[float]) -> float | None:
     return (variancia ** 0.5) / m
 
 
-def _peso_brick(n_web: int, cv: float | None, tem_brick: bool, cfg: dict[str, Any]) -> float:
+def _peso_brick(
+    n_web: int,
+    cv: float | None,
+    tem_brick: bool,
+    cfg: dict[str, Any],
+    alvo_so_local: bool = False,
+) -> float:
+    """Peso do Brick no blend.
+
+    `alvo_so_local` = ha vizinhanca confiavel (>= n_min_local LOJAS distintas).
+    Nesse caso o Brick cai para `com_vizinhanca_local`: ele e' auditoria de preco
+    medio NACIONAL, que dilui redes de desconto e regioes mais baratas --
+    evidencia fraca perto de concorrentes reais da mesma cidade, medidos hoje.
+    Medido em 2026-08-07: o Brick causava 56% dos 176 itens precificados abaixo
+    do menor concorrente local (caso BUPROVIL: Brick 13,93 contra concorrentes
+    reais de 19,58 a 27,50).
+
+    Sem vizinhanca local o Brick mantem o peso antigo -- ali ele e' a melhor
+    evidencia disponivel, e rebaixa-lo deixaria o item sem ancora nenhuma.
+    """
     if not tem_brick:
         return 0.0
+    if alvo_so_local and "com_vizinhanca_local" in cfg:
+        return cfg["com_vizinhanca_local"]
     if n_web == 0:
         return cfg["sem_web"]
     if n_web <= 2:
@@ -300,13 +379,20 @@ def calcular_mercado(
     descartadas += novas
     filtro = ResultadoFiltro(mantidas=tuple(atual), descartadas=tuple(descartadas))
 
+    # `n` e `cv` continuam medindo TODAS as observacoes que sobreviveram as 4
+    # camadas -- os remotos seguem valendo como evidencia de que o preco esta
+    # certo. So a mediana que vira alvo e restrita a vizinhanca.
     precos = [o.preco for o in filtro.mantidas]
     n = len(precos)
-    mediana_bruta = _mediana_ponderada(filtro.mantidas, params)
     cv = _cv(precos)
+
+    observacoes_alvo, n_local, alvo_so_local = selecionar_vizinhanca(
+        list(filtro.mantidas), params)
+    mediana_bruta = _mediana_ponderada(observacoes_alvo, params)
     mercado_web = mediana_bruta * fator_fisico if mediana_bruta is not None else None
 
-    peso = _peso_brick(n, cv, mercado_brick is not None, params["mercado"]["peso_brick"])
+    peso = _peso_brick(n, cv, mercado_brick is not None, params["mercado"]["peso_brick"],
+                       alvo_so_local=alvo_so_local)
 
     # Cluster consistente de concorrentes ACIMA da banda do Brick: a camada de
     # ancora existe para descartar ruido/erro de apresentacao, nao para jogar
@@ -331,7 +417,11 @@ def calcular_mercado(
                 if referencia_cluster > (mercado_web if mercado_web is not None else mercado_brick):
                     cluster_acima = True
                     mercado_web = referencia_cluster
-                    peso = cfg_cluster["peso_brick"]
+                    # `min`: esta regra existe para CONFIAR MENOS no Brick quando
+                    # o concorrente real sustenta preco maior. Atribuir o peso
+                    # direto poderia AUMENTA-lo onde a vizinhanca local ja o
+                    # rebaixou (com_vizinhanca_local), invertendo a intencao.
+                    peso = min(peso, cfg_cluster["peso_brick"])
 
     if mercado_brick is not None and mercado_web is not None:
         valor_referencia = peso * mercado_brick + (1 - peso) * mercado_web
@@ -357,4 +447,7 @@ def calcular_mercado(
         divergencia_brick_web=divergencia,
         filtro=filtro,
         cluster_acima_brick=cluster_acima,
+        n_local=n_local,
+        alvo_so_local=alvo_so_local,
+        precos_alvo=tuple(o.preco for o in observacoes_alvo if o.preco is not None),
     )
