@@ -1,0 +1,58 @@
+======================================================================
+RECLASSIFICAÇÃO DE PRODUTOS - Kun v1
+======================================================================
+
+Fonte: reclassificacao_kun_v1
+Total de produtos: 3041
+Classificações preservadas (existentes): 1160
+Novas classificações: 1881
+
+Distribuição por EIXO (novos):
+  VAREJO: 627
+  ETICOS: 465
+  GENERICO: 443
+  SIMILAR: 237
+  PERFUMARIA: 109
+
+Distribuição por subcategoria (novos):
+  VAREJO: 391
+  ETICOS > RX: 374
+  SIMILAR > RX-SIMILAR: 181
+  GENERICO > USO CONTINUO: 158
+  VAREJO > SUPLEMENTOS: 141
+  GENERICO > RX: 101
+  GENERICO > ANTIMICROBIANO: 86
+  ETICOS > O.T.C/MIP: 56
+  GENERICO > CONTROLADO: 55
+  PERFUMARIA > DERMOCOSMETICOS: 47
+  VAREJO > BEBIDAS E BOMBONIERE: 40
+  SIMILAR > O.T.C/MIP-SIMILAR: 31
+  VAREJO > ACESSORIOS: 30
+  GENERICO > O.T.C/MIP: 29
+  PERFUMARIA > HIGIENE PESSOAL: 21
+  SIMILAR > USO CONTINUO: 20
+  PERFUMARIA > COLONIAS & DESODORANTES: 16
+  GENERICO > ANTICONCEPCIONAL: 14
+  ETICOS > USO CONTINUO: 13
+  PERFUMARIA > MAQUIAGEM: 12
+  ETICOS > ANTICONCEPCIONAL: 9
+  PERFUMARIA > FRALDAS: 8
+  VAREJO > FITOTERAPICOS: 8
+  ETICOS > CONTROLADO: 7
+  VAREJO > LEITES: 7
+  ETICOS > ANTIMICROBIANO: 6
+  VAREJO > CONVENIENCIAS: 6
+  SIMILAR > ANTIMICROBIANO: 3
+  PERFUMARIA > BRONZ & HIDRATANTES: 3
+  SIMILAR > ANTICONCEPCIONAL: 2
+  VAREJO > LEITES NUTRICAO: 2
+  PERFUMARIA > TINTURAS: 1
+  VAREJO > ORTOPEDICOS: 1
+  PERFUMARIA > LINHA CAPILAR: 1
+  VAREJO > VITAMINAS: 1
+
+Atualizações:
+  subcategoria_classificada: 1881
+  recomendacao (rodada 15): 3041
+  Excel categorias: 3024
+  Excel descrições: 0
