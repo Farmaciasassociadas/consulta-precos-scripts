@@ -13,9 +13,9 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 import db
+from caminhos import CONSULTA_PRECOS, MARCA_EXCLUSIVA_XLSX, SUBCATEGORIA_XLSX
 
 ROOT = Path(__file__).parent.parent
-CONSULTA_PRECOS = Path(r"C:\Users\docze\ConsultaPrecosEAN")
 
 CUSTO_NF_XLSX = ROOT / "Relatório notas fiscais 24-07_com_custo_unitario.xlsx"
 BRICK_ESTOQUE_XLSX = ROOT / "outputs" / "consolidado_estoque" / "estoque_pmc_brick.xlsx"
@@ -23,10 +23,6 @@ PMC_PR_XLSX = ROOT / "outputs" / "eans_pmc" / "ean_descricao_fabricante_pmc_pr.x
 POLITICA_CSV = ROOT / "POLITICA_MARKUP_POR_CATEGORIA.csv"
 PRECOS_CSV = CONSULTA_PRECOS / "precos.csv"
 EANS_NEGATIVOS_CSV = CONSULTA_PRECOS / "eans_negativos.csv"
-SUBCATEGORIA_XLSX = Path(r"C:\Users\docze\Downloads\Pedro 2.xlsx")
-MARCA_EXCLUSIVA_XLSX = Path(
-    r"G:\.shortcut-targets-by-id\1q0IRmUp06SR55V7qNb7wVLwWjEauQntR\DROGARIA\PRECIFICAÇÃO\Marca Exclusiva Associados TRATADO.xlsx"
-)
 
 
 def normalizar_ean(valor) -> str:
