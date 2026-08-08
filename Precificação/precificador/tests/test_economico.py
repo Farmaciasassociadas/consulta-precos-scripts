@@ -177,11 +177,15 @@ def test_travas_mercado_abaixo_do_custo_sugere_preco_no_piso():
 
 
 def test_travas_piso_acima_do_teto_cmed():
+    # Piso novo (despesa fixa fora do piso, so variavel + cartao + Simples):
+    # custo 50 em medicamento -> 50/0.9347 ~= 53.49. Com teto CMED abaixo do
+    # piso, o status sinaliza e o preco fica limitado ao teto.
     r = economico.aplicar_travas(
         custo=50.0, natureza_fiscal_item="medicamento", tier="PADRAO", valor_referencia_mercado=60.0,
-        divergencia_brick_web=False, lucro_liquido_alvo_pct=0.10, teto_cmed=55.0, preco_atual=None, params=PARAMS,
+        divergencia_brick_web=False, lucro_liquido_alvo_pct=0.10, teto_cmed=50.0, preco_atual=None, params=PARAMS,
     )
     assert r.status == "REVISAO_MANUAL_PISO_ACIMA_DO_TETO"
+    assert r.preco_sugerido == 50.0
 
 
 def test_travas_preco_atual_nao_disponivel_nao_trava_mais():
@@ -197,12 +201,20 @@ def test_travas_preco_atual_nao_disponivel_nao_trava_mais():
 
 
 def test_travas_divergencia_mercado_forte_sinaliza_mas_ainda_sugere_preco():
-    # tier PROTECAO_MARGEM tolera ate 30% de variacao vs. mercado. Com
-    # lucro-alvo muito alto, o piso tecnico (custo/divisor) supera o teto de
-    # calcular_alvo (mercado*1.15) e domina o alvo -- passando dos 30%.
+    # Com o piso novo (despesa fixa fora do piso), o mesmo cenario de antes
+    # (lucro-alvo alto em PROTECAO_MARGEM) fica dentro dos 30% e sai OK -- o
+    # piso nao domina mais o alvo. O status FORTE continua existindo para
+    # quando a variacao realmente passa do limite: testamos com a trava de
+    # PROTECAO_MARGEM reduzida a 5% (grade 11.99 vs mercado 10.50 = 14%).
+    params_trava_apertada = dict(PARAMS)
+    params_trava_apertada["trava"] = dict(PARAMS["trava"])
+    params_trava_apertada["trava"]["variacao_maxima_mercado_por_tier"] = dict(
+        PARAMS["trava"]["variacao_maxima_mercado_por_tier"])
+    params_trava_apertada["trava"]["variacao_maxima_mercado_por_tier"]["PROTECAO_MARGEM"] = 0.05
     r = economico.aplicar_travas(
         custo=10.0, natureza_fiscal_item="padrao", tier="PROTECAO_MARGEM", valor_referencia_mercado=10.5,
-        divergencia_brick_web=False, lucro_liquido_alvo_pct=0.50, teto_cmed=None, preco_atual=None, params=PARAMS,
+        divergencia_brick_web=False, lucro_liquido_alvo_pct=0.50, teto_cmed=None, preco_atual=None,
+        params=params_trava_apertada,
     )
     assert r.status == "REVISAO_MANUAL_DIVERGENCIA_MERCADO_FORTE"
     assert r.preco_sugerido is not None

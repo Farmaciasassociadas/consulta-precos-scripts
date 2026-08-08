@@ -110,3 +110,19 @@ Se algo já se perdeu: `git reflog` guarda tudo por 90 dias, e
 `chrome_perfil_robo/`, `backups_locais/`, `__pycache__/`, `terceiro_pc/` e
 `.graphify/` não têm código relevante — uma busca recursiva solta cai em
 centenas de arquivos binários/LevelDB. Escopar sempre.
+
+## 7. Motor de precificação: fonte da verdade é o app
+
+O motor (engine/mercado.py, engine/economico.py, engine/chamariz.py e
+parametros.toml) existe em **duas** cópias, e a que vale é a do app:
+
+- `C:\Users\docze\ConsultaPrecosEAN\precificacao` — **fonte da verdade.**
+  É a versão mais atualizada (vizinhança local, piso competitivo, banda de
+  balcão, status honestos). **Editar o motor aqui, nunca em `C:\Claude`.**
+- `Precificação\precificador` — cópia batch/SQLite para a rodada por Excel.
+  Manter idêntica rodando `python Precificação\sincronizar_motor.py` (ou
+  `--check` para só verificar).
+
+O `rodada_v2.py` (orquestrador SQLite) é específico deste repo e pode ser
+editado aqui, desde que mantenha a mesma semântica do app — os trechos
+marcados com `Paridade com o app` são o espelho de `calcular_preco_sugerido.py`.

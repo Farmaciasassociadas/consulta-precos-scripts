@@ -4,8 +4,60 @@
 
 [premissas]
 cartao_pct = 0.0250
+# Despesa FIXA (aluguel, folha, energia): custo do PERÍODO. Entra no ALVO
+# (divisor_piso) — o preço praticado no mix tem de pagar a estrutura — mas
+# NÃO no piso mínimo de venda, porque não desaparece se a unidade não vender.
 despesas_fixas_pct = 0.1750
+# Despesa VARIÁVEL por unidade vendida (sacola, cupom, perda/quebra atribuível
+# à venda). Só esta entra no piso, junto com cartão e Simples.
+# Estimativa inicial — recalibrar com DRE real após alguns meses de operação.
+despesas_variaveis_pct = 0.0150
 contribuicao_minima_reais = 0.60   # piso de contribuição por unidade (item 3.3.1 do plano)
+
+[piso_competitivo]
+# Decisao de negocio 2026-08-07: NAO vender abaixo de quem esta do lado sem
+# motivo comercial. Medido nesta data: 197 itens ficavam abaixo do MENOR
+# concorrente local (gap mediano 4,8%, p90 36,4%) sem serem chamariz -- causados
+# por Brick desatualizado e por sites REMOTOS (que nao existem na cidade)
+# puxando o alvo para baixo. Descontar abaixo do que nenhum concorrente da
+# regiao cobre nao compra cliente: so joga margem fora.
+#
+# So se aplica com vizinhanca confiavel (>= mercado.vizinhanca.n_min_local
+# concorrentes LOCAIS distintos). Chamariz/KVI fica isento de proposito: ali
+# ficar abaixo do menor concorrente e a decisao comercial deliberada.
+ativo = true
+# Encostar no menor concorrente local, sem ficar abaixo dele. 0.0 = empata.
+desconto_tolerado_pct = 0.0
+
+[balcao]
+# Preço MÁXIMO e MÍNIMO que o vendedor pode praticar no balcão.
+#
+# Três degraus NOMEADOS, não um intervalo contínuo: intervalo faz o vendedor ir
+# direto ao mínimo. A concessão é decrescente (5%, depois o resto) para sinalizar
+# que o limite chegou -- concessão de tamanho constante convida a mais uma rodada.
+#
+#   vitrine  = preço cheio (etiqueta/sistema/anúncio)
+#   cortesia = -5%, para o cliente que hesita ou leva 2+ itens
+#   cobrimos = encosta no menor concorrente local; SÓ quando o cliente cita um
+#              preço concreto (desconto reativo salva venda; preventivo só
+#              queima margem). Nunca abaixo do piso de contribuição.
+#
+# Todo desconto cai numa terminação da grade: R$ 22,90 lê como preço,
+# R$ 22,71 lê como cálculo -- e cálculo convida a negociar de novo.
+ativo = true
+desconto_cortesia_pct = 0.05
+desconto_maximo_pct = 0.15   # teto do desconto total, mesmo que o piso permita mais
+
+# Âncora "de R$ X por R$ Y" usando o PMC/CMED. Só aparece quando o desconto fica
+# numa faixa CRÍVEL. Medido em 2026-08-07: o desconto implícito do preço sugerido
+# contra o PMC tem mediana de 41,9% e passa de 30% em 67% dos itens -- anunciar
+# "50% de desconto" destrói a credibilidade em vez de construí-la, porque o
+# mercado inteiro pratica ~47% abaixo do PMC (menor local / PMC = 0,53) e o
+# cliente que já comprou o item sabe disso.
+# Fora da faixa, a âncora certa é o concorrente ("na X está R$ 32, aqui R$ 27"),
+# que é verificável. PMC só cobre 16,3% do catálogo (0% em perfumaria/varejo).
+ancora_pmc_desconto_min = 0.08
+ancora_pmc_desconto_max = 0.30
 
 [simples.aliquota_nominal]
 # Alíquota nominal da faixa atual do Anexo I (RBT12 ~R$395 mil -> faixa 3).
@@ -31,6 +83,16 @@ padrao = 1.000
 
 [mercado.peso_brick]
 # Peso do Brick (w_b) na mediana ponderada, por qualidade da evidência web.
+#
+# Quando HÁ vizinhança local confiável (>= mercado.vizinhanca.n_min_local lojas
+# distintas), `com_vizinhanca_local` vence todas as faixas abaixo. Motivo: o
+# Brick é auditoria de preço médio NACIONAL — dilui redes de desconto e regiões
+# mais baratas — e vale pouco perto de concorrentes reais da mesma cidade,
+# medidos hoje. Medido em 2026-08-07: o Brick causava 56% dos 176 itens
+# precificados abaixo do menor concorrente local.
+# Sem vizinhança local o Brick mantém o peso antigo: ali ele é a melhor
+# evidência que existe, e rebaixá-lo deixaria o item sem âncora nenhuma.
+com_vizinhanca_local = 0.15
 sem_brick = 0.00
 sem_web = 1.00
 web_n_ate_2 = 0.70
@@ -71,6 +133,88 @@ padrao = 1.10               # fraldas/puericultura/conveniencia geral: mesma log
 # mediana de referencia, com peso reduzido (menos confiavel que preco proprio
 # do site) -- ver _peso_observacao/_mediana_ponderada em engine/mercado.py.
 peso = 0.90
+
+[farmacia_popular]
+# Esta loja nao e credenciada no programa, entao nao compete com o preco
+# subsidiado de quem e. A lista (655 EANs, farmacia_popular.csv) SINALIZA esses
+# itens na justificativa -- nao filtra preco.
+#
+# Por que nao filtrar (medido em 2026-08-06): se algum site praticasse preco
+# subsidiado, ele apareceria sistematicamente abaixo NOS ITENS DA LISTA e normal
+# fora dela. Nao acontece -- o desvio mediano por site nos 40 EANs da lista com
+# concorrencia (-2,6% a +5,0%) e igual ao do grupo de controle. Os 6 precos bem
+# abaixo da mediana estao espalhados por 6 sites diferentes, assinatura de
+# promocao pontual, nao de credenciamento; e as camadas de ancora/MAD ja tratam
+# esses casos. Descartar preco baixo sem essa evidencia seria auto-engano: o
+# cliente que paga menos na concorrencia nao sabe se e subsidio, e o preco de
+# referencia dele continua sendo aquele.
+#
+# Se um dia a coleta identificar QUAIS sites sao credenciados, a regra correta e
+# retirar so esses do conjunto do ranking -- nunca descartar por preco baixo.
+sinalizar = true
+
+[classificacao]
+# O eixo (GENERICO/ETICOS/SIMILAR) vindo do ERP tem sujeira conhecida: medido em
+# 2026-08-06, dos 434 itens com segmento Brick E eixo cadastrado, 111 divergem
+# (26%) -- quase todos brick=GEN vs ERP=ETICOS. Como a politica pede 10% de
+# lucro-alvo para ETICOS > RX e 15% para GENERICO > RX, o item mal classificado
+# e vendido com margem menor do que a propria politica manda.
+#
+# Isto NAO altera aliquota: natureza_fiscal decide por prefixo de medicamento +
+# ICMS-ST, e os tres eixos sao medicamento (verificado em 2026-08-06).
+corrigir_eixo_por_brick = true
+
+# MODO SOMBRA para o eixo inferido pelo NOME (marcador "GEN" na descricao),
+# usado onde o Brick nao cobre (so 45% do catalogo tem segmento).
+# Sombra = registra a discordancia na justificativa e NAO altera o preco.
+#
+# CRITERIO DE SAIDA (definido junto com a regra, para nao virar quarentena
+# permanente como ja aconteceu com a coleta do Panvel): promover para correcao
+# ativa quando, numa amostra de >= 50 itens sinalizados e conferidos a mao, a
+# concordancia com o julgamento humano for >= 90%. Abaixo disso, ajustar a
+# deteccao antes de promover. Conferir com:
+#     python auditar_eixo_sombra.py
+eixo_por_nome_modo_sombra = true
+
+[mercado.vizinhanca]
+# Decisao de negocio 2026-08-06: nem todo site coletado disputa o mesmo cliente.
+# Farmacias São Paulo, São João e Droga Raia ficam perto da loja; a Nissei fica
+# perto porem um pouco mais longe. As demais (Panvel, Pague Menos, Preço
+# Popular, Drogaria São Paulo) NAO existem na cidade -- servem para VALIDAR o
+# preco (detectar erro de EAN/apresentacao), nao para definir o alvo.
+#
+# Por isso a preferencia e resolvida SELECIONANDO quem entra no alvo, e nao com
+# peso numerico por site: medido em 2026-08-06, a mediana ponderada com peso
+# misto e um degrau (para [10,12,20,22] devolve 20 ou 12 conforme QUAL site foi
+# descontado, nunca 16), o que tornaria o preco instavel a cada falha de coleta.
+#
+# Medicao que motivou a regra (2.068 EANs com observacao valida):
+#   49% tem >= 3 locais; so 5% nao tem nenhum local.
+#   Entre os que tem >=3 locais e algum remoto, a mediana local e MAIS CARA que
+#   a geral em 63% dos casos (mediana +2,4%, p75 +8,8%).
+ativo = true
+# "saopaulo" e o nome ANTIGO de "farmasp" (Farmacias Sao Paulo), renomeado em
+# 07/2026 -- ver config_app.py. O historico coletado antes disso ficou gravado
+# com o nome velho: em 07/08/2026 eram 1.343 observacoes como "saopaulo" contra
+# 569 como "farmasp". Sem os dois nomes aqui, o concorrente mais proximo entrava
+# como remoto e 332 EANs (16%) ficavam no regime errado.
+sites_locais = ["farmasp", "saopaulo", "saojoao", "drogaraia", "nissei"]
+n_min_local = 3            # a partir daqui o alvo usa SO os locais (LOJAS distintas)
+# Abaixo de n_min_local caimos no conjunto completo. Nesse caso a confianca cai,
+# mas NAO rebaixamos para PROTECAO_MARGEM quando ha evidencia remota boa
+# (n >= n_remoto_confiavel e cv <= cv_remoto_confiavel): senao um item de Curva A
+# popular, que os locais ainda nao vendem, sairia do preco competitivo justo
+# exatamente quando mais precisa dele.
+n_remoto_confiavel = 4
+cv_remoto_confiavel = 0.20
+
+# De-para de nome antigo -> loja real, para nao contar a mesma loja duas vezes
+# em n_min_local. Medido em 2026-08-07: farmasp x saopaulo tem correlacao de
+# log-preco 0,995 (a mais alta da matriz) e preco identico ao centavo em 89,7%
+# dos 553 EANs em que os dois aparecem -- e a mesma loja, renomeada em 07/2026.
+# (Sub-tabela por ultimo: em TOML tudo que vier depois pertenceria a ela.)
+[mercado.vizinhanca.apelidos_site]
+saopaulo = "farmasp"
 
 [mercado.outliers]
 frescor_dias_max = 45
