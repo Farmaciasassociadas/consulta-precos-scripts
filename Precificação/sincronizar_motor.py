@@ -20,11 +20,13 @@ comentarios "Paridade com o app" marcam os pontos que espelham o app.
 from __future__ import annotations
 
 import hashlib
+import os
 import shutil
 import sys
 from pathlib import Path
 
-APP = Path(r"C:\Users\docze\ConsultaPrecosEAN\precificacao")
+APP = Path(os.environ.get(
+    "CONSULTA_PRECOS_DIR", str(Path.home() / "ConsultaPrecosEAN"))) / "precificacao"
 AQUI = Path(__file__).resolve().parent / "precificador"
 
 PARES = [

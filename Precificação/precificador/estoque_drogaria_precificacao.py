@@ -20,11 +20,8 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill
 
 import db
+from caminhos import ESTOQUE_XLSX
 from engine import economico, mercado, parametros
-
-ESTOQUE_XLSX = Path(
-    r"G:\.shortcut-targets-by-id\1q0IRmUp06SR55V7qNb7wVLwWjEauQntR\DROGARIA\estoque.xlsx"
-)
 SAIDA_XLSX = Path(__file__).parent.parent / "ESTOQUE_DROGARIA_PRECIFICADO.xlsx"
 
 SITES = [
@@ -59,8 +56,8 @@ def corrigir_preco_atual(
     estar preso a uma apresentacao (qtde de unidades) diferente da caixa
     comercial, o que faz o PMC concordar com o valor errado (caso observado:
     EAN 7896009498411, PMC registrado para caixa X60, produto real e C/3).
-    Por isso a prioridade de ancora e: preco anterior conhecido (mesmo EAN,
-    carga anterior do banco) > custo (markup maximo plausivel) > PMC > Brick.
+    A ancora principal segue a confiabilidade observada no pipeline:
+    Brick > PMC > preco anterior > custo.
     Devolve (valor_corrigido_ou_None, nota_para_observacao)."""
     if venda_unit is None:
         return None, None

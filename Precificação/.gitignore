@@ -5,6 +5,7 @@ python/
 __pycache__/
 *.pyc
 .pytest_cache/
+precificador/precificador.db
 
 # Artefatos de debug/inspecao (nao usados pelo pipeline)
 outputs/**/*.inspect.ndjson

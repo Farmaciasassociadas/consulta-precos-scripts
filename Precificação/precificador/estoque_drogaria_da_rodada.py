@@ -10,9 +10,7 @@ from pathlib import Path
 import openpyxl
 from openpyxl.styles import Font, PatternFill
 
-ESTOQUE_XLSX = Path(
-    r"G:\.shortcut-targets-by-id\1q0IRmUp06SR55V7qNb7wVLwWjEauQntR\DROGARIA\estoque.xlsx"
-)
+from caminhos import ESTOQUE_XLSX
 SAIDA_XLSX = Path(__file__).parent.parent / "ESTOQUE_DROGARIA_PRECIFICADO_FROM_RODADA.xlsx"
 
 SITES = [
