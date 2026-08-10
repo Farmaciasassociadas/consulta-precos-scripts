@@ -154,6 +154,52 @@ def _camada_4_mad(
     return mantidas, descartadas
 
 
+def _camada_4b_razao(
+    obs: list[Observacao], n_min: int, n_max: int, razao_max: float
+) -> tuple[list[Observacao], list[Descarte]]:
+    """Rede de seguranca para n pequeno SEM ancora: descarta o preco que estiver
+    a mais de `razao_max` vezes (ou 1/razao_max) da mediana dos DEMAIS.
+
+    Buraco medido em 2026-08-10: 465 EANs tem 2-4 observacoes (a camada MAD nao
+    roda, `mad_n_min=5`) e 315 deles nao tem Brick (a camada de ancora tambem
+    nao roda) -- ficavam sem NENHUMA protecao contra outlier. Exemplos reais:
+    [7.99, 9.49, 19.49, 26.89] e [7.49, 9.29, 24.60], todos entrando inteiros
+    na mediana que define o alvo.
+
+    Usa RAZAO contra a mediana dos outros, nao MAD: com n=3 o MAD e' instavel
+    (a mediana dos desvios vira o proprio desvio do meio) e derruba ponto bom.
+    A razao e' grosseira de proposito -- so pega erro de apresentacao/embalagem,
+    que e' a origem tipica de um spread de 3x entre farmacias.
+
+    Excluir o proprio ponto da mediana de comparacao evita que um outlier
+    "puxe" a referencia e se auto-justifique -- com n=3 ele teria peso de 1/3.
+    """
+    if not (n_min <= len(obs) <= n_max) or razao_max <= 1:
+        return obs, []
+    mantidas, descartadas = [], []
+    for i, o in enumerate(obs):
+        outros = [x.preco for j, x in enumerate(obs) if j != i]
+        if not outros:
+            mantidas.append(o)
+            continue
+        med_outros = median(outros)
+        if med_outros <= 0:
+            mantidas.append(o)
+            continue
+        razao = o.preco / med_outros
+        if razao > razao_max or razao < 1 / razao_max:
+            descartadas.append(Descarte(
+                o, "razao",
+                f"preco {o.preco} e' {razao:.1f}x a mediana dos demais "
+                f"({med_outros:.2f}); limite {razao_max:.1f}x (n pequeno, sem ancora)"))
+        else:
+            mantidas.append(o)
+    # Nunca esvaziar: se tudo divergir de tudo, nao ha maioria para confiar.
+    if not mantidas:
+        return obs, []
+    return mantidas, descartadas
+
+
 def filtrar_outliers(
     observacoes: list[Observacao],
     params: dict[str, Any],
@@ -171,6 +217,12 @@ def filtrar_outliers(
     descartadas += novas
     atual, novas = _camada_4_mad(atual, cfg["mad_n_min"], cfg["mad_multiplicador"])
     descartadas += novas
+    # 4b so age onde 3 e 4 nao alcancam: n pequeno E sem ancora.
+    if ancora is None or ancora <= 0:
+        atual, novas = _camada_4b_razao(
+            atual, cfg.get("razao_n_min", 3), cfg["mad_n_min"] - 1,
+            cfg.get("razao_max", 0.0))
+        descartadas += novas
 
     return ResultadoFiltro(mantidas=tuple(atual), descartadas=tuple(descartadas))
 
@@ -357,14 +409,34 @@ def evidencia_remota_confiavel(
     return cv is not None and cv <= cfg.get("cv_remoto_confiavel", 0.20)
 
 
-def _cv(precos: list[float]) -> float | None:
+def _dispersao_robusta(precos: list[float]) -> float | None:
+    """Dispersao relativa em torno da MEDIANA -- NAO e' o coeficiente de
+    variacao classico (que usa a media nos dois lugares).
+
+    O campo publico ainda se chama `cv` e os parametros ainda se chamam
+    `cv_baixo_limite`, `cv_max`, `cv_remoto_confiavel`. Ficam assim de
+    proposito: renomear tudo mexeria em TOML, painel e historico. O nome desta
+    funcao e' que foi corrigido, para ninguem recalibrar um limiar assumindo a
+    definicao de livro-texto.
+
+    Por que a distincao importa (medido em 2026-08-10): com dado limpo os dois
+    praticamente coincidem (~1% de diferenca), mas com outlier presente esta
+    versao chega a ficar 38% ACIMA do CV classico --
+
+        [15; 15,5; 16; 30]  ->  0,4531 aqui  contra  0,3288 no CV classico
+
+    e e' exatamente nesse regime que os limiares decidem (cv <= 0,15 define
+    PRECO_IMAGEM; cv_max 0,20 aceita o cluster; cv <= 0,20 valida evidencia
+    remota). Ou seja: esta funcao e' CONSERVADORA por construcao -- na duvida
+    ela acusa mais dispersao, nao menos. Mantida assim de proposito.
+    """
     if len(precos) < 2:
         return None
     m = median(precos)
     if m == 0:
         return None
-    variancia = sum((p - m) ** 2 for p in precos) / len(precos)
-    return (variancia ** 0.5) / m
+    desvio_quadratico_medio = sum((p - m) ** 2 for p in precos) / len(precos)
+    return (desvio_quadratico_medio ** 0.5) / m
 
 
 def _peso_brick(
@@ -509,6 +581,13 @@ def calcular_mercado(
     descartadas += novas
     atual, novas = _camada_4_mad(atual, cfg["mad_n_min"], cfg["mad_multiplicador"])
     descartadas += novas
+    # 4b so age onde 3 e 4 nao alcancam: n pequeno E sem ancora (sem Brick).
+    # Medido em 2026-08-10: 315 EANs caiam exatamente nesse vao.
+    if ancora_web is None or ancora_web <= 0:
+        atual, novas = _camada_4b_razao(
+            atual, cfg.get("razao_n_min", 3), cfg["mad_n_min"] - 1,
+            cfg.get("razao_max", 0.0))
+        descartadas += novas
     filtro = ResultadoFiltro(mantidas=tuple(atual), descartadas=tuple(descartadas))
 
     # `n` e `cv` continuam medindo TODAS as observacoes que sobreviveram as 4
@@ -516,7 +595,7 @@ def calcular_mercado(
     # certo. So a mediana que vira alvo e restrita a vizinhanca.
     precos = [o.preco for o in filtro.mantidas]
     n = len(precos)
-    cv = _cv(precos)
+    cv = _dispersao_robusta(precos)
 
     observacoes_alvo, n_local, alvo_so_local = selecionar_vizinhanca(
         list(filtro.mantidas), params)
@@ -546,7 +625,7 @@ def calcular_mercado(
             if d.camada == "ancora" and d.observacao.preco > teto_banda
         ]
         if len(precos_acima) >= cfg_cluster["n_min"]:
-            cv_cluster = _cv(precos_acima)
+            cv_cluster = _dispersao_robusta(precos_acima)
             if cv_cluster is not None and cv_cluster <= cfg_cluster["cv_max"]:
                 mediana_cluster = median(precos_acima)
                 referencia_cluster = mediana_cluster

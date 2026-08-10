@@ -72,10 +72,16 @@ def test_camada_3_nao_atua_sem_ancora():
 
 
 def test_camada_4_mad_precisa_de_n_minimo():
-    # 4 observacoes, uma bem discrepante: sem ancora, MAD so age com n>=5 (config atual)
+    # 4 observacoes, uma bem discrepante: o MAD nao age (n=4 < mad_n_min=5).
+    #
+    # ATE 2026-08-10 este teste afirmava que as 4 sobreviviam -- documentando
+    # como esperado justamente o vao que deixava 315 EANs sem protecao alguma.
+    # Agora a camada 4b (razao) cobre esse intervalo, entao o 40,00 cai. O que
+    # este teste garante e' o ESCOPO do MAD: quem descartou nao foi ele.
     lista = [obs(10.0), obs(10.5), obs(11.0), obs(40.0)]
     r = mercado.filtrar_outliers(lista, PARAMS, HOJE)
-    assert len(r.mantidas) == 4  # nao filtrou, n=4 < mad_n_min=5
+    assert all(d.camada != "mad" for d in r.descartadas)
+    assert [d.camada for d in r.descartadas] == ["razao"]
 
 
 def test_camada_4_mad_filtra_com_n_suficiente():
@@ -383,3 +389,52 @@ def _params_ancora(excluir, gap):
         "ativo": True, "excluir_sites": excluir, "gap_maximo_pct": gap,
     }
     return params
+
+
+# --- Camada 4b: rede de seguranca para n pequeno sem ancora (2026-08-10) ---
+
+def test_camada_4b_descarta_outlier_grosseiro_sem_ancora():
+    """Caso real medido: [7.49, 9.29, 24.60] sem Brick. O 24,60 e' 3,0x a
+    mediana dos demais e entrava inteiro na mediana que define o alvo."""
+    lista = [obs(7.49), obs(9.29), obs(24.60)]
+    r = mercado.filtrar_outliers(lista, PARAMS, HOJE, ancora=None)
+    assert sorted(o.preco for o in r.mantidas) == [7.49, 9.29]
+    assert [d.camada for d in r.descartadas] == ["razao"]
+
+
+def test_camada_4b_nao_age_quando_ha_ancora():
+    """Com Brick, a camada 3 ja protege -- 4b nao deve rodar em cima dela."""
+    lista = [obs(7.49), obs(9.29), obs(24.60)]
+    r = mercado.filtrar_outliers(lista, PARAMS, HOJE, ancora=9.0)
+    assert all(d.camada != "razao" for d in r.descartadas)
+
+
+def test_camada_4b_nao_age_com_n_grande():
+    """A partir de mad_n_min a camada 4 (MAD) assume; 4b sai de cena."""
+    lista = [obs(10.0), obs(10.5), obs(11.0), obs(10.2), obs(30.0)]
+    r = mercado.filtrar_outliers(lista, PARAMS, HOJE, ancora=None)
+    assert all(d.camada != "razao" for d in r.descartadas)
+
+
+def test_camada_4b_preserva_dispersao_comercial_legitima():
+    """Spread de 1,6x entre farmacias e' diferenca de preco real, nao erro."""
+    lista = [obs(10.0), obs(13.0), obs(16.0)]
+    r = mercado.filtrar_outliers(lista, PARAMS, HOJE, ancora=None)
+    assert len(r.mantidas) == 3
+    assert r.descartadas == ()
+
+
+def test_camada_4b_nunca_esvazia_o_conjunto():
+    """Se todo mundo diverge de todo mundo, nao ha maioria em que confiar --
+    devolve tudo em vez de zerar a referencia de mercado."""
+    lista = [obs(1.0), obs(100.0)]
+    mantidas, descartadas = mercado._camada_4b_razao(lista, 2, 4, 2.5)
+    assert len(mantidas) == 2
+    assert descartadas == []
+
+
+def test_camada_4b_pega_outlier_para_baixo():
+    """A protecao vale nos dois sentidos (1/razao_max)."""
+    lista = [obs(2.0), obs(20.0), obs(22.0)]
+    r = mercado.filtrar_outliers(lista, PARAMS, HOJE, ancora=None)
+    assert sorted(o.preco for o in r.mantidas) == [20.0, 22.0]

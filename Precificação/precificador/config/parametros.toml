@@ -193,6 +193,24 @@ gap_maximo_pct = 0.15
 # farmacia (status "MARKETPLACE") deixa de ser descartado e passa a compor a
 # mediana de referencia, com peso reduzido (menos confiavel que preco proprio
 # do site) -- ver _peso_observacao/_mediana_ponderada em engine/mercado.py.
+#
+# ATENCAO (medido em 2026-08-10): com [mercado.peso_geografico] ATIVO, este peso
+# NAO age no caminho principal. `_mediana_geografica` agrupa por site e tira
+# `median()` simples dentro de cada um, sem consultar peso de observacao --
+# entao o marketplace entra com peso pleno na mediana do site dele.
+#
+# O peso continua valendo nos fallbacks que usam `_mediana_ponderada`:
+# peso_geografico inativo, menos de 3 sites distintos, ou o calculo
+# pre-ancora da divergencia Brick/web. Ou seja: ele age em EAN com pouca
+# concorrencia, e nao no EAN bem coberto.
+#
+# Mantido assim de proposito. Aplicar o peso dentro do site exigiria
+# `_mediana_ponderada` por site, e com poucas observacoes por site ela vira um
+# DEGRAU (ver o aviso em _mediana_ponderada): descontar uma observacao mudaria
+# a mediana do site em ~60%, tornando o preco instavel a cada falha de coleta.
+# Se um dia o marketplace precisar mesmo de desconto no caminho principal, a
+# forma correta e' SELECIONAR quem entra (como ja se faz com vizinhanca e com
+# a ancora competitiva), nao atribuir peso numerico aqui.
 peso = 0.90
 
 # [mercado.fator_canal_por_site] REMOVIDO em 2026-08-10.
@@ -326,6 +344,20 @@ banda_ancora_min = 0.60
 banda_ancora_max = 1.60
 mad_n_min = 5
 mad_multiplicador = 3.0
+
+# Camada 4b: rede de segurança para n pequeno SEM âncora (sem Brick).
+# Medido em 2026-08-10: 465 EANs têm 2-4 observações (MAD não roda, exige 5) e
+# 315 deles não têm Brick (âncora também não roda) -- ficavam sem NENHUMA
+# proteção contra outlier. Casos reais que passavam inteiros para a mediana:
+#   [7,99  9,49  19,49  26,89]   spread 3,4x
+#   [7,49  9,29  24,60]          spread 3,3x
+# Descarta o ponto que estiver a mais de razao_max vezes (ou 1/razao_max) da
+# mediana dos DEMAIS. Usa razão, não MAD: com n=3 o MAD é instável e derruba
+# ponto bom. 2,5x é grosseiro de propósito -- pega erro de apresentação/
+# embalagem (origem típica de spread 3x entre farmácias), não diferença
+# comercial legítima. Nunca esvazia o conjunto.
+razao_n_min = 3
+razao_max = 2.5
 
 [mercado.cluster_acima_brick]
 # Quando concorrentes descartados pela ancora (por estarem acima de
