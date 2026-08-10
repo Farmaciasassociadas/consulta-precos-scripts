@@ -60,6 +60,10 @@ class ResultadoMercado:
     n_local: int = 0
     alvo_so_local: bool = False
     precos_alvo: tuple[float, ...] = ()
+    # As observacoes que definiram o alvo, com o site preservado. `precos_alvo`
+    # perde a origem, e a ancora competitiva precisa saber de QUEM e' cada preco
+    # (ver ancora_competitiva_local).
+    observacoes_alvo: tuple[Observacao, ...] = ()
 
 
 def parse_data_hora(valor: str | None) -> date | None:
@@ -76,36 +80,6 @@ def _e_promocional(observacoes: str | None) -> bool:
         return False
     texto = observacoes.lower()
     return any(palavra in texto for palavra in PALAVRAS_PROMOCIONAIS)
-
-
-def _aplicar_fator_canal(
-    obs: list[Observacao], params: dict[str, Any]
-) -> list[Observacao]:
-    """Aplica fator de correcao online->balcao por site a cada observacao.
-
-    Cada site tem um multiplicador que converte o preco coletado no site (online)
-    para estimativa de preco de balcao daquela farmacia. O fator e aplicado
-    ANTES de qualquer filtro, para que as 4 camadas operem sobre precos
-    comparaveis ao balcao real.
-    """
-    cfg = params["mercado"].get("fator_canal_por_site")
-    if not cfg or not cfg.get("ativo", False):
-        return obs
-    default = cfg.get("default", 1.0)
-    resultado: list[Observacao] = []
-    for o in obs:
-        fator = cfg.get(o.site, default)
-        if fator != 1.0 and o.preco is not None:
-            resultado.append(Observacao(
-                site=o.site,
-                preco=round(o.preco * fator, 2),
-                status=o.status,
-                data_hora=o.data_hora,
-                observacoes=o.observacoes,
-            ))
-        else:
-            resultado.append(o)
-    return resultado
 
 
 STATUS_PRECO_VALIDO = ("OK", "MARKETPLACE")
@@ -312,6 +286,61 @@ def _mediana_geografica(
     return soma_ponderada / soma_pesos if soma_pesos > 0 else None
 
 
+def ancora_competitiva_local(
+    mantidas: list[Observacao], params: dict[str, Any]
+) -> tuple[float | None, float | None, str]:
+    """Menor e maior concorrente LOCAL que servem de ancora ao piso competitivo.
+
+    Duas protecoes contra "cobrir um preco que nao existe no balcao":
+
+    1. SITES EXCLUIDOS DA ANCORA (`ancora_competitiva.excluir_sites`). O site
+       continua valendo para n, CV, ranking e validacao -- so nao define
+       sozinho o piso. Motivo (2026-08-10, teste presencial do usuario): o
+       preco ONLINE da Nissei diverge muito do preco de BALCAO dela. A coleta
+       so enxerga o site, entao esse gap e conhecimento que o dado nao tem.
+       Mesma logica ja usada para sites remotos: seleciona-se QUEM define o
+       alvo, em vez de atribuir peso numerico (ver `selecionar_vizinhanca`).
+
+    2. WINSORIZACAO do menor preco. Se o menor local esta mais de
+       `gap_maximo_pct` abaixo do segundo menor, ele e' tratado como preco-isca
+       e o SEGUNDO menor vira a ancora. Protege contra qualquer loja com
+       promocao pontual, sem hardcodar quem e' confiavel.
+
+    Devolve (menor, maior, motivo). `motivo` vazio = nenhuma protecao agiu.
+    """
+    cfg = params["mercado"].get("ancora_competitiva")
+    precos = sorted(o.preco for o in mantidas if o.preco is not None)
+    if not precos:
+        return None, None, ""
+    if not cfg or not cfg.get("ativo"):
+        return precos[0], precos[-1], ""
+
+    apelidos = params["mercado"].get("vizinhanca", {}).get("apelidos_site") or {}
+    excluir = {s.lower() for s in (cfg.get("excluir_sites") or ())}
+    motivo = ""
+
+    elegiveis = sorted(
+        o.preco for o in mantidas
+        if o.preco is not None and apelidos.get(o.site, o.site).lower() not in excluir
+    )
+    # Nunca ficar sem ancora: se a exclusao esvaziar o conjunto, volta a usar todos.
+    if not elegiveis:
+        return precos[0], precos[-1], ""
+    if len(elegiveis) < len(precos):
+        motivo = (f"ancora do piso competitivo ignora {', '.join(sorted(excluir))} "
+                  f"(preco online diverge do balcao)")
+
+    menor = elegiveis[0]
+    gap_max = cfg.get("gap_maximo_pct", 0.0)
+    if gap_max > 0 and len(elegiveis) >= 3 and elegiveis[1] > 0:
+        if 1 - menor / elegiveis[1] > gap_max:
+            menor = elegiveis[1]
+            extra = (f"menor local (R$ {elegiveis[0]:.2f}) ficou {1 - elegiveis[0] / elegiveis[1]:.0%} "
+                     f"abaixo do 2o menor: tratado como preco-isca, ancora no 2o")
+            motivo = f"{motivo}; {extra}" if motivo else extra
+    return menor, elegiveis[-1], motivo
+
+
 def evidencia_remota_confiavel(
     n_total: int, cv: float | None, params: dict[str, Any]
 ) -> bool:
@@ -375,38 +404,52 @@ def _peso_brick(
     return (cfg["web_n_5_mais_cv_baixo"] + cfg["web_n_5_mais_cv_alto"]) / 2
 
 
-def _fator_fisico(
-    segmento_brick: str | None,
-    natureza_fiscal_item: str | None,
-    params: dict[str, Any],
-) -> float:
-    """Fator que converte a mediana web (preco de site) em estimativa de
-    balcao fisico.
+def _fator_brick_para_web(segmento_brick: str | None, params: dict[str, Any]) -> float:
+    """Razao Brick / mediana_web, por segmento -- fator de FONTE DE DADO.
 
-    Para medicamentos com segmento Brick conhecido (RX/GEN/SIM/NMED), o fator
-    e calibrado empiricamente contra auditoria fisica real (Brick) -- pode
-    ser < 1 (balcao mais barato que o site) quando os dados confirmarem isso
-    para aquele segmento especifico.
+    ATENCAO ao que este numero NAO e (corrigido em 2026-08-10). Ele foi
+    calibrado como `Brick / mediana_web` em 1.523 EANs, e remedido nesta data
+    sobre a base atual, que reproduz os mesmos valores (GEN 0,886; NMED 0,916;
+    RX 0,938; SIM 0,821). Isso mede a distancia entre a AUDITORIA NACIONAL do
+    Brick e a mediana dos sites que esta loja coleta -- redes grandes do
+    sul/sudeste. O Brick dilui redes de desconto e regioes mais baratas do pais
+    inteiro, entao ele fica naturalmente ABAIXO da base web local.
 
-    Para o restante do catalogo (sem segmento Brick -- tipicamente perfumaria,
-    conveniencia, puericultura), NAO ha auditoria fisica propria: nesse caso
-    usa-se `mercado.premio_balcao`, um PREMIO (fator >= 1) por natureza
-    fiscal, calibrado a partir do estudo Procon-SP 2025 (site das proprias
-    redes e, em media, 13,88% mais barato que o balcao em generico e 3,73%
-    em referencia) e da observacao operacional do usuario de que o balcao
-    tende a ser mais caro que o site, nao mais barato (decisao 2026-08-05).
-    Isso substitui o antigo fallback fixo `fator_fisico.default` (0.90, que
-    presumia balcao mais barato para QUALQUER categoria sem base real).
+    Nao mede canal (site x balcao). O nome antigo (`fator_fisico`) sugeria isso
+    e levou a empilhar `fator_canal_por_site` por cima em 2026-08-08, com dois
+    multiplicadores agindo sobre o mesmo preco (medido: 66% dos itens saiam
+    acima da mediana real dos concorrentes locais). Efeito canal agora vive
+    exclusivamente em `mercado.premio_balcao`.
+
+    Uso correto: DIVIDIR o Brick por este fator, subindo-o para a escala
+    regional observada -- nunca multiplicar a mediana web por ele, que
+    empurrava o preco para a escala nacional (mais barata) e baixava a
+    referencia do lado errado.
     """
     cfg_fator = params["mercado"]["fator_fisico"]
     if segmento_brick and segmento_brick in cfg_fator:
         return cfg_fator[segmento_brick]
+    return cfg_fator["default"]
 
+
+def _premio_balcao(natureza_fiscal_item: str | None, params: dict[str, Any]) -> float:
+    """Premio de canal: converte preco de SITE em estimativa de BALCAO.
+
+    Este e o unico lugar do motor que trata o efeito canal. Fator >= 1: o
+    balcao e mais caro que o site (estudo Procon-SP 2025 -- o site das proprias
+    redes e, em media, 13,88% mais barato em generico e 3,73% em referencia;
+    confirmado presencialmente pelo usuario em 2026-08-10).
+
+    Aplicado UMA VEZ, no fim, sobre a referencia ja consolidada -- nunca por
+    site e nunca antes das 4 camadas. Aplicar por site antes dos filtros
+    deslocava a banda de ancora (que compara contra o Brick cru) e a tornava
+    assimetrica: o teto efetivo caia de 1,60x para 1,45x do Brick, descartando
+    preco alto real com mais facilidade que preco baixo.
+    """
     cfg_premio = params["mercado"].get("premio_balcao")
     if cfg_premio and natureza_fiscal_item and natureza_fiscal_item in cfg_premio:
         return cfg_premio[natureza_fiscal_item]
-
-    return cfg_fator["default"]
+    return 1.0
 
 
 def calcular_mercado(
@@ -428,13 +471,16 @@ def calcular_mercado(
     """
     cfg = params["mercado"]["outliers"]
     cfg_brick = params["mercado"]["brick"]
-    fator_fisico = _fator_fisico(segmento_brick, natureza_fiscal_item, params)
-    mercado_brick = vum_brick * (1 + cfg_brick["spread_etiqueta"]) if vum_brick else None
-
-    # NOVO: aplica fator de canal online->balcao antes de qualquer filtro.
-    # Converte o preco de cada site para estimativa de balcao, para que
-    # as 4 camadas operem sobre precos comparaveis ao balcao real.
-    observacoes = _aplicar_fator_canal(observacoes, params)
+    # O Brick e' auditoria NACIONAL: sobe para a escala regional observada
+    # (dividir pela razao Brick/web) antes de ser comparado ou blendado com a
+    # web local. Antes de 2026-08-10 o fator era aplicado ao contrario -- a
+    # mediana web era MULTIPLICADA por ele, descendo o preco para a escala
+    # nacional (mais barata) e baixando a referencia do lado errado.
+    fator_bw = _fator_brick_para_web(segmento_brick, params)
+    mercado_brick = (
+        vum_brick * (1 + cfg_brick["spread_etiqueta"]) / fator_bw
+        if vum_brick and fator_bw > 0 else None
+    )
 
     # Camadas 1-2 primeiro (natureza + frescor), sem depender do Brick.
     descartadas: list[Descarte] = []
@@ -447,13 +493,18 @@ def calcular_mercado(
     # ancora rodasse primeiro, ela apagaria justamente os pontos que provam a
     # divergencia (o Brick e a propria ancora do filtro), mascarando o problema.
     mediana_pre_ancora = _mediana_ponderada(pre_ancora, params)
-    mercado_web_pre_ancora = mediana_pre_ancora * fator_fisico if mediana_pre_ancora is not None else None
+    mercado_web_pre_ancora = mediana_pre_ancora
     divergencia = False
     if mercado_brick is not None and mercado_web_pre_ancora is not None and mercado_brick > 0:
         divergencia = abs(mercado_web_pre_ancora / mercado_brick - 1) > cfg_brick["divergencia_brick_web_limite"]
 
     # Camadas 3-4 (ancora + MAD) para chegar na mediana final usada no blend.
-    atual, novas = _camada_3_ancora(pre_ancora, vum_brick, cfg["banda_ancora_min"], cfg["banda_ancora_max"])
+    # A ancora tem de estar na MESMA escala das observacoes (web regional): usar
+    # `vum_brick` cru aqui compararia preco de site contra media nacional, o que
+    # deslocava a banda [0,60; 1,60] para baixo e descartava preco alto real com
+    # mais facilidade que preco baixo (assimetria medida em 2026-08-10).
+    ancora_web = vum_brick / fator_bw if vum_brick and fator_bw > 0 else None
+    atual, novas = _camada_3_ancora(pre_ancora, ancora_web, cfg["banda_ancora_min"], cfg["banda_ancora_max"])
     descartadas_ancora = novas
     descartadas += novas
     atual, novas = _camada_4_mad(atual, cfg["mad_n_min"], cfg["mad_multiplicador"])
@@ -474,7 +525,7 @@ def calcular_mercado(
         k: v for k, v in (params["mercado"].get("vizinhanca", {}).get("apelidos_site") or {}).items()
     }
     mediana_bruta = _mediana_geografica(observacoes_alvo, params, apelidos_site)
-    mercado_web = mediana_bruta * fator_fisico if mediana_bruta is not None else None
+    mercado_web = mediana_bruta
 
     peso = _peso_brick(n, cv, mercado_brick is not None, params["mercado"]["peso_brick"],
                        alvo_so_local=alvo_so_local)
@@ -488,8 +539,8 @@ def calcular_mercado(
     # (evita deixar dinheiro na mesa quando o concorrente sustenta preco maior).
     cluster_acima = False
     cfg_cluster = params["mercado"].get("cluster_acima_brick")
-    if cfg_cluster and vum_brick and mercado_brick:
-        teto_banda = vum_brick * cfg["banda_ancora_max"]
+    if cfg_cluster and ancora_web and mercado_brick:
+        teto_banda = ancora_web * cfg["banda_ancora_max"]
         precos_acima = [
             d.observacao.preco for d in descartadas_ancora
             if d.camada == "ancora" and d.observacao.preco > teto_banda
@@ -498,7 +549,7 @@ def calcular_mercado(
             cv_cluster = _cv(precos_acima)
             if cv_cluster is not None and cv_cluster <= cfg_cluster["cv_max"]:
                 mediana_cluster = median(precos_acima)
-                referencia_cluster = mediana_cluster * fator_fisico
+                referencia_cluster = mediana_cluster
                 if referencia_cluster > (mercado_web if mercado_web is not None else mercado_brick):
                     cluster_acima = True
                     mercado_web = referencia_cluster
@@ -514,6 +565,14 @@ def calcular_mercado(
         valor_referencia = mercado_brick
     else:
         valor_referencia = mercado_web
+
+    # Premio de canal (site -> balcao), aplicado UMA VEZ sobre a referencia ja
+    # consolidada. Ate aqui tudo esta na escala do preco ONLINE observado, que e'
+    # a escala em que as 4 camadas e a banda de ancora operam; converter antes
+    # (por site, como fazia `fator_canal_por_site`) contaminava os filtros.
+    premio = _premio_balcao(natureza_fiscal_item, params)
+    if valor_referencia is not None and premio != 1.0:
+        valor_referencia = valor_referencia * premio
 
     if n >= 3:
         confianca = "ALTA"
@@ -535,4 +594,5 @@ def calcular_mercado(
         n_local=n_local,
         alvo_so_local=alvo_so_local,
         precos_alvo=tuple(o.preco for o in observacoes_alvo if o.preco is not None),
+        observacoes_alvo=tuple(observacoes_alvo),
     )

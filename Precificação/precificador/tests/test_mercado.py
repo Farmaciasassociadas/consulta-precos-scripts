@@ -106,19 +106,22 @@ def test_peso_brick_sobe_quando_web_e_fraca():
 def test_sem_web_usa_brick_integralmente():
     r = mercado.calcular_mercado([], PARAMS, HOJE, vum_brick=25.0, segmento_brick="GEN")
     assert r.peso_brick == 1.0
-    assert r.valor_referencia == 25.0 * (1 + PARAMS["mercado"]["brick"]["spread_etiqueta"])
+    # O Brick sobe para a escala regional (dividido pela razao Brick/web).
+    fator_bw = PARAMS["mercado"]["fator_fisico"]["GEN"]
+    assert r.valor_referencia == pytest.approx(
+        25.0 * (1 + PARAMS["mercado"]["brick"]["spread_etiqueta"]) / fator_bw)
     assert r.confianca == "MEDIA"
 
 
 def test_sem_brick_usa_so_web():
-    params_sem_canal = dict(PARAMS)
-    params_sem_canal["mercado"] = dict(PARAMS["mercado"])
-    params_sem_canal["mercado"]["fator_canal_por_site"] = {"ativo": False}
+    params_sem_canal = PARAMS
     lista = [obs(20.0), obs(21.0), obs(19.5)]
     r = mercado.calcular_mercado(lista, params_sem_canal, HOJE, vum_brick=None)
     assert r.peso_brick == 0.0
-    fator = PARAMS["mercado"]["fator_fisico"]["default"]
-    assert r.valor_referencia == median([20.0, 21.0, 19.5]) * fator
+    # Sem fator: a mediana web e' a propria referencia (o premio de balcao so
+    # entra com natureza_fiscal_item conhecida). Ate 2026-08-10 a web era
+    # multiplicada por fator_fisico, empurrando o preco para a escala nacional.
+    assert r.valor_referencia == median([20.0, 21.0, 19.5])
 
 
 def test_camada_1_nao_descarta_mais_marketplace():
@@ -163,9 +166,7 @@ def test_calcular_mercado_inclui_marketplace_com_peso_reduzido():
     # Cenario de integracao: marketplace nao pode mais ser descartado pela
     # camada de natureza (antes sumia e n caia para 2); agora sobrevive e
     # entra na mediana ponderada, com o peso de config/parametros.toml.
-    params_sem_canal = dict(PARAMS)
-    params_sem_canal["mercado"] = dict(PARAMS["mercado"])
-    params_sem_canal["mercado"]["fator_canal_por_site"] = {"ativo": False}
+    params_sem_canal = PARAMS
     com_marketplace = [obs(20.0, status="OK"), obs(21.0, status="OK"), obs(15.0, status="MARKETPLACE")]
     r = mercado.calcular_mercado(com_marketplace, params_sem_canal, HOJE, vum_brick=None)
 
@@ -194,12 +195,27 @@ def test_divergencia_brick_web_e_sinalizada():
 
 
 def test_cluster_acima_brick_e_adotado_quando_concorrentes_convergem():
-    # caso real BUPROVIL 600mg C/20 (2026-08-04): Brick 13,93, mas todos os
-    # concorrentes vendem entre 22 e 24 -- fora da banda de ancora (x1,6), mas
-    # convergentes entre si. O motor deve confiar nesse cluster em vez de
-    # colar no Brick puro, para nao deixar margem na mesa.
+    # caso real BUPROVIL 600mg C/20 (2026-08-04): Brick 13,93, concorrentes
+    # entre 22 e 24.
+    #
+    # MUDANCA 2026-08-10: este caso NAO cai mais no cluster, e isso e' a
+    # correcao funcionando. A ancora agora sobe para a escala regional
+    # (13,93 / 0,92 = 15,14) e o teto da banda vai a 24,23 -- os quatro precos
+    # CABEM na banda, entao nao ha descarte a resgatar. O cluster era um
+    # remendo para a ancora estar na escala errada (teto 22,29 descartava 3 dos
+    # 4 concorrentes REAIS). Com a escala certa, o remendo fica ocioso aqui.
     lista = [obs(22.99), obs(23.99), obs(22.07), obs(23.99)]
     r = mercado.calcular_mercado(lista, PARAMS, HOJE, vum_brick=13.93, segmento_brick="GEN")
+    assert r.cluster_acima_brick is False
+    assert r.filtro.descartadas == ()  # nenhum concorrente real e' mais jogado fora
+
+
+def test_cluster_acima_brick_ainda_age_com_brick_muito_defasado():
+    """O cluster continua existindo para Brick REALMENTE defasado: com brick 8,00
+    (ancora 8,70, teto 13,91) os concorrentes em 22-24 seguem fora da banda e o
+    cluster os resgata, em vez de colar no Brick puro."""
+    lista = [obs(22.99), obs(23.99), obs(22.07), obs(23.99)]
+    r = mercado.calcular_mercado(lista, PARAMS, HOJE, vum_brick=8.00, segmento_brick="GEN")
     assert r.cluster_acima_brick is True
     assert r.valor_referencia > 13.93 * (1 + PARAMS["mercado"]["brick"]["spread_etiqueta"])
 
@@ -240,66 +256,14 @@ def test_sanidade_ratio_brick_web_no_banco_real():
 
 # --- Testes novos: fator canal e mediana geografica (2026-08-08) ---
 
-def test_fator_canal_aplica_correcao_por_site():
-    """Nissei com fator 1.18 deve ter preco majorado; Raia com 1.10 tambem."""
-    params_com_canal = dict(PARAMS)
-    params_com_canal["mercado"] = dict(PARAMS["mercado"])
-    params_com_canal["mercado"]["fator_canal_por_site"] = {
-        "ativo": True, "nissei": 1.18, "drogaraia": 1.10, "default": 1.00,
-    }
-    lista = [
-        obs(30.0, site="nissei"),
-        obs(40.0, site="drogaraia"),
-        obs(35.0, site="desconhecido"),
-    ]
-    corrigidas = mercado._aplicar_fator_canal(lista, params_com_canal)
-    precos_por_site = {o.site: o.preco for o in corrigidas}
-    assert precos_por_site["nissei"] == pytest.approx(30.0 * 1.18)
-    assert precos_por_site["drogaraia"] == pytest.approx(40.0 * 1.10)
-    assert precos_por_site["desconhecido"] == 35.0  # usa default = 1.00
 
 
-def test_fator_canal_site_sem_fator_usa_default():
-    """Site nao listado usa o default configurado."""
-    params = dict(PARAMS)
-    params["mercado"] = dict(PARAMS["mercado"])
-    params["mercado"]["fator_canal_por_site"] = {
-        "ativo": True, "default": 1.15,
-    }
-    lista = [obs(20.0, site="desconhecido")]
-    corrigidas = mercado._aplicar_fator_canal(lista, params)
-    assert corrigidas[0].preco == pytest.approx(20.0 * 1.15)
-
-
-def test_fator_canal_inativo_nao_altera():
-    """Com ativo=false, precos nao sao alterados."""
-    params_inativo = dict(PARAMS)
-    params_inativo["mercado"] = dict(PARAMS["mercado"])
-    params_inativo["mercado"]["fator_canal_por_site"] = {
-        "ativo": False, "nissei": 1.18, "default": 1.10,
-    }
-    lista = [obs(30.0, site="nissei")]
-    corrigidas = mercado._aplicar_fator_canal(lista, params_inativo)
-    assert corrigidas[0].preco == 30.0  # inalterado
-
-
-def test_fator_canal_nao_altera_preco_nulo():
-    """Observacao sem preco (None) nao deve ser alterada."""
-    params = dict(PARAMS)
-    params["mercado"] = dict(PARAMS["mercado"])
-    params["mercado"]["fator_canal_por_site"] = {
-        "ativo": True, "nissei": 1.18, "default": 1.00,
-    }
-    lista = [mercado.Observacao(site="nissei", preco=None, status="NAO_ENCONTRADO", data_hora=HOJE)]
-    corrigidas = mercado._aplicar_fator_canal(lista, params)
-    assert corrigidas[0].preco is None
 
 
 def test_mediana_geografica_ponderada():
     """Tres sites com pesos diferentes: media ponderada das medianas."""
     params = dict(PARAMS)
     params["mercado"] = dict(PARAMS["mercado"])
-    params["mercado"]["fator_canal_por_site"] = {"ativo": False}
     params["mercado"]["peso_geografico"] = {
         "ativo": True, "raia": 4.0, "nissei": 1.0, "saojoao": 1.0,
     }
@@ -319,7 +283,6 @@ def test_mediana_geografica_site_com_apelido():
     """farmasp e saopaulo agrupados como mesma loja antes da mediana."""
     params = dict(PARAMS)
     params["mercado"] = dict(PARAMS["mercado"])
-    params["mercado"]["fator_canal_por_site"] = {"ativo": False}
     params["mercado"]["peso_geografico"] = {
         "ativo": True, "farmasp": 3.5, "nissei": 1.0, "raia": 1.0,
     }
@@ -359,19 +322,64 @@ def test_mediana_geografica_poucos_sites_cai_na_mediana_simples():
     assert resultado == median([10.0, 15.0, 20.0])  # mediana simples
 
 
-def test_fator_canal_integrado_no_calcular_mercado():
-    """O fator de canal e aplicado antes do filtro em calcular_mercado."""
+
+
+# --- Ancora competitiva e premio de balcao (2026-08-10) ---
+
+def test_ancora_competitiva_exclui_site_com_gap_online_balcao():
+    """Nissei nao define o piso competitivo: o preco online dela diverge do
+    balcao (teste presencial 2026-08-10) e a coleta so ve o site."""
+    params = _params_ancora(excluir=["nissei"], gap=0.0)
+    lista = [obs(18.0, site="nissei"), obs(25.0, site="drogaraia"), obs(26.0, site="farmasp")]
+    menor, maior, motivo = mercado.ancora_competitiva_local(lista, params)
+    assert menor == 25.0        # 18,00 da Nissei nao ancora o piso
+    assert maior == 26.0
+    assert "nissei" in motivo
+
+
+def test_ancora_competitiva_nunca_fica_sem_ancora():
+    """Se a exclusao esvaziar o conjunto, volta a usar todos -- ficar sem
+    ancora seria pior que usar uma imperfeita."""
+    params = _params_ancora(excluir=["nissei"], gap=0.0)
+    lista = [obs(18.0, site="nissei")]
+    menor, maior, motivo = mercado.ancora_competitiva_local(lista, params)
+    assert menor == 18.0 and maior == 18.0
+    assert motivo == ""
+
+
+def test_ancora_competitiva_winsoriza_preco_isca():
+    """Menor local 30% abaixo do 2o menor e' tratado como preco-isca."""
+    params = _params_ancora(excluir=[], gap=0.15)
+    lista = [obs(14.0, site="a"), obs(20.0, site="b"), obs(21.0, site="c")]
+    menor, _, motivo = mercado.ancora_competitiva_local(lista, params)
+    assert menor == 20.0
+    assert "isca" in motivo
+
+
+def test_ancora_competitiva_nao_winsoriza_gap_pequeno():
+    """Gap dentro da tolerancia mantem o menor preco como ancora."""
+    params = _params_ancora(excluir=[], gap=0.15)
+    lista = [obs(19.0, site="a"), obs(20.0, site="b"), obs(21.0, site="c")]
+    menor, _, motivo = mercado.ancora_competitiva_local(lista, params)
+    assert menor == 19.0
+    assert motivo == ""
+
+
+def test_premio_balcao_aplicado_uma_vez_no_fim():
+    """O premio de canal multiplica a referencia consolidada, nao as observacoes."""
+    lista = [obs(20.0), obs(21.0), obs(19.5)]
+    r = mercado.calcular_mercado(lista, PARAMS, HOJE, vum_brick=None,
+                                 natureza_fiscal_item="medicamento")
+    premio = PARAMS["mercado"]["premio_balcao"]["medicamento"]
+    assert r.valor_referencia == pytest.approx(median([20.0, 21.0, 19.5]) * premio)
+    # A mediana bruta permanece na escala ONLINE observada
+    assert r.mediana == pytest.approx(median([20.0, 21.0, 19.5]))
+
+
+def _params_ancora(excluir, gap):
     params = dict(PARAMS)
     params["mercado"] = dict(PARAMS["mercado"])
-    params["mercado"]["fator_canal_por_site"] = {
-        "ativo": True, "nissei": 1.18, "default": 1.00,
+    params["mercado"]["ancora_competitiva"] = {
+        "ativo": True, "excluir_sites": excluir, "gap_maximo_pct": gap,
     }
-    lista = [obs(30.0, site="nissei"), obs(40.0, site="drogaraia")]
-    r = mercado.calcular_mercado(lista, params, HOJE, vum_brick=None)
-    # mediana sem fator: median(30, 40) = 35 * fator_fisico_default
-    # mediana com fator: median(35.40, 40) = 37.70 * fator_fisico_default
-    fator_fisico = params["mercado"]["fator_fisico"]["default"]
-    valor_esperado = median([30.0 * 1.18, 40.0]) * fator_fisico
-    assert r.valor_referencia == pytest.approx(valor_esperado)
-    # A mediana bruta (antes do fator fisico) ja deve refletir o canal
-    assert r.mediana == pytest.approx(median([30.0 * 1.18, 40.0]))
+    return params

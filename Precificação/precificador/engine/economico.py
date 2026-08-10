@@ -124,6 +124,14 @@ PREFIXOS_PERFUMARIA_HIGIENE = ("PERFUMARIA",)
 EIXO_POR_SEGMENTO_BRICK = {"GEN": "GENERICO", "RX": "ETICOS", "SIM": "SIMILAR"}
 EIXOS_MEDICAMENTO = ("ETICOS", "GENERICO", "SIMILAR")
 
+# Subcategoria usada ao resgatar um item de fora do eixo medicamento (ver
+# resgatar_eixo_perdido). Nao ha subcategoria original para herdar -- "HIGIENE
+# PESSOAL"/"ACESSORIOS" nao mapeia para RX/USO CONTINUO/CONTROLADO -- e a
+# amostra auditada em 2026-08-10 (82 itens com PMC fora do eixo medicamento)
+# mostrou predominancia de produtos de venda livre (Strepsils, Salonpas,
+# Canesten): O.T.C/MIP e o destino mais seguro, nunca CONTROLADO/RX.
+SUBCATEGORIA_RESGATE = {"ETICOS": "O.T.C/MIP", "GENERICO": "O.T.C/MIP", "SIMILAR": "O.T.C/MIP-SIMILAR"}
+
 
 def corrigir_eixo_por_brick(
     categoria: str | None, segmento_brick: str | None, categorias_validas
@@ -155,6 +163,47 @@ def corrigir_eixo_por_brick(
         if corrigida in categorias_validas:
             return corrigida, (f"eixo corrigido de {eixo_atual} para {eixo_brick} "
                                f"pelo segmento Brick")
+    return categoria, ""
+
+
+def resgatar_eixo_perdido(
+    categoria: str | None, segmento_brick: str | None, categorias_validas
+) -> tuple[str | None, str]:
+    """Resgata para o eixo medicamento um item cadastrado fora dele (PERFUMARIA,
+    VAREJO, EXCLUSIVOS) quando o segmento Brick indica RX/GEN/SIM.
+
+    Motivado por auditoria de 2026-08-10: 82 EANs em referencia_categoria_brick.csv
+    tinham pmc_maximo preenchido (prova de que sao medicamento CMED -- so
+    medicamento tem PMC) mas estavam fora do eixo medicamento; 5 desses geraram
+    preco sugerido absurdo (ate R$ 553 num item de R$ 35 no mercado) porque o
+    motor aplicou a margem-alvo de perfumaria em vez da de medicamento.
+    corrigir_eixo_por_brick nao pega este caso: ela exige eixo_atual ja em
+    EIXOS_MEDICAMENTO (linha ~150), entao um item em PERFUMARIA/VAREJO nunca
+    passa pelo gate, mesmo com segmento_brick preenchido.
+
+    So atua com segmento_brick preenchido (RX/GEN/SIM) -- os itens que so tem
+    pmc_maximo, sem segmento, nao tem eixo conhecido e ficam de fora de
+    proposito (ver auditar_eixo_sombra.py, que os sinaliza para revisao
+    humana em vez de corrigir automaticamente).
+
+    Sem subcategoria original para herdar (PERFUMARIA/VAREJO nao tem RX/USO
+    CONTINUO/CONTROLADO), o destino e sempre O.T.C/MIP: a amostra auditada
+    mostrou predominancia de venda livre, e O.T.C/MIP e a subcategoria de
+    menor risco (nunca classifica como CONTROLADO por engano).
+
+    Devolve (categoria, motivo). `motivo` vazio significa "nada mudou".
+    """
+    eixo_brick = EIXO_POR_SEGMENTO_BRICK.get((segmento_brick or "").upper())
+    if not eixo_brick or not categoria or " > " not in categoria:
+        return categoria, ""
+    eixo_atual, _, _ = categoria.partition(" > ")
+    eixo_atual = eixo_atual.strip()
+    if eixo_atual in EIXOS_MEDICAMENTO:
+        return categoria, ""
+    corrigida = f"{eixo_brick} > {SUBCATEGORIA_RESGATE[eixo_brick]}"
+    if corrigida in categorias_validas:
+        return corrigida, (f"eixo resgatado de {eixo_atual} para {eixo_brick} "
+                           f"pelo segmento Brick (item era medicamento cadastrado fora do eixo)")
     return categoria, ""
 
 
@@ -238,10 +287,29 @@ def divisor_alvo(params: dict[str, Any], natureza: str, lucro_liquido_alvo_pct: 
     return divisor_piso(params, natureza) - lucro_liquido_alvo_pct
 
 
+def margem_bruta_minima(params: dict[str, Any], natureza: str) -> float:
+    """Margem bruta minima aplicavel, por natureza fiscal.
+
+    `margem_bruta_minima_pct` (0,25) e' um piso CEGO: ignora custo, categoria e
+    concorrencia. Medido em 2026-08-10, ele era a causa provavel de boa parte
+    dos 135 itens em MERCADO_LOCAL_ABAIXO_DO_PISO e dos 16,3% precificados
+    acima do maior concorrente local. Em generico 25% e' folgado; em item de
+    alto giro e baixo valor agregado, e' o que tira o item do mercado.
+
+    `margem_bruta_minima_por_natureza` permite afrouxar onde o mercado e'
+    apertado sem baixar o piso do catalogo inteiro. Ausente = usa o valor
+    global (comportamento antigo).
+    """
+    por_natureza = params["premissas"].get("margem_bruta_minima_por_natureza") or {}
+    if natureza in por_natureza:
+        return por_natureza[natureza]
+    return params["premissas"].get("margem_bruta_minima_pct", 0.0)
+
+
 def piso(custo: float, params: dict[str, Any], natureza: str) -> float:
     piso_simples = custo / divisor_piso_contribuicao(params, natureza)
     piso_contribuicao = custo + params["premissas"]["contribuicao_minima_reais"]
-    margem_minima = params["premissas"].get("margem_bruta_minima_pct", 0.0)
+    margem_minima = margem_bruta_minima(params, natureza)
     if margem_minima > 0 and margem_minima < 1:
         piso_margem = custo / (1 - margem_minima)
         return max(piso_simples, piso_contribuicao, piso_margem)
@@ -270,9 +338,16 @@ def determinar_tier(
         or (curva_abc == "A" and (cv is None or cv <= 0.35))
         or papel_politica == "PRECO_IMAGEM"
     )
+    # Curva C so forca protecao quando a evidencia de mercado e' de fato fraca.
+    # Antes de 2026-08-10 ela forcava sozinha, e como `e_protecao` vence
+    # `e_imagem` incondicionalmente, um item C com 6 concorrentes e CV 5%
+    # -- mercado perfeitamente medido -- era tratado como se nao tivesse
+    # mercado nenhum. Medido nesta data: 66% do catalogo (2.533 itens) caia em
+    # PROTECAO_MARGEM, que tambem aperta a trava de variacao (0.30 vs 0.50).
+    mercado_fraco = n_concorrentes < 3
     e_protecao = (
         (n_concorrentes == 0 and not tem_brick)
-        or curva_abc == "C"
+        or (curva_abc == "C" and mercado_fraco)
         or (not tem_brick and n_concorrentes < 2)
         or papel_politica == "PROTECAO_MARGEM"
     )

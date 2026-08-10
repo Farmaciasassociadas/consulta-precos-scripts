@@ -43,6 +43,7 @@ def test_piso_e_maior_para_natureza_padrao_que_medicamento():
     params_sem_margem = dict(PARAMS)
     params_sem_margem["premissas"] = dict(PARAMS["premissas"])
     params_sem_margem["premissas"]["margem_bruta_minima_pct"] = 0.0
+    params_sem_margem["premissas"]["margem_bruta_minima_por_natureza"] = {}
     custo = 10.0
     assert economico.piso(custo, params_sem_margem, "padrao") > economico.piso(custo, params_sem_margem, "medicamento")
 
@@ -66,8 +67,18 @@ def test_determinar_tier_protecao_sem_mercado():
     assert economico.determinar_tier("PADRAO", "B", 0, None, False) == "PROTECAO_MARGEM"
 
 
-def test_determinar_tier_protecao_curva_c_mesmo_com_boa_concorrencia():
-    assert economico.determinar_tier("PADRAO", "C", 8, 0.05, True) == "PROTECAO_MARGEM"
+def test_determinar_tier_curva_c_com_mercado_medido_nao_e_protecao():
+    """Mudanca 2026-08-10: Curva C so forca PROTECAO_MARGEM quando o mercado e'
+    de fato pouco medido. Com 8 concorrentes e CV 5% ha evidencia de sobra --
+    tratar como 'sem mercado' rebaixava 66% do catalogo e apertava a trava de
+    variacao (0,30 vs 0,50) sem motivo comercial."""
+    assert economico.determinar_tier("PADRAO", "C", 8, 0.05, True) == "PRECO_IMAGEM"
+
+
+def test_determinar_tier_curva_c_sem_mercado_continua_protecao():
+    """O gate continua valendo onde ele existe para valer: Curva C com mercado
+    ralo (< 3 concorrentes) segue protegendo margem."""
+    assert economico.determinar_tier("PADRAO", "C", 2, None, True) == "PROTECAO_MARGEM"
 
 
 def test_calcular_alvo_imagem_usa_99_da_mediana_fisica():
@@ -254,6 +265,7 @@ def test_piso_respeita_margem_bruta_minima():
     params_com_margem = dict(PARAMS)
     params_com_margem["premissas"] = dict(PARAMS["premissas"])
     params_com_margem["premissas"]["margem_bruta_minima_pct"] = 0.25
+    params_com_margem["premissas"]["margem_bruta_minima_por_natureza"] = {}
     resultado = economico.piso(35.35, params_com_margem, "medicamento")
     assert resultado == pytest.approx(35.35 / (1 - 0.25))  # 47.13
 
@@ -263,6 +275,7 @@ def test_piso_margem_zero_nao_altera():
     params_sem_margem = dict(PARAMS)
     params_sem_margem["premissas"] = dict(PARAMS["premissas"])
     params_sem_margem["premissas"]["margem_bruta_minima_pct"] = 0.0
+    params_sem_margem["premissas"]["margem_bruta_minima_por_natureza"] = {}
     # Deve cair no comportamento antigo: max(piso_simples, piso_contribuicao)
     resultado = economico.piso(10.0, params_sem_margem, "padrao")
     piso_simples = 10.0 / economico.divisor_piso_contribuicao(params_sem_margem, "padrao")
@@ -275,6 +288,7 @@ def test_piso_prevalece_maior_dos_tres():
     params_margem_alta = dict(PARAMS)
     params_margem_alta["premissas"] = dict(PARAMS["premissas"])
     params_margem_alta["premissas"]["margem_bruta_minima_pct"] = 0.90
+    params_margem_alta["premissas"]["margem_bruta_minima_por_natureza"] = {}
     # piso_margem = 10 / 0.10 = 100, muito maior que piso_simples e piso_contribuicao
     resultado = economico.piso(10.0, params_margem_alta, "medicamento")
     assert resultado == pytest.approx(10.0 / 0.10)  # 100.0
@@ -286,6 +300,7 @@ def test_piso_margem_bruta_invalida_ignorada():
         params = dict(PARAMS)
         params["premissas"] = dict(PARAMS["premissas"])
         params["premissas"]["margem_bruta_minima_pct"] = valor_invalido
+        params["premissas"]["margem_bruta_minima_por_natureza"] = {}
         resultado = economico.piso(10.0, params, "padrao")
         # Com margem invalida, cai no max(piso_simples, piso_contribuicao)
         piso_simples = 10.0 / economico.divisor_piso_contribuicao(params, "padrao")
