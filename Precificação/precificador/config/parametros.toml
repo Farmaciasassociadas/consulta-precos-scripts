@@ -12,7 +12,12 @@ despesas_fixas_pct = 0.1750
 # à venda). Só esta entra no piso, junto com cartão e Simples.
 # Estimativa inicial — recalibrar com DRE real após alguns meses de operação.
 despesas_variaveis_pct = 0.0150
-contribuicao_minima_reais = 0.60   # piso de contribuição por unidade (item 3.3.1 do plano)
+contribuicao_minima_reais = 0.60   # piso de contribuicao por unidade (item 3.3.1 do plano)
+# NOVO (2026-08-08): piso adicional de margem bruta minima sobre o custo.
+# Ex: 0.25 = o preco nunca fica abaixo de custo / (1 - 0.25) = custo / 0.75.
+# Para custo de R$ 35,35 -> piso de R$ 47,13.
+# Zere para desabilitar (0.0).
+margem_bruta_minima_pct = 0.25
 
 [piso_competitivo]
 # Decisao de negocio 2026-08-07: NAO vender abaixo de quem esta do lado sem
@@ -116,16 +121,15 @@ SIM = 0.78
 default = 0.90
 
 [mercado.premio_balcao]
-# Premio (fator >= 1) aplicado a mediana web quando NAO ha segmento Brick
-# conhecido para o item (sem auditoria fisica propria) -- ver _fator_fisico
-# em engine/mercado.py. Baseado no estudo Procon-SP 2025 (site das redes e
-# 13,88% mais barato que o balcao em generico, 3,73% em referencia) e na
-# observacao operacional do usuario para as demais categorias. Premissa a
-# recalibrar com amostra propria (visita fisica ou dado Febrafar) assim que
-# houver dados -- ver relatorio "Motor de Precificacao v5", secao 1.
-medicamento = 1.04        # equivalente ao dado de referencia (marca) do Procon-SP
-perfumaria_higiene = 1.10  # MIP/higiene/conveniencia: sem dado direto, tratado perto do genergico
-padrao = 1.10               # fraldas/puericultura/conveniencia geral: mesma logica de perfumaria_higiene
+# ZERADO para abertura de loja (2026-08): sem historico de venda e sem
+# cliente fidelizado, etiquetar acima da mediana web afasta o cliente novo
+# antes mesmo de ele entrar. O preco de vitrine compete diretamente com o
+# que o cliente ve no celular na calcada.
+# Recalibrar depois de 3-6 meses de operacao, quando houver dado proprio
+# de elasticidade e frequencia de desconto no balcao.
+medicamento = 1.00        # etiqueta = mediana web (sem premio)
+perfumaria_higiene = 1.00  # etiqueta = mediana web (sem premio)
+padrao = 1.00               # etiqueta = mediana web (sem premio)
 
 [mercado.marketplace]
 # Decisao de negocio 2026-08-05: preco de vendedor terceiro dentro do site da
@@ -133,6 +137,35 @@ padrao = 1.10               # fraldas/puericultura/conveniencia geral: mesma log
 # mediana de referencia, com peso reduzido (menos confiavel que preco proprio
 # do site) -- ver _peso_observacao/_mediana_ponderada em engine/mercado.py.
 peso = 0.90
+
+# NOVO (2026-08-08): fator de correcao online->balcao por site.
+# Cada site tem um multiplicador que converte o preco coletado no site (online)
+# para estimativa de preco de balcao daquela farmacia.
+# Base empirica: balcao e consistentemente mais caro que o site, com intensidade
+# variavel por rede (ex: Nissei tem gap maior que Raia).
+# Aplicado a cada observacao ANTES das 4 camadas de filtro.
+[mercado.fator_canal_por_site]
+ativo = true
+drogaraia = 1.10
+farmasp = 1.10
+saopaulo = 1.10
+saojoao = 1.10
+nissei = 1.18
+default = 1.10
+
+# NOVO (2026-08-08): peso geografico por concorrente na media das medianas.
+# Cada concorrente contribui com sua MEDIANA (um preco representativo),
+# ponderada pelo peso geografico. Peso maior = mais proximo/relevante.
+# Evita que sites distantes diluam a influencia de quem realmente disputa
+# o cliente. So se aplica com vizinhanca local ativa (>= n_min_local).
+# Sites nao listados recebem peso 1.0.
+[mercado.peso_geografico]
+ativo = true
+drogaraia = 4.0     # mais proxima — mesmo quarteirao
+farmasp = 3.5       # muito proxima (farmasp/saopaulo = mesma loja)
+saopaulo = 3.5      # idem
+saojoao = 1.5       # distancia media
+nissei = 1.0        # mais distante
 
 [farmacia_popular]
 # Esta loja nao e credenciada no programa, entao nao compete com o preco

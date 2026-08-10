@@ -12,6 +12,8 @@ from datetime import date, timedelta
 from pathlib import Path
 from statistics import median
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from engine import mercado, parametros  # noqa: E402
@@ -109,8 +111,11 @@ def test_sem_web_usa_brick_integralmente():
 
 
 def test_sem_brick_usa_so_web():
+    params_sem_canal = dict(PARAMS)
+    params_sem_canal["mercado"] = dict(PARAMS["mercado"])
+    params_sem_canal["mercado"]["fator_canal_por_site"] = {"ativo": False}
     lista = [obs(20.0), obs(21.0), obs(19.5)]
-    r = mercado.calcular_mercado(lista, PARAMS, HOJE, vum_brick=None)
+    r = mercado.calcular_mercado(lista, params_sem_canal, HOJE, vum_brick=None)
     assert r.peso_brick == 0.0
     fator = PARAMS["mercado"]["fator_fisico"]["default"]
     assert r.valor_referencia == median([20.0, 21.0, 19.5]) * fator
@@ -158,19 +163,24 @@ def test_calcular_mercado_inclui_marketplace_com_peso_reduzido():
     # Cenario de integracao: marketplace nao pode mais ser descartado pela
     # camada de natureza (antes sumia e n caia para 2); agora sobrevive e
     # entra na mediana ponderada, com o peso de config/parametros.toml.
+    params_sem_canal = dict(PARAMS)
+    params_sem_canal["mercado"] = dict(PARAMS["mercado"])
+    params_sem_canal["mercado"]["fator_canal_por_site"] = {"ativo": False}
     com_marketplace = [obs(20.0, status="OK"), obs(21.0, status="OK"), obs(15.0, status="MARKETPLACE")]
-    r = mercado.calcular_mercado(com_marketplace, PARAMS, HOJE, vum_brick=None)
+    r = mercado.calcular_mercado(com_marketplace, params_sem_canal, HOJE, vum_brick=None)
 
     assert r.n == 3  # marketplace conta na contagem de observacoes validas (nao foi descartado)
     assert r.mediana == mercado._mediana_ponderada(
-        [o for o in com_marketplace], PARAMS
+        [o for o in com_marketplace], params_sem_canal
     )
 
     # Com o peso de marketplace artificialmente alto (> soma dos pesos OK),
     # o preco de marketplace passa a dominar a mediana -- comprova que o
     # peso configurado realmente participa do calculo, nao e so "incluido
     # e ignorado".
-    params_peso_alto = {**PARAMS, "mercado": {**PARAMS["mercado"], "marketplace": {"peso": 5.0}}}
+    params_peso_alto = dict(params_sem_canal)
+    params_peso_alto["mercado"] = dict(params_sem_canal["mercado"])
+    params_peso_alto["mercado"]["marketplace"] = {"peso": 5.0}
     r_peso_alto = mercado.calcular_mercado(com_marketplace, params_peso_alto, HOJE, vum_brick=None)
     assert r_peso_alto.mediana == 15.0
     assert r_peso_alto.mediana != r.mediana
@@ -226,3 +236,142 @@ def test_sanidade_ratio_brick_web_no_banco_real():
     assert razoes, "esperava encontrar EANs com Brick e >=3 precos web no banco"
     mediana_razao = median(razoes)
     assert 0.80 <= mediana_razao <= 1.00, f"razao Brick/mediana_web fora da faixa esperada: {mediana_razao}"
+
+
+# --- Testes novos: fator canal e mediana geografica (2026-08-08) ---
+
+def test_fator_canal_aplica_correcao_por_site():
+    """Nissei com fator 1.18 deve ter preco majorado; Raia com 1.10 tambem."""
+    params_com_canal = dict(PARAMS)
+    params_com_canal["mercado"] = dict(PARAMS["mercado"])
+    params_com_canal["mercado"]["fator_canal_por_site"] = {
+        "ativo": True, "nissei": 1.18, "drogaraia": 1.10, "default": 1.00,
+    }
+    lista = [
+        obs(30.0, site="nissei"),
+        obs(40.0, site="drogaraia"),
+        obs(35.0, site="desconhecido"),
+    ]
+    corrigidas = mercado._aplicar_fator_canal(lista, params_com_canal)
+    precos_por_site = {o.site: o.preco for o in corrigidas}
+    assert precos_por_site["nissei"] == pytest.approx(30.0 * 1.18)
+    assert precos_por_site["drogaraia"] == pytest.approx(40.0 * 1.10)
+    assert precos_por_site["desconhecido"] == 35.0  # usa default = 1.00
+
+
+def test_fator_canal_site_sem_fator_usa_default():
+    """Site nao listado usa o default configurado."""
+    params = dict(PARAMS)
+    params["mercado"] = dict(PARAMS["mercado"])
+    params["mercado"]["fator_canal_por_site"] = {
+        "ativo": True, "default": 1.15,
+    }
+    lista = [obs(20.0, site="desconhecido")]
+    corrigidas = mercado._aplicar_fator_canal(lista, params)
+    assert corrigidas[0].preco == pytest.approx(20.0 * 1.15)
+
+
+def test_fator_canal_inativo_nao_altera():
+    """Com ativo=false, precos nao sao alterados."""
+    params_inativo = dict(PARAMS)
+    params_inativo["mercado"] = dict(PARAMS["mercado"])
+    params_inativo["mercado"]["fator_canal_por_site"] = {
+        "ativo": False, "nissei": 1.18, "default": 1.10,
+    }
+    lista = [obs(30.0, site="nissei")]
+    corrigidas = mercado._aplicar_fator_canal(lista, params_inativo)
+    assert corrigidas[0].preco == 30.0  # inalterado
+
+
+def test_fator_canal_nao_altera_preco_nulo():
+    """Observacao sem preco (None) nao deve ser alterada."""
+    params = dict(PARAMS)
+    params["mercado"] = dict(PARAMS["mercado"])
+    params["mercado"]["fator_canal_por_site"] = {
+        "ativo": True, "nissei": 1.18, "default": 1.00,
+    }
+    lista = [mercado.Observacao(site="nissei", preco=None, status="NAO_ENCONTRADO", data_hora=HOJE)]
+    corrigidas = mercado._aplicar_fator_canal(lista, params)
+    assert corrigidas[0].preco is None
+
+
+def test_mediana_geografica_ponderada():
+    """Tres sites com pesos diferentes: media ponderada das medianas."""
+    params = dict(PARAMS)
+    params["mercado"] = dict(PARAMS["mercado"])
+    params["mercado"]["fator_canal_por_site"] = {"ativo": False}
+    params["mercado"]["peso_geografico"] = {
+        "ativo": True, "raia": 4.0, "nissei": 1.0, "saojoao": 1.0,
+    }
+    # 3 observacoes da Raia (mediana = 22.0), 2 da Nissei (mediana = 15.0),
+    # 1 do SaoJoao (mediana = 30.0)
+    lista = [
+        obs(20.0, site="raia"), obs(22.0, site="raia"), obs(25.0, site="raia"),
+        obs(14.0, site="nissei"), obs(16.0, site="nissei"),
+        obs(30.0, site="saojoao"),
+    ]
+    # media ponderada: (22.0*4 + 15.0*1 + 30.0*1) / 6 = 133/6 ≈ 22.17
+    resultado = mercado._mediana_geografica(lista, params)
+    assert resultado == pytest.approx((22.0 * 4 + 15.0 * 1 + 30.0 * 1) / 6)
+
+
+def test_mediana_geografica_site_com_apelido():
+    """farmasp e saopaulo agrupados como mesma loja antes da mediana."""
+    params = dict(PARAMS)
+    params["mercado"] = dict(PARAMS["mercado"])
+    params["mercado"]["fator_canal_por_site"] = {"ativo": False}
+    params["mercado"]["peso_geografico"] = {
+        "ativo": True, "farmasp": 3.5, "nissei": 1.0, "raia": 1.0,
+    }
+    apelidos = {"saopaulo": "farmasp"}
+    # farmasp (3 obs) + saopaulo (2 obs) = mesma loja: [20,22,24,21,23] mediana=22
+    # nissei: [10] mediana=10
+    # raia: [12] mediana=12
+    lista = [
+        obs(20.0, site="farmasp"), obs(22.0, site="farmasp"), obs(24.0, site="farmasp"),
+        obs(21.0, site="saopaulo"), obs(23.0, site="saopaulo"),
+        obs(10.0, site="nissei"),
+        obs(12.0, site="raia"),
+    ]
+    # media: (22*3.5 + 10*1.0 + 12*1.0) / 5.5 = 99/5.5 = 18.0
+    resultado = mercado._mediana_geografica(lista, params, apelidos)
+    assert resultado == pytest.approx((22 * 3.5 + 10 * 1.0 + 12 * 1.0) / 5.5)
+
+
+def test_mediana_geografica_inativa_cai_na_mediana_simples():
+    """Com ativo=false, devolve mediana simples (comportamento antigo)."""
+    params = dict(PARAMS)
+    params["mercado"] = dict(PARAMS["mercado"])
+    params["mercado"]["peso_geografico"] = {"ativo": False, "raia": 4.0, "nissei": 1.0}
+    lista = [obs(10.0, site="raia"), obs(20.0, site="nissei"), obs(30.0, site="raia")]
+    resultado = mercado._mediana_geografica(lista, params)
+    assert resultado == median([10.0, 20.0, 30.0])  # mediana simples
+
+
+def test_mediana_geografica_poucos_sites_cai_na_mediana_simples():
+    """Com menos de 3 sites distintos, cai na mediana simples."""
+    params = dict(PARAMS)
+    params["mercado"] = dict(PARAMS["mercado"])
+    params["mercado"]["peso_geografico"] = {"ativo": True, "raia": 4.0, "nissei": 1.0}
+    # So 2 sites distintos: raia e nissei
+    lista = [obs(10.0, site="raia"), obs(20.0, site="nissei"), obs(15.0, site="raia")]
+    resultado = mercado._mediana_geografica(lista, params)
+    assert resultado == median([10.0, 15.0, 20.0])  # mediana simples
+
+
+def test_fator_canal_integrado_no_calcular_mercado():
+    """O fator de canal e aplicado antes do filtro em calcular_mercado."""
+    params = dict(PARAMS)
+    params["mercado"] = dict(PARAMS["mercado"])
+    params["mercado"]["fator_canal_por_site"] = {
+        "ativo": True, "nissei": 1.18, "default": 1.00,
+    }
+    lista = [obs(30.0, site="nissei"), obs(40.0, site="drogaraia")]
+    r = mercado.calcular_mercado(lista, params, HOJE, vum_brick=None)
+    # mediana sem fator: median(30, 40) = 35 * fator_fisico_default
+    # mediana com fator: median(35.40, 40) = 37.70 * fator_fisico_default
+    fator_fisico = params["mercado"]["fator_fisico"]["default"]
+    valor_esperado = median([30.0 * 1.18, 40.0]) * fator_fisico
+    assert r.valor_referencia == pytest.approx(valor_esperado)
+    # A mediana bruta (antes do fator fisico) ja deve refletir o canal
+    assert r.mediana == pytest.approx(median([30.0 * 1.18, 40.0]))

@@ -78,6 +78,36 @@ def _e_promocional(observacoes: str | None) -> bool:
     return any(palavra in texto for palavra in PALAVRAS_PROMOCIONAIS)
 
 
+def _aplicar_fator_canal(
+    obs: list[Observacao], params: dict[str, Any]
+) -> list[Observacao]:
+    """Aplica fator de correcao online->balcao por site a cada observacao.
+
+    Cada site tem um multiplicador que converte o preco coletado no site (online)
+    para estimativa de preco de balcao daquela farmacia. O fator e aplicado
+    ANTES de qualquer filtro, para que as 4 camadas operem sobre precos
+    comparaveis ao balcao real.
+    """
+    cfg = params["mercado"].get("fator_canal_por_site")
+    if not cfg or not cfg.get("ativo", False):
+        return obs
+    default = cfg.get("default", 1.0)
+    resultado: list[Observacao] = []
+    for o in obs:
+        fator = cfg.get(o.site, default)
+        if fator != 1.0 and o.preco is not None:
+            resultado.append(Observacao(
+                site=o.site,
+                preco=round(o.preco * fator, 2),
+                status=o.status,
+                data_hora=o.data_hora,
+                observacoes=o.observacoes,
+            ))
+        else:
+            resultado.append(o)
+    return resultado
+
+
 STATUS_PRECO_VALIDO = ("OK", "MARKETPLACE")
 # MARKETPLACE = vendedor terceiro dentro do site da farmácia (ex.: Droga Raia
 # marketplace). Decisão 2026-08-05: não descartar mais -- passa a compor o
@@ -236,6 +266,52 @@ def selecionar_vizinhanca(
     return mantidas, len(lojas_distintas), False
 
 
+def _mediana_geografica(
+    observacoes: list[Observacao],
+    params: dict[str, Any],
+    apelidos_site: dict[str, str] | None = None,
+) -> float | None:
+    """Media ponderada das medianas por site, usando pesos geograficos.
+
+    Cada concorrente contribui com UM preco (sua mediana), evitando que
+    sites com mais observacoes dominem o resultado. Os pesos representam
+    a relevancia geografica/proximidade daquele concorrente.
+
+    Quando o peso geografico esta inativo ou ha poucos sites, cai na
+    mediana simples (comportamento antigo), mantendo a estabilidade.
+    """
+    cfg = params["mercado"].get("peso_geografico")
+    if not cfg or not cfg.get("ativo", False):
+        return _mediana_ponderada(observacoes, params)
+
+    apelidos = apelidos_site or {}
+    # Agrupa por site normalizado (desduplica farmasp/saopaulo)
+    precos_por_site: dict[str, list[float]] = {}
+    for o in observacoes:
+        if o.preco is None:
+            continue
+        site_norm = apelidos.get(o.site, o.site)
+        precos_por_site.setdefault(site_norm, []).append(o.preco)
+
+    if not precos_por_site:
+        return None
+
+    # So ativa com sites suficientes; com 1-2 sites o peso nao faz sentido
+    if len(precos_por_site) < 3:
+        return _mediana_ponderada(observacoes, params)
+
+    # Mediana por site, ponderada por peso geografico
+    soma_ponderada = 0.0
+    soma_pesos = 0.0
+    for site, precos in precos_por_site.items():
+        peso = cfg.get(site, 1.0)
+        mediana_site = median(precos)
+        soma_ponderada += mediana_site * peso
+        soma_pesos += peso
+
+    return soma_ponderada / soma_pesos if soma_pesos > 0 else None
+
+
 def evidencia_remota_confiavel(
     n_total: int, cv: float | None, params: dict[str, Any]
 ) -> bool:
@@ -355,6 +431,11 @@ def calcular_mercado(
     fator_fisico = _fator_fisico(segmento_brick, natureza_fiscal_item, params)
     mercado_brick = vum_brick * (1 + cfg_brick["spread_etiqueta"]) if vum_brick else None
 
+    # NOVO: aplica fator de canal online->balcao antes de qualquer filtro.
+    # Converte o preco de cada site para estimativa de balcao, para que
+    # as 4 camadas operem sobre precos comparaveis ao balcao real.
+    observacoes = _aplicar_fator_canal(observacoes, params)
+
     # Camadas 1-2 primeiro (natureza + frescor), sem depender do Brick.
     descartadas: list[Descarte] = []
     pre_ancora, novas = _camada_1_natureza(observacoes)
@@ -388,7 +469,11 @@ def calcular_mercado(
 
     observacoes_alvo, n_local, alvo_so_local = selecionar_vizinhanca(
         list(filtro.mantidas), params)
-    mediana_bruta = _mediana_ponderada(observacoes_alvo, params)
+    # Apelidos de site (farmasp/saopaulo) para normalizar antes da mediana geografica
+    apelidos_site = {
+        k: v for k, v in (params["mercado"].get("vizinhanca", {}).get("apelidos_site") or {}).items()
+    }
+    mediana_bruta = _mediana_geografica(observacoes_alvo, params, apelidos_site)
     mercado_web = mediana_bruta * fator_fisico if mediana_bruta is not None else None
 
     peso = _peso_brick(n, cv, mercado_brick is not None, params["mercado"]["peso_brick"],

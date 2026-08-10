@@ -241,6 +241,10 @@ def divisor_alvo(params: dict[str, Any], natureza: str, lucro_liquido_alvo_pct: 
 def piso(custo: float, params: dict[str, Any], natureza: str) -> float:
     piso_simples = custo / divisor_piso_contribuicao(params, natureza)
     piso_contribuicao = custo + params["premissas"]["contribuicao_minima_reais"]
+    margem_minima = params["premissas"].get("margem_bruta_minima_pct", 0.0)
+    if margem_minima > 0 and margem_minima < 1:
+        piso_margem = custo / (1 - margem_minima)
+        return max(piso_simples, piso_contribuicao, piso_margem)
     return max(piso_simples, piso_contribuicao)
 
 

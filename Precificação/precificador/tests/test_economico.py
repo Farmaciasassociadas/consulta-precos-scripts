@@ -38,8 +38,13 @@ def test_divisor_piso_bate_com_tabela_do_plano():
 
 
 def test_piso_e_maior_para_natureza_padrao_que_medicamento():
+    # Com margem_bruta_minima_pct (0.25), ambos ficam iguais a custo/0.75.
+    # Para testar a diferenca por natureza, desabilitamos a margem minima.
+    params_sem_margem = dict(PARAMS)
+    params_sem_margem["premissas"] = dict(PARAMS["premissas"])
+    params_sem_margem["premissas"]["margem_bruta_minima_pct"] = 0.0
     custo = 10.0
-    assert economico.piso(custo, PARAMS, "padrao") > economico.piso(custo, PARAMS, "medicamento")
+    assert economico.piso(custo, params_sem_margem, "padrao") > economico.piso(custo, params_sem_margem, "medicamento")
 
 
 def test_piso_usa_contribuicao_minima_em_item_barato():
@@ -240,3 +245,49 @@ def test_travas_ok_de_ponta_a_ponta():
     assert r.status == "OK"
     assert r.preco_sugerido is not None
     assert r.piso is not None and r.preco_sugerido >= r.piso - 1e-9
+
+
+# --- Testes novos: margem bruta minima no piso (2026-08-08) ---
+
+def test_piso_respeita_margem_bruta_minima():
+    """Custo 35.35, margem minima 25% -> piso >= 47.13."""
+    params_com_margem = dict(PARAMS)
+    params_com_margem["premissas"] = dict(PARAMS["premissas"])
+    params_com_margem["premissas"]["margem_bruta_minima_pct"] = 0.25
+    resultado = economico.piso(35.35, params_com_margem, "medicamento")
+    assert resultado == pytest.approx(35.35 / (1 - 0.25))  # 47.13
+
+
+def test_piso_margem_zero_nao_altera():
+    """Com margem_bruta_minima_pct = 0, comportamento identico ao sem margem."""
+    params_sem_margem = dict(PARAMS)
+    params_sem_margem["premissas"] = dict(PARAMS["premissas"])
+    params_sem_margem["premissas"]["margem_bruta_minima_pct"] = 0.0
+    # Deve cair no comportamento antigo: max(piso_simples, piso_contribuicao)
+    resultado = economico.piso(10.0, params_sem_margem, "padrao")
+    piso_simples = 10.0 / economico.divisor_piso_contribuicao(params_sem_margem, "padrao")
+    piso_contrib = 10.0 + params_sem_margem["premissas"]["contribuicao_minima_reais"]
+    assert resultado == max(piso_simples, piso_contrib)
+
+
+def test_piso_prevalece_maior_dos_tres():
+    """Com margem minima alta, o piso_margem deve prevalecer sobre os outros."""
+    params_margem_alta = dict(PARAMS)
+    params_margem_alta["premissas"] = dict(PARAMS["premissas"])
+    params_margem_alta["premissas"]["margem_bruta_minima_pct"] = 0.90
+    # piso_margem = 10 / 0.10 = 100, muito maior que piso_simples e piso_contribuicao
+    resultado = economico.piso(10.0, params_margem_alta, "medicamento")
+    assert resultado == pytest.approx(10.0 / 0.10)  # 100.0
+
+
+def test_piso_margem_bruta_invalida_ignorada():
+    """Margem >= 1 ou <= 0 nao deve ser aplicada (evita divisao por zero ou negativa)."""
+    for valor_invalido in (1.0, 0.0, -0.1):
+        params = dict(PARAMS)
+        params["premissas"] = dict(PARAMS["premissas"])
+        params["premissas"]["margem_bruta_minima_pct"] = valor_invalido
+        resultado = economico.piso(10.0, params, "padrao")
+        # Com margem invalida, cai no max(piso_simples, piso_contribuicao)
+        piso_simples = 10.0 / economico.divisor_piso_contribuicao(params, "padrao")
+        piso_contrib = 10.0 + params["premissas"]["contribuicao_minima_reais"]
+        assert resultado == max(piso_simples, piso_contrib), f"falhou para margem={valor_invalido}"
