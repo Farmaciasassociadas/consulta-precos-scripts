@@ -225,7 +225,7 @@ ativo = true
 drogaraia = 4.0     # mais proxima — mesmo quarteirao
 farmasp = 3.5       # muito proxima (farmasp/saopaulo = mesma loja)
 saopaulo = 3.5      # idem
-saojoao = 1.5       # distancia media
+saojoao = 2.0       # perto tambem, so um pouco menos que Raia/Sao Paulo (2026-08-10)
 nissei = 1.0        # mais distante
 
 [farmacia_popular]
