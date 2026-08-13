@@ -23,19 +23,43 @@ DEPARA_PROVISORIO = {
 }
 
 
-def _categoria_provisoria(grupo_pai_nf: str | None) -> str | None:
-    return DEPARA_PROVISORIO.get((grupo_pai_nf or "").strip())
+def _categoria_provisoria(grupo_pai_nf: str | None,
+                          grupo_filho_nf: str | None = None,
+                          classificacoes: set[str] | None = None) -> str | None:
+    """Categoria da politica a partir dos grupos da NF.
+
+    Tenta primeiro `PAI > FILHO` exatamente como esta em politica_categoria --
+    a tabela ja tem 50 classificacoes nesse formato (ETICOS > RX, VAREJO >
+    LEITES, SIMILAR > CONTROLADO...). So depois cai no de-para do PAI.
+
+    Ate 12/08/2026 so o PAI era consultado, e por um de-para de 6 entradas que
+    nao incluia ETICOS, LIBERADO nem VAREJO. Enquanto o relatorio de NF antigo
+    trazia GENERICO/SIMILAR/REFERENCIA isso passava; o relatorio novo usa a
+    taxonomia PAI=ETICOS/LIBERADO/VAREJO e 415 itens (299 com estoque) ficaram
+    sem regra financeira -- inclusive 23 CONTROLADOS, que a politica manda
+    mandar para REVISAO_HUMANA e que sem categoria nem chegavam la.
+    """
+    pai = (grupo_pai_nf or "").strip()
+    filho = (grupo_filho_nf or "").strip()
+    if classificacoes and pai and filho:
+        exata = f"{pai} > {filho}"
+        if exata in classificacoes:
+            return exata
+    if classificacoes and pai in classificacoes:
+        return pai
+    return DEPARA_PROVISORIO.get(pai)
 
 
 def buscar_produtos(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     conn.row_factory = sqlite3.Row
     sql = """
     SELECT
-        p.ean, p.descricao, p.grupo_pai_nf, p.marca_propria, p.marca_exclusiva_preco,
+        p.ean, p.descricao, p.grupo_pai_nf, p.grupo_filho_nf, p.marca_propria, p.marca_exclusiva_preco,
         c.custo_medio, c.n_compras, c.tem_icms_st,
         b.vum AS vum_brick, b.curva_abc, b.segmento,
         e.preco_venda_atual, e.estoque_atual,
-        m.pmc
+        m.pmc,
+        f.pmpf, f.multiplo AS pmpf_multiplo
     FROM produto p
     LEFT JOIN (
         SELECT ean, AVG(custo_unitario) AS custo_medio, COUNT(*) AS n_compras, MAX(tem_icms_st) AS tem_icms_st
@@ -44,6 +68,7 @@ def buscar_produtos(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     LEFT JOIN preco_brick b ON b.ean = p.ean
     LEFT JOIN estoque e ON e.ean = p.ean
     LEFT JOIN pmc_cmed_pr m ON m.ean = p.ean
+    LEFT JOIN pmpf_pr f ON f.ean = p.ean
     """
     return conn.execute(sql).fetchall()
 
@@ -77,7 +102,11 @@ def observacoes_do_ean(conn: sqlite3.Connection, ean: str) -> list[mercado.Obser
     ]
 
 
-def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = None) -> int:
+def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = None,
+                     ajuste_lucro_sem_vizinhanca: float = 0.0) -> int:
+    """`ajuste_lucro_sem_vizinhanca` e o acrescimo de lucro-alvo da Fase 3
+    (controle de margem do mix), aplicado SO em itens sem vizinhanca local --
+    ver economico.ajuste_lucro_alvo_mix e rodar_com_controle_de_mix."""
     params = parametros.carregar()
     data_referencia = date.today()
 
@@ -85,6 +114,8 @@ def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = N
     rodada_id = cur.lastrowid
 
     produtos = buscar_produtos(conn)
+    classificacoes_com_politica = {
+        r[0] for r in conn.execute("SELECT classificacao_exata FROM politica_categoria")}
     try:
         chamariz_eans = {r[0] for r in conn.execute("SELECT ean FROM chamariz_vigente")}
     except sqlite3.OperationalError:
@@ -136,7 +167,8 @@ def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = N
         subcategoria = conn.execute(
             "SELECT classificacao_exata FROM subcategoria_classificada WHERE ean = ?", (ean,)
         ).fetchone()
-        categoria = subcategoria[0] if subcategoria else _categoria_provisoria(row["grupo_pai_nf"])
+        categoria = subcategoria[0] if subcategoria else _categoria_provisoria(
+            row["grupo_pai_nf"], row["grupo_filho_nf"], classificacoes_com_politica)
 
         # Paridade com o motor do app (precificacao/ do ConsultaPrecosEAN): o
         # segmento auditado do Brick corrige o eixo (GENERICO/ETICOS/SIMILAR)
@@ -170,6 +202,14 @@ def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = N
             vum_brick=row["vum_brick"] if row["custo_medio"] is not None else None,
             segmento_brick=row["segmento"],
             natureza_fiscal_item=natureza,
+            # Paridade com o app: sem o custo aqui a guarda `_brick_incoerente`
+            # nunca dispara (ela exige as duas testemunhas, custo E web) -- ficou
+            # morta nesta copia batch ate 12/08/2026, e por isso o LACTA BOMBOM
+            # (custo 1,06, Brick 120,02 de display) saia a R$ 139,99 aqui mas nao
+            # no app.
+            custo=row["custo_medio"],
+            pmpf=row["pmpf"],
+            pmpf_multiplo=row["pmpf_multiplo"],
         )
 
         tier = economico.determinar_tier(
@@ -188,13 +228,26 @@ def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = N
         # da VIZINHANCA local quando ela e confiavel (mercado.selecionar_vizinhanca);
         # os sites remotos continuam valendo para n/cv/divergencia. menor/maior
         # local alimentam o piso competitivo e os status honestos.
+        # Paridade com o app: a ancora do piso/teto competitivo usa
+        # `observacoes_locais` (TODOS os locais que sobreviveram as camadas),
+        # nao `observacoes_alvo` -- barra de evidencia mais baixa, porque um
+        # unico preco local ja prova que existe loja ao lado vendendo por
+        # aquilo. Ver mercado.selecionar_vizinhanca e [mercado.ancora_competitiva].
         precos_concorrentes = list(resultado_mercado.precos_alvo)
-        menor_local = (min(resultado_mercado.precos_alvo)
-                       if resultado_mercado.alvo_so_local and resultado_mercado.precos_alvo
-                       else None)
-        maior_local = (max(resultado_mercado.precos_alvo)
-                       if resultado_mercado.alvo_so_local and resultado_mercado.precos_alvo
-                       else None)
+        menor_local = maior_local = None
+        if resultado_mercado.observacoes_locais:
+            menor_local, maior_local, _motivo = mercado.ancora_competitiva_local(
+                list(resultado_mercado.observacoes_locais), params)
+
+        # Fase 3: so quem NAO tem vizinhanca local visivel absorve o ajuste de
+        # mix -- subir preco onde o cliente compara e' como se perde cliente.
+        lucro_alvo = politica[1] if politica else None
+        if lucro_alvo is not None and not resultado_mercado.alvo_so_local:
+            lucro_alvo += ajuste_lucro_sem_vizinhanca
+        # Fase 6: premio de risco de inventario da celula ABC-XYZ. Devolve 0,0
+        # enquanto [xyz] estiver desligado (sem historico de venda).
+        if lucro_alvo is not None:
+            lucro_alvo += economico.premio_risco_xyz(row["curva_abc"], None, params)
 
         resultado = economico.aplicar_travas(
             custo=row["custo_medio"],
@@ -202,7 +255,7 @@ def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = N
             tier=tier,
             valor_referencia_mercado=resultado_mercado.valor_referencia,
             divergencia_brick_web=resultado_mercado.divergencia_brick_web,
-            lucro_liquido_alvo_pct=politica[1] if politica else None,
+            lucro_liquido_alvo_pct=lucro_alvo,
             teto_cmed=row["pmc"],
             preco_atual=preco_atual_final,
             params=params,
@@ -228,7 +281,8 @@ def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = N
                 tier=tier,
                 valor_referencia_mercado=resultado_mercado.valor_referencia,
                 divergencia_brick_web=resultado_mercado.divergencia_brick_web,
-                lucro_liquido_alvo_pct=lucro_mediano_fallback,
+                lucro_liquido_alvo_pct=lucro_mediano_fallback + (
+                    0.0 if resultado_mercado.alvo_so_local else ajuste_lucro_sem_vizinhanca),
                 teto_cmed=row["pmc"],
                 preco_atual=preco_atual_final,
                 params=params,
@@ -344,10 +398,59 @@ def comparar_com_anterior(conn: sqlite3.Connection, rodada_atual: int) -> None:
     print(f"    dos quais deixaram de ter preco: {perderam_preco}")
 
 
+def margem_bruta_do_mix(conn: sqlite3.Connection, rodada_id: int) -> float | None:
+    """Margem bruta AGREGADA da rodada: soma dos lucros / soma dos precos.
+
+    Agregada, nao mediana: e' a margem que a DRE enxerga. Sem historico de
+    venda proprio nao ha peso de volume para aplicar -- cada item entra uma
+    vez. Quando houver venda, trocar por soma ponderada pelas unidades.
+    """
+    linha = conn.execute(
+        "SELECT SUM(preco_sugerido - custo), SUM(preco_sugerido) FROM recomendacao "
+        "WHERE rodada_id = ? AND preco_sugerido IS NOT NULL AND custo IS NOT NULL",
+        (rodada_id,)).fetchone()
+    if not linha or not linha[1]:
+        return None
+    return linha[0] / linha[1]
+
+
+def rodar_com_controle_de_mix(conn: sqlite3.Connection, observacao: str | None) -> int:
+    """Fase 3: roda, mede a margem do mix e, se ficou abaixo da meta da DRE,
+    roda de novo elevando o lucro-alvo SO nos itens sem vizinhanca local.
+
+    Duas passadas, nao um laco: a segunda ja usa o ajuste calculado com a
+    medicao da primeira, e iterar mais nao converge melhor -- so multiplica
+    rodadas no banco. Se a meta continuar longe, o motivo aparece no aviso de
+    `ajuste_lucro_alvo_mix` e a resposta nao esta no preco.
+    """
+    params = parametros.carregar()
+    rodada_id = processar_rodada(conn, observacao)
+    margem = margem_bruta_do_mix(conn, rodada_id)
+    ajuste, motivo = economico.ajuste_lucro_alvo_mix(margem, params)
+    if motivo:
+        print("\n=== Controle de margem do mix ===")
+        print(f"  {motivo}")
+    if ajuste <= 0:
+        return rodada_id
+
+    conn.execute("DELETE FROM recomendacao WHERE rodada_id = ?", (rodada_id,))
+    conn.execute("DELETE FROM rodada WHERE id = ?", (rodada_id,))
+    conn.commit()
+    rodada_id = processar_rodada(
+        conn, f"{observacao} + ajuste de mix {ajuste:.1%}",
+        ajuste_lucro_sem_vizinhanca=ajuste)
+    nova = margem_bruta_do_mix(conn, rodada_id)
+    if nova is not None and margem is not None:
+        print(f"  margem do mix: {margem:.2%} -> {nova:.2%} "
+              f"(meta {economico.margem_bruta_meta_mix(params):.2%})")
+    return rodada_id
+
+
 def main() -> None:
     conn = db.connect()
     db.criar_schema(conn)
-    rodada_id = processar_rodada(conn, "rodada_v2_com_outlier_fix_e_controlados_habilitados")
+    rodada_id = rodar_com_controle_de_mix(
+        conn, "rodada_v2_com_outlier_fix_e_controlados_habilitados")
     resumo_rodada(conn, rodada_id)
     comparar_com_anterior(conn, rodada_id)
     conn.close()

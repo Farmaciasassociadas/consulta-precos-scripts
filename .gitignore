@@ -1,2 +1,10 @@
 # Cache/config de ferramentas locais (skills), nao faz parte do projeto
 .impeccable/
+
+# Saidas geradas por rodada (o repo versiona o CODIGO e o precificador.db,
+# nao os relatorios). Regerar com os scripts do proprio precificador.
+Precificação/decisao_humana_rodada_*.xlsx
+Precificação/eans_nunca_pesquisados.xlsx
+Precificação/fila_coleta*.csv
+Precificação/precificador/experimento_elasticidade.csv
+Precificação/precificador/*_backup_*.db

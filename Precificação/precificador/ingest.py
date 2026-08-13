@@ -7,6 +7,7 @@ registra cada carga em carga_log.
 from __future__ import annotations
 
 import csv
+import unicodedata
 import sqlite3
 from pathlib import Path
 
@@ -17,7 +18,31 @@ from caminhos import CONSULTA_PRECOS, MARCA_EXCLUSIVA_XLSX, SUBCATEGORIA_XLSX
 
 ROOT = Path(__file__).parent.parent
 
-CUSTO_NF_XLSX = ROOT / "Relatório notas fiscais 24-07_com_custo_unitario.xlsx"
+# Relatorio de entradas por nota fiscal, nivel ITEM. Atualizado em 12/08/2026
+# para o export corrente do sistema (.xls, ja com as colunas IBS/CBS/IS).
+CUSTO_NF_XLSX = Path(
+    r"G:\.shortcut-targets-by-id\1q0IRmUp06SR55V7qNb7wVLwWjEauQntR\DROGARIA\todas nfs.xls")
+if not CUSTO_NF_XLSX.exists():  # fallback: export antigo, versionado no repo
+    CUSTO_NF_XLSX = ROOT / "Relatório notas fiscais 24-07_com_custo_unitario.xlsx"
+EMBALAGENS_CSV = CONSULTA_PRECOS / "embalagens_produtos.csv"
+
+
+def _carregar_fatores_venda() -> dict[str, float]:
+    """{ean: fator_venda} -- mesma tabela do app (embalagens_produtos.csv)."""
+    fatores: dict[str, float] = {}
+    try:
+        with EMBALAGENS_CSV.open(encoding="utf-8-sig", newline="") as fh:
+            for linha in csv.DictReader(fh):
+                ean = normalizar_ean(linha.get("ean"))
+                try:
+                    fator = float(str(linha.get("fator_venda") or 1).replace(",", "."))
+                except ValueError:
+                    continue
+                if ean and fator > 0:
+                    fatores[ean] = fator
+    except OSError:
+        pass
+    return fatores
 BRICK_ESTOQUE_XLSX = ROOT / "outputs" / "consolidado_estoque" / "estoque_pmc_brick.xlsx"
 PMC_PR_XLSX = ROOT / "outputs" / "eans_pmc" / "ean_descricao_fabricante_pmc_pr.xlsx"
 POLITICA_CSV = ROOT / "POLITICA_MARKUP_POR_CATEGORIA.csv"
@@ -40,24 +65,84 @@ def _numero(valor) -> float | None:
     return None
 
 
+ROTULOS_NF = {
+    "codigo de barras": "barras",
+    "descricao do produto": "descricao",
+    "qtde unitaria": "qtde",
+    "valor unitario bruto": "unitario",
+    "valor total do item": "total_item",
+    "valor do icms st": "icms_st",
+    "descricao do grupo pai": "grupo_pai",
+    "descricao do grupo filho": "grupo_filho",
+}
+
+
+def _chave_rotulo(texto) -> str:
+    bruto = unicodedata.normalize("NFKD", str(texto or ""))
+    limpo = "".join(c for c in bruto if not unicodedata.combining(c))
+    return " ".join("".join(c for c in limpo.lower() if c.isalnum() or c.isspace()).split())
+
+
+def _mapear_colunas_nf(linhas_iniciais) -> dict[str, int]:
+    """Acha as colunas pelo NOME do cabecalho.
+
+    Mesma correcao feita no app em 12/08/2026 (`calcular_custos.mapear_colunas`):
+    o relatorio ganhou as colunas Valor IBS / Valor CBS / Valor IS da reforma
+    tributaria e TODOS os indices andaram. Com indice fixo o ingest leria NCM
+    como EAN e gravaria custo errado sem erro nenhum.
+    """
+    for linha in linhas_iniciais:
+        achado: dict[str, int] = {}
+        for indice, valor in enumerate(linha):
+            nome = ROTULOS_NF.get(_chave_rotulo(valor))
+            if nome and nome not in achado:
+                achado[nome] = indice
+        if len(achado) == len(ROTULOS_NF):
+            return achado
+    raise SystemExit(
+        f"Cabecalho nao reconhecido em {CUSTO_NF_XLSX.name}. Esperado o "
+        "'Relatorio de entradas por nota fiscal' com as colunas de item "
+        f"({', '.join(sorted(ROTULOS_NF))})."
+    )
+
+
+def _linhas_da_planilha(caminho: Path) -> list[list]:
+    """Le .xls (xlrd) e .xlsx (openpyxl) -- o sistema exporta .xls por padrao."""
+    if caminho.suffix.lower() == ".xls":
+        import xlrd
+        aba = xlrd.open_workbook(str(caminho)).sheet_by_index(0)
+        return [aba.row_values(i) for i in range(aba.nrows)]
+    ws = load_workbook(caminho, read_only=True, data_only=True).active
+    return [list(linha) for linha in ws.iter_rows(values_only=True)]
+
+
 def carregar_custos_nf(conn: sqlite3.Connection) -> int:
-    ws = load_workbook(CUSTO_NF_XLSX, read_only=True, data_only=True).active
+    todas = _linhas_da_planilha(CUSTO_NF_XLSX)
+    col = _mapear_colunas_nf(todas[:12])
+    fatores = _carregar_fatores_venda()
     linhas = []
     produtos: dict[str, tuple[str, str | None, str | None]] = {}
-    for row in ws.iter_rows(min_row=5, values_only=True):
-        ean = normalizar_ean(row[9])
-        descricao = row[10]
+    for row in todas[4:]:
+        if len(row) <= max(col.values()):
+            continue
+        ean = normalizar_ean(row[col["barras"]])
+        descricao = row[col["descricao"]]
         if not ean or not descricao:
             continue
-        quantidade, custo_unitario, valor_total = _numero(row[13]), _numero(row[25]), _numero(row[26])
-        if quantidade is None or custo_unitario is None or valor_total is None:
+        quantidade, valor_total = _numero(row[col["qtde"]]), _numero(row[col["total_item"]])
+        if quantidade is None or valor_total is None:
             continue
-        if not (quantidade > 0 and custo_unitario > 0 and valor_total > 0):
+        if not (quantidade > 0 and valor_total > 0):
             continue
-        tem_icms_st = 1 if (_numero(row[18]) or 0) > 0 else 0
+        # Paridade com o app: a quantidade e' contada em UNIDADES DE VENDA. Sem
+        # isto o NEVRALGEX (NF em caixa de 100, venda em cartela de 10) entrava
+        # a R$ 25,00 por cartela em vez de R$ 2,50.
+        quantidade *= fatores.get(ean, 1.0)
+        custo_unitario = valor_total / quantidade
+        tem_icms_st = 1 if (_numero(row[col["icms_st"]]) or 0) > 0 else 0
         linhas.append((ean, quantidade, custo_unitario, valor_total, tem_icms_st))
-        grupo_filho = str(row[27]).strip() if row[27] else None
-        grupo_pai = str(row[28]).strip() if row[28] else None
+        grupo_filho = str(row[col["grupo_filho"]]).strip() if row[col["grupo_filho"]] else None
+        grupo_pai = str(row[col["grupo_pai"]]).strip() if row[col["grupo_pai"]] else None
         produtos.setdefault(ean, (str(descricao).strip(), grupo_pai, grupo_filho))
 
     conn.execute("DELETE FROM custo_nf")
