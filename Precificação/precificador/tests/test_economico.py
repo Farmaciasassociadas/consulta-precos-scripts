@@ -30,11 +30,27 @@ def test_natureza_fiscal_varejo_padrao():
     assert economico.natureza_fiscal("VAREJO > LEITES", tem_icms_st=False) == "padrao"
 
 
-def test_divisor_piso_bate_com_tabela_do_plano():
-    # PLANO_SISTEMA_PRECIFICACAO.md Parte 2.2
-    assert economico.divisor_piso(PARAMS, "medicamento") == pytest.approx(0.7698, abs=0.0005)
-    assert economico.divisor_piso(PARAMS, "perfumaria_higiene") == pytest.approx(0.7495, abs=0.0005)
-    assert economico.divisor_piso(PARAMS, "padrao") == pytest.approx(0.7402, abs=0.0005)
+def test_divisor_piso_desconta_toda_a_estrutura():
+    """Composicao, nao constante: `despesas_fixas_pct` e parametro de negocio e
+    mudou em 12/08/2026 (17,5% -> 23,33%, calibrado com R$ 35 mil reais de
+    estrutura sobre R$ 150 mil/mes). Pinar o resultado aqui transformava uma
+    decisao financeira em quebra de teste."""
+    prem = PARAMS["premissas"]
+    for natureza in ("medicamento", "perfumaria_higiene", "padrao"):
+        esperado = (1 - prem["cartao_pct"] - prem["despesas_fixas_pct"]
+                    - economico.despesas_de_comercializacao(PARAMS)
+                    - economico.aliquota_simples_efetiva(PARAMS, natureza))
+        assert economico.divisor_piso(PARAMS, natureza) == pytest.approx(esperado)
+    # O divisor do ALVO rateia MAIS que o do piso: a despesa fixa entra so nele.
+    for natureza in ("medicamento", "perfumaria_higiene", "padrao"):
+        assert economico.divisor_piso(PARAMS, natureza) < economico.divisor_piso_contribuicao(
+            PARAMS, natureza)
+
+
+def test_despesas_de_comercializacao_soma_pbm_so_quando_pedido():
+    base = economico.despesas_de_comercializacao(PARAMS)
+    com_pbm = economico.despesas_de_comercializacao(PARAMS, tem_pbm=True)
+    assert com_pbm == pytest.approx(base + PARAMS["premissas"].get("pbm_taxa_pct", 0.0))
 
 
 def test_piso_e_maior_para_natureza_padrao_que_medicamento():
@@ -187,7 +203,9 @@ def test_travas_mercado_abaixo_do_custo_sugere_preco_no_piso():
         custo=15.0, natureza_fiscal_item="padrao", tier="PADRAO", valor_referencia_mercado=12.0,
         divergencia_brick_web=False, lucro_liquido_alvo_pct=0.10, teto_cmed=None, preco_atual=None, params=PARAMS,
     )
-    assert r.status == "REVISAO_MANUAL_CUSTO_OU_EMBALAGEM"
+    # MUDANCA 12/08/2026: custo 15 contra mercado 12 e' 1,25x -- compra ruim, nao
+    # erro de embalagem (esse e' >= 3x). Precifica no piso minimo e segue.
+    assert r.status == "OK_MARGEM_MINIMA_MERCADO"
     assert r.preco_sugerido is not None
     assert r.preco_sugerido >= r.piso - 1e-9
 
@@ -200,8 +218,10 @@ def test_travas_piso_acima_do_teto_cmed():
         custo=50.0, natureza_fiscal_item="medicamento", tier="PADRAO", valor_referencia_mercado=60.0,
         divergencia_brick_web=False, lucro_liquido_alvo_pct=0.10, teto_cmed=50.0, preco_atual=None, params=PARAMS,
     )
-    assert r.status == "REVISAO_MANUAL_PISO_ACIMA_DO_TETO"
-    assert r.preco_sugerido == 50.0
+    # MUDANCA 12/08/2026: o teto CMED e' lei, nao ha decisao humana a tomar --
+    # o preco E' o teto, descido para a maior terminacao da grade que cabe nele.
+    assert r.status == "OK_TETO_CMED"
+    assert r.preco_sugerido is not None and r.preco_sugerido <= 50.0
 
 
 def test_travas_preco_atual_nao_disponivel_nao_trava_mais():
@@ -306,3 +326,208 @@ def test_piso_margem_bruta_invalida_ignorada():
         piso_simples = 10.0 / economico.divisor_piso_contribuicao(params, "padrao")
         piso_contrib = 10.0 + params["premissas"]["contribuicao_minima_reais"]
         assert resultado == max(piso_simples, piso_contrib), f"falhou para margem={valor_invalido}"
+
+
+# --- Grade psicologica por limiar de digito da esquerda (ESTUDO_PRICING_2026) ---
+
+def test_fronteira_digito_esquerda_por_faixa():
+    assert economico.fronteira_digito_esquerda(19.49) == 20.0    # abaixo de 20: passo 1
+    assert economico.fronteira_digito_esquerda(19.99) == 20.0
+    assert economico.fronteira_digito_esquerda(46.20) == 50.0    # 20-100: passo 5
+    assert economico.fronteira_digito_esquerda(112.00) == 120.0  # acima: passo 10
+
+
+def test_grade_limiar_sobe_ate_a_fronteira_sem_cruza_la():
+    # alvo 19,30: a regra antiga escolhe 19,49 (a mais proxima). A nova sobe ate
+    # 19,79 -- o maximo que cabe na tolerancia de 3% (19,88) sem cruzar o 20,00.
+    r = economico.arredondar_grade(
+        alvo=19.30, piso_valor=15.0, teto=None,
+        terminacoes=PARAMS["grade"]["terminacoes"], params=PARAMS)
+    assert r.preco == pytest.approx(19.79)
+
+    # alvo 19,60: a tolerancia (20,19) ja alcanca o 19,99, mas a fronteira do
+    # digito da esquerda corta ali -- nunca em 20,49.
+    r = economico.arredondar_grade(
+        alvo=19.60, piso_valor=15.0, teto=None,
+        terminacoes=PARAMS["grade"]["terminacoes"], params=PARAMS)
+    assert r.preco == pytest.approx(19.99)
+
+
+def test_grade_limiar_respeita_tolerancia_sobre_o_alvo():
+    # alvo 19,00 -> base 18,99, e a fronteira do digito da esquerda e' 19,00:
+    # nao ha para onde subir sem virar "dezenove". Fica em 18,99.
+    r = economico.arredondar_grade(
+        alvo=19.00, piso_valor=15.0, teto=None,
+        terminacoes=PARAMS["grade"]["terminacoes"], params=PARAMS)
+    assert r.preco == pytest.approx(18.99)
+
+    # alvo 46,00 (faixa de passo 5): sobe ate 46,99, nunca ate 47,49 -- a
+    # tolerancia de 3% (47,38) permitiria, a fronteira nao.
+    r = economico.arredondar_grade(
+        alvo=46.00, piso_valor=40.0, teto=None,
+        terminacoes=PARAMS["grade"]["terminacoes"], params=PARAMS)
+    assert 46.00 <= r.preco < 47.00
+
+
+def test_grade_limiar_nao_ultrapassa_concorrente_local():
+    # Ha concorrente local a 19,60: subir para 19,99 nos tornaria mais caros
+    # que ele. A regra para em 19,49.
+    r = economico.arredondar_grade(
+        alvo=19.30, piso_valor=15.0, teto=None,
+        terminacoes=PARAMS["grade"]["terminacoes"], params=PARAMS,
+        precos_locais=[17.00, 19.60, 22.00])
+    assert r.preco == pytest.approx(19.49)
+
+
+def test_grade_limiar_nao_sobe_quando_ja_somos_o_mais_caro():
+    r = economico.arredondar_grade(
+        alvo=19.30, piso_valor=15.0, teto=None,
+        terminacoes=PARAMS["grade"]["terminacoes"], params=PARAMS,
+        precos_locais=[15.00, 16.00, 17.00])
+    assert r.preco == pytest.approx(19.49)
+
+
+def test_grade_sem_params_mantem_comportamento_antigo():
+    r = economico.arredondar_grade(
+        alvo=19.30, piso_valor=15.0, teto=None,
+        terminacoes=PARAMS["grade"]["terminacoes"])
+    assert r.preco == pytest.approx(19.49)
+
+
+# --- Teto competitivo ---
+
+def test_teto_competitivo_limita_preco_acima_de_toda_a_praca():
+    r = economico.aplicar_travas(
+        custo=10.0, natureza_fiscal_item="perfumaria_higiene", tier="PROTECAO_MARGEM",
+        valor_referencia_mercado=20.0, divergencia_brick_web=False,
+        lucro_liquido_alvo_pct=0.20, teto_cmed=None, preco_atual=None, params=PARAMS,
+        precos_concorrentes=[16.0, 17.0, 18.0], curva_abc="B",
+        menor_concorrente_local=16.0, maior_concorrente_local=18.0,
+    )
+    assert r.preco_sugerido is not None
+    assert r.preco_sugerido <= 18.0
+
+
+def test_teto_competitivo_cede_para_o_piso():
+    # Custo alto: o piso nao cabe abaixo do maior local. O preco fica acima da
+    # praca de proposito e o status honesto sinaliza -- nao vende no prejuizo.
+    r = economico.aplicar_travas(
+        custo=20.0, natureza_fiscal_item="perfumaria_higiene", tier="PROTECAO_MARGEM",
+        valor_referencia_mercado=24.0, divergencia_brick_web=False,
+        lucro_liquido_alvo_pct=0.20, teto_cmed=None, preco_atual=None, params=PARAMS,
+        precos_concorrentes=[22.0, 24.0, 25.0], curva_abc="B",
+        menor_concorrente_local=22.0, maior_concorrente_local=25.0,
+    )
+    # MUDANCA 12/08/2026: antes de devolver um preco que nao vende, o motor
+    # tenta o PISO MINIMO (sem a margem-alvo da DRE). Aqui ele cabe embaixo do
+    # maior local (25,00), entao o item volta para dentro do mercado com margem
+    # baixa em vez de ficar acima da praca inteira.
+    assert r.status == "OK_MARGEM_MINIMA_MERCADO"
+    assert r.preco_sugerido <= 25.0
+
+
+def test_teto_competitivo_nao_se_aplica_a_chamariz():
+    r = economico.aplicar_travas(
+        custo=10.0, natureza_fiscal_item="perfumaria_higiene", tier="PROTECAO_MARGEM",
+        valor_referencia_mercado=20.0, divergencia_brick_web=False,
+        lucro_liquido_alvo_pct=0.20, teto_cmed=None, preco_atual=None, params=PARAMS,
+        precos_concorrentes=[16.0, 17.0, 18.0], curva_abc="B", e_chamariz=True,
+        menor_concorrente_local=16.0, maior_concorrente_local=18.0,
+    )
+    # chamariz busca o MENOR concorrente, entao nem chega perto do teto
+    assert r.preco_sugerido is not None and r.preco_sugerido <= 16.0
+
+
+def test_piso_competitivo_vira_piso_duro_da_grade():
+    """Ate 12/08/2026 a grade arredondava para BAIXO do menor concorrente local
+    depois de o piso competitivo ter subido o alvo -- e justo por cima da
+    fronteira de digito esquerdo (7,21 -> 6,99), onde mais custa."""
+    grade = economico.arredondar_grade(
+        7.21, 7.21, None, PARAMS["grade"]["terminacoes"], PARAMS, [7.21, 9.90])
+    assert grade.preco is not None and grade.preco >= 7.21
+
+
+def test_piso_duro_cede_para_o_teto_cmed():
+    """Piso competitivo e' politica; teto CMED e' lei. Quando o menor
+    concorrente local esta acima do PMC, o item nao pode ficar sem preco."""
+    grade = economico.arredondar_grade(
+        10.0, 10.0, 9.0, PARAMS["grade"]["terminacoes"], PARAMS, None)
+    # com piso 10 e teto 9 nao existe grade: quem chama tem de ceder o piso
+    assert grade.preco is None
+    grade_ok = economico.arredondar_grade(
+        10.0, 8.0, 9.0, PARAMS["grade"]["terminacoes"], PARAMS, None)
+    assert grade_ok.preco is not None and grade_ok.preco <= 9.0
+
+
+def test_piso_minimo_e_menor_que_o_piso_cheio():
+    """O piso minimo tira a margem-alvo da DRE e deixa so o que e' restricao de
+    verdade: imposto, despesa variavel e a contribuicao em reais."""
+    for natureza in ("medicamento", "perfumaria_higiene", "padrao"):
+        assert economico.piso_minimo(20.0, PARAMS, natureza) < economico.piso(20.0, PARAMS, natureza)
+        assert economico.piso_minimo(20.0, PARAMS, natureza) > 20.0
+
+
+def test_teto_cmed_nao_bloqueia_mais_e_desce_para_a_grade():
+    """Teto CMED e' lei -- nao existe decisao humana. O preco e' o teto, na maior
+    terminacao da grade que cabe nele."""
+    r = economico.aplicar_travas(
+        custo=50.0, natureza_fiscal_item="medicamento", tier="PADRAO",
+        valor_referencia_mercado=60.0, divergencia_brick_web=False,
+        lucro_liquido_alvo_pct=0.10, teto_cmed=50.0, preco_atual=None, params=PARAMS,
+    )
+    assert r.status == "OK_TETO_CMED"
+    assert r.preco_sugerido is not None and r.preco_sugerido <= 50.0
+    assert not r.status.startswith("REVISAO_MANUAL")
+
+
+def test_divergencia_forte_absolvida_quando_a_referencia_e_que_esta_furada():
+    """TRIDENT MENTA C/5 (12/08/2026): custo R$ 1,81, um 'concorrente' a R$ 51,40
+    (preco de display) levou a referencia a R$ 28,81. A sugestao de R$ 4,99
+    estava CERTA e era ela que caia na fila de revisao."""
+    r = economico.aplicar_travas(
+        custo=1.81, natureza_fiscal_item="padrao", tier="PROTECAO_MARGEM",
+        valor_referencia_mercado=28.81, divergencia_brick_web=False,
+        lucro_liquido_alvo_pct=0.10, teto_cmed=None, preco_atual=None, params=PARAMS,
+        precos_concorrentes=[4.55], curva_abc="B",
+    )
+    assert r.status != "REVISAO_MANUAL_DIVERGENCIA_MERCADO_FORTE"
+    assert r.preco_sugerido is not None and r.preco_sugerido < 10.0
+
+
+def test_divergencia_forte_continua_agindo_com_referencia_plausivel():
+    """A absolvicao exige que a REFERENCIA seja implausivel. Referencia a 1,05x o
+    custo faz todo sentido -- quem esta fora e' a sugestao, e a trava age."""
+    params = dict(PARAMS)
+    params["trava"] = dict(PARAMS["trava"])
+    params["trava"]["variacao_maxima_mercado_por_tier"] = dict(
+        PARAMS["trava"]["variacao_maxima_mercado_por_tier"])
+    params["trava"]["variacao_maxima_mercado_por_tier"]["PROTECAO_MARGEM"] = 0.05
+    r = economico.aplicar_travas(
+        custo=10.0, natureza_fiscal_item="padrao", tier="PROTECAO_MARGEM",
+        valor_referencia_mercado=10.5, divergencia_brick_web=False,
+        lucro_liquido_alvo_pct=0.50, teto_cmed=None, preco_atual=None, params=params,
+    )
+    assert r.status == "REVISAO_MANUAL_DIVERGENCIA_MERCADO_FORTE"
+
+
+def test_custo_muito_acima_do_mercado_e_erro_de_embalagem():
+    """SAB PROTEX C/12: custo 39,89 (NF em pack) contra mercado 3,99. 10x nao e'
+    compra ruim, e' fator_venda faltando."""
+    r = economico.aplicar_travas(
+        custo=39.89, natureza_fiscal_item="perfumaria_higiene", tier="PADRAO",
+        valor_referencia_mercado=3.99, divergencia_brick_web=False,
+        lucro_liquido_alvo_pct=0.10, teto_cmed=None, preco_atual=None, params=PARAMS,
+    )
+    assert r.status == "REVISAO_MANUAL_CUSTO_OU_EMBALAGEM"
+
+
+def test_custo_pouco_acima_do_mercado_e_compra_ruim_e_nao_bloqueia():
+    """RISQUE ESM: custo 8,99 contra mercado 7,55. 1,2x nao tem erro de dado
+    nenhum -- e' compra ruim, e o motor tem de precificar e seguir."""
+    r = economico.aplicar_travas(
+        custo=8.99, natureza_fiscal_item="perfumaria_higiene", tier="PADRAO",
+        valor_referencia_mercado=7.55, divergencia_brick_web=False,
+        lucro_liquido_alvo_pct=0.10, teto_cmed=None, preco_atual=None, params=PARAMS,
+    )
+    assert r.status == "OK_MARGEM_MINIMA_MERCADO"
+    assert r.preco_sugerido is not None and r.preco_sugerido > 8.99

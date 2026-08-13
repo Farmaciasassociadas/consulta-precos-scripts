@@ -200,6 +200,34 @@ def test_divergencia_brick_web_e_sinalizada():
     assert r.divergencia_brick_web is True
 
 
+def test_pmpf_desempata_e_desliga_a_bandeira_de_divergencia():
+    # Mesmo caso do teste acima, agora com a terceira testemunha. O PMPF em 50
+    # confirma a web: o desacordo esta explicado (o Brick e' que esta fora) e as
+    # camadas 3-4 ja usam o PMPF como ancora -- nao ha o que conferir na mao.
+    lista = [obs(50.0), obs(52.0), obs(48.0)]
+    r = mercado.calcular_mercado(lista, PARAMS, HOJE, vum_brick=20.0,
+                                 segmento_brick="GEN", pmpf=50.0)
+    assert r.divergencia_brick_web is False
+
+
+def test_pmpf_longe_dos_dois_mantem_a_bandeira():
+    # Terceira testemunha que discorda dos DOIS lados nao explica nada: a
+    # bandeira continua de pe, que e' exatamente a fila que sobra para o humano.
+    lista = [obs(50.0), obs(52.0), obs(48.0)]
+    r = mercado.calcular_mercado(lista, PARAMS, HOJE, vum_brick=20.0,
+                                 segmento_brick="GEN", pmpf=120.0)
+    assert r.divergencia_brick_web is True
+
+
+def test_brick_de_caixa_descartado_com_uma_unica_web_coerente_com_o_custo():
+    # LACTA BOMBOM OURO BRANCO (12/08/2026): custo 1,06, UMA web a 2,99, Brick
+    # 120,02 (preco do display). Com n_min_web=2 a guarda nao disparava e o
+    # sugerido saia a R$ 139,99. O custo e' o segundo testemunho.
+    r = mercado.calcular_mercado([obs(2.99)], PARAMS, HOJE, vum_brick=120.02,
+                                 segmento_brick="NMED", custo=1.06)
+    assert r.mediana is not None and r.mediana < 10.0
+
+
 def test_cluster_acima_brick_e_adotado_quando_concorrentes_convergem():
     # caso real BUPROVIL 600mg C/20 (2026-08-04): Brick 13,93, concorrentes
     # entre 22 e 24.
@@ -349,7 +377,9 @@ def test_ancora_competitiva_nunca_fica_sem_ancora():
     params = _params_ancora(excluir=["nissei"], gap=0.0)
     lista = [obs(18.0, site="nissei")]
     menor, maior, motivo = mercado.ancora_competitiva_local(lista, params)
-    assert menor == 18.0 and maior == 18.0
+    # O PISO volta a usar todos; o TETO nao sai com uma loja so -- o maximo de
+    # uma amostra pequena subestima o maximo real e viraria trava dura.
+    assert menor == 18.0 and maior is None
     assert motivo == ""
 
 
@@ -438,3 +468,93 @@ def test_camada_4b_pega_outlier_para_baixo():
     lista = [obs(2.0), obs(20.0), obs(22.0)]
     r = mercado.filtrar_outliers(lista, PARAMS, HOJE, ancora=None)
     assert sorted(o.preco for o in r.mantidas) == [20.0, 22.0]
+
+
+# --- PMPF-PR como terceira ancora (Fase 2) ---
+
+def test_normalizar_pmpf_divide_pelo_multiplo():
+    # "AAS 100mg - 20 x 10 comprimidos", multiplo 20, PMPF 51,80 = caixa
+    assert mercado.normalizar_pmpf(51.80, 20) == pytest.approx(2.59)
+    assert mercado.normalizar_pmpf(26.38, 1) == pytest.approx(26.38)
+    assert mercado.normalizar_pmpf(26.38, None) == pytest.approx(26.38)
+    assert mercado.normalizar_pmpf(None, 20) is None
+    assert mercado.normalizar_pmpf(0, 20) is None
+
+
+def test_pmpf_entra_na_referencia_e_nao_leva_premio_de_balcao():
+    """O PMPF ja e preco de balcao (NFC-e ao consumidor): aplicar o premio
+    sobre ele converteria balcao em balcao de novo."""
+    amostra = [obs(20.0, site="farmasp"), obs(20.0, site="saojoao"), obs(20.0, site="drogaraia")]
+    sem = mercado.calcular_mercado(amostra, PARAMS, HOJE, natureza_fiscal_item="medicamento")
+    com = mercado.calcular_mercado(amostra, PARAMS, HOJE, natureza_fiscal_item="medicamento",
+                                   pmpf=20.0, pmpf_multiplo=1)
+    premio = PARAMS["mercado"]["premio_balcao"]["medicamento"]
+    peso = PARAMS["mercado"]["pmpf"]["com_vizinhanca_local"]
+    assert sem.valor_referencia == pytest.approx(20.0 * premio)
+    # so a parcela nao-PMPF leva o premio
+    assert com.valor_referencia == pytest.approx(peso * 20.0 + (1 - peso) * 20.0 * premio)
+    assert com.pmpf == pytest.approx(20.0)
+    assert com.peso_pmpf == pytest.approx(peso)
+
+
+def test_pmpf_sem_web_vira_quase_toda_a_referencia():
+    r = mercado.calcular_mercado([], PARAMS, HOJE, natureza_fiscal_item="medicamento",
+                                 pmpf=30.0, pmpf_multiplo=1)
+    assert r.valor_referencia == pytest.approx(30.0)
+    assert r.peso_pmpf == pytest.approx(1.0)
+
+
+def test_pmpf_tem_prioridade_como_ancora_sobre_o_brick():
+    """Brick em 10 (escala nacional) e PMPF em 30 (escala local). Um preco
+    local de 28 sobrevive com o PMPF de ancora e morreria com o Brick."""
+    amostra = [obs(28.0, site="farmasp"), obs(29.0, site="saojoao"), obs(30.0, site="drogaraia")]
+    r = mercado.calcular_mercado(amostra, PARAMS, HOJE, vum_brick=10.0, segmento_brick="GEN",
+                                 natureza_fiscal_item="medicamento", custo=15.0,
+                                 pmpf=30.0, pmpf_multiplo=1)
+    assert r.n == 3, "a banda ancorada no PMPF nao pode apagar os precos locais"
+
+
+# --- Ancora competitiva com 1-2 lojas (causa dos 73 itens) ---
+
+def test_observacoes_locais_saem_mesmo_sem_atingir_n_min_local():
+    amostra = [obs(20.0, site="farmasp"), obs(15.0, site="panvel"), obs(16.0, site="paguemenos")]
+    r = mercado.calcular_mercado(amostra, PARAMS, HOJE)
+    assert r.alvo_so_local is False, "1 loja local nao define o alvo"
+    assert len(r.observacoes_locais) == 1, "mas o local observado ancora piso/teto"
+    menor, maior, _ = mercado.ancora_competitiva_local(list(r.observacoes_locais), PARAMS)
+    assert menor == pytest.approx(20.0), "1 loja local ja ancora o PISO"
+    assert maior is None, "mas nao o TETO: o maximo de 1 observacao nao e' o maximo da praca"
+
+
+def test_teto_competitivo_so_sai_com_tres_lojas():
+    amostra = [obs(20.0, site="farmasp"), obs(22.0, site="saojoao"), obs(25.0, site="drogaraia")]
+    menor, maior, _ = mercado.ancora_competitiva_local(amostra, PARAMS)
+    assert menor == pytest.approx(20.0) and maior == pytest.approx(25.0)
+
+
+def test_ancora_competitiva_respeita_n_min_lojas():
+    import copy
+    p = copy.deepcopy(PARAMS)
+    p["mercado"]["ancora_competitiva"]["n_min_lojas"] = 2
+    amostra = [obs(20.0, site="farmasp")]
+    assert mercado.ancora_competitiva_local(amostra, p) == (None, None, "")
+
+
+def test_cluster_volta_a_agir_sob_pmpf_com_tres_lojas():
+    """PROFENID 100mg INJ (12/08/2026): PMPF R$ 7,65 contra oito lojas entre
+    R$ 30,92 e R$ 43,49. A banda do PMPF apagava as oito e a sugestao saia a
+    R$ 7,79 -- 20% do mercado. Tres lojas independentes ja bastam para o
+    cluster devolver o mercado real."""
+    lista = [obs(36.99, site="saopaulo"), obs(38.99, site="saojoao"),
+             obs(38.44, site="precopopular"), obs(43.29, site="paguemenos")]
+    r = mercado.calcular_mercado(lista, PARAMS, HOJE, vum_brick=None, pmpf=7.65)
+    assert r.cluster_acima_brick is True
+    assert r.mediana is not None and r.mediana > 30.0
+
+
+def test_cluster_sob_pmpf_nao_age_com_duas_lojas():
+    """DORALGINA C/4: com duas fontes so, devolver preco que o PMPF rejeitou e'
+    exatamente o erro de apresentacao que a banda existe para pegar."""
+    lista = [obs(60.0, site="drogaraia"), obs(62.0, site="paguemenos")]
+    r = mercado.calcular_mercado(lista, PARAMS, HOJE, vum_brick=None, pmpf=5.72)
+    assert r.cluster_acima_brick is False

@@ -4,16 +4,64 @@
 
 [premissas]
 cartao_pct = 0.0250
-# Despesa FIXA (aluguel, folha, energia): custo do PERÍODO. Entra no ALVO
-# (divisor_piso) — o preço praticado no mix tem de pagar a estrutura — mas
-# NÃO no piso mínimo de venda, porque não desaparece se a unidade não vender.
-despesas_fixas_pct = 0.1750
+# Despesa FIXA (aluguel, folha, pró-labore, energia, sistema): custo do PERÍODO.
+# Entra no ALVO (divisor_piso) — o preço praticado no mix tem de pagar a
+# estrutura — mas NÃO no piso mínimo de venda, porque não desaparece se a
+# unidade não vender.
+#
+# CALIBRADO EM 12/08/2026 COM NÚMERO REAL DO USUÁRIO, não estimativa:
+#   estrutura fixa mensal = R$ 35.000 (salários, pró-labore, energia, água,
+#   internet, sistema e tudo mais que não varia com a venda)
+#   faturamento de regime adotado = R$ 150.000/mês
+#   35.000 / 150.000 = 23,3%
+#
+# Por que R$ 150 mil e não os R$ 60-100 mil esperados nos primeiros meses:
+# preço não conserta faturamento insuficiente. Ratear R$ 35 mil sobre R$ 60 mil
+# daria 58,3% e um alvo econômico de 5,2x o custo — preço que ninguém paga, que
+# reduziria ainda mais o volume e aprofundaria o buraco. O rateio no preço tem
+# de refletir o regime que a loja planeja operar; o desencontro da rampa é
+# financiado por capital, que é para isso que ele existe.
+#
+# Por que R$ 150 mil e não os R$ 450 mil do ponto maduro: assumir o ponto maduro
+# hoje (7,8%) seria comprar volume com capital sem ter decidido comprá-lo.
+#
+# Sensibilidade medida no catálogo (1.679 itens, alvo econômico mediano/custo):
+#     R$  60k/mês -> 58,3%  ->  5,23x     R$ 200k/mês -> 17,5%  ->  1,67x
+#     R$ 100k/mês -> 35,0%  ->  2,36x     R$ 300k/mês -> 11,7%  ->  1,52x
+#     R$ 150k/mês -> 23,3%  ->  1,85x     R$ 450k/mês ->  7,8%  ->  1,44x
+#
+# REVISAR quando o faturamento realizado de 3 meses seguidos passar de R$ 150
+# mil ou quando a estrutura fixa mudar. O piso NÃO usa este número, então
+# alterá-lo mexe só no alvo — e o alvo só manda em item sem concorrência
+# visível ou em PROTECAO_MARGEM; item com ranking local segue o mercado.
+despesas_fixas_pct = 0.2333
 # Despesa VARIÁVEL por unidade vendida (sacola, cupom, perda/quebra atribuível
 # à venda). Só esta entra no piso, junto com cartão e Simples.
 # Estimativa inicial — recalibrar com DRE real após alguns meses de operação.
 despesas_variaveis_pct = 0.0150
 contribuicao_minima_reais = 0.60   # piso de contribuicao por unidade (item 3.3.1 do plano)
-# NOVO (2026-08-08): piso adicional de margem bruta minima sobre o custo.
+
+# --- Fase 5: PBM e Reforma Tributária -------------------------------------
+# Ambos entram como despesa de comercialização (ver economico.despesas_de_
+# comercializacao) e ambos estão ZERADOS de propósito.
+#
+# pbm_taxa_pct: a autorizadora de PBM cobra taxa de serviço sobre a venda
+#   subsidiada (a ordem de grandeza citada na literatura do setor é ~4%).
+#   Incide SÓ no item vendido pelo programa, por isso é argumento da função e
+#   não constante. Preencher com a taxa do contrato assinado, não com a média
+#   de mercado -- e marcar quais EANs entram no programa antes de ligar.
+# cbs_ibs_pct: a fase de alíquotas-teste de 2026 (CBS 0,9% + IBS 0,1%) tem
+#   tratamento próprio para empresa do Simples Nacional, que recolhe pelo DAS.
+#   Preencher SOMENTE com confirmação escrita da contabilidade sobre haver
+#   incidência efetiva além do DAS. Um número inventado aqui desloca o alvo dos
+#   3.041 itens de uma vez -- parâmetro errado é pior que parâmetro ausente.
+pbm_taxa_pct = 0.0
+cbs_ibs_pct = 0.0
+
+# Lucro líquido que o MIX inteiro deve entregar (não o alvo por item, que varia
+# de propósito). Alimenta economico.margem_bruta_meta_mix -- ver [mix].
+lucro_liquido_meta_mix_pct = 0.08
+# Piso adicional de margem bruta minima sobre o custo.
 # Ex: 0.25 = o preco nunca fica abaixo de custo / (1 - 0.25) = custo / 0.75.
 # Para custo de R$ 35,35 -> piso de R$ 47,13.
 # Zere para desabilitar (0.0). Valor global, usado onde nao houver regra por
@@ -53,6 +101,25 @@ padrao = 0.25
 ativo = true
 # Encostar no menor concorrente local, sem ficar abaixo dele. 0.0 = empata.
 desconto_tolerado_pct = 0.0
+# SANIDADE DA ÂNCORA: um "menor concorrente" a uma ordem de grandeza do custo
+# não é concorrente, é erro de EAN/apresentação no site dele.
+#
+# Medido em 12/08/2026, logo depois de baixar a barra da âncora para 1-2 lojas
+# ([mercado.ancora_competitiva].n_min_lojas): o TRIDENT MENTA C/5 (custo
+# R$ 1,81) tinha um único "local" a R$ 28,81 -- preço de display -- e o piso
+# competitivo levou a sugestão de R$ 3,99 para R$ 51,49. Com 3+ lojas a
+# winsorização e a camada 4b já filtravam esse tipo de erro; com 1-2 não há
+# nada por baixo, então a guarda tem de estar aqui.
+#
+# 6,0x reusa o `markup_max` já calibrado em [mercado.brick_incoerente]: o
+# markup real (mediana_web/custo) tem p99 de 4,46x em 2.127 EANs.
+markup_max_ancora = 6.0
+# Segunda guarda: teto do piso competitivo relativo à referência CONSOLIDADA
+# (que já combina PMPF, Brick e todos os sites). O menor de 1-2 observações é
+# amostra fina -- não se sobe 40% acima do mercado inteiro porque a única loja
+# local que a coleta enxergou naquele dia estava cara. Sem isto (medido em
+# 12/08/2026): TRAMADOL 50mg C/10 saía a R$ 39,99 contra referência de R$ 27,87.
+banda_maxima_sobre_referencia = 0.25
 
 [balcao]
 # Preço MÁXIMO e MÍNIMO que o vendedor pode praticar no balcão.
@@ -115,8 +182,9 @@ padrao = 1.000
 # mais baratas — e vale pouco perto de concorrentes reais da mesma cidade,
 # medidos hoje. Medido em 2026-08-07: o Brick causava 56% dos 176 itens
 # precificados abaixo do menor concorrente local.
-# Sem vizinhança local o Brick mantém o peso antigo: ali ele é a melhor
-# evidência que existe, e rebaixá-lo deixaria o item sem âncora nenhuma.
+# Sem vizinhança local valem as faixas por qualidade da evidência web: ali o
+# Brick é a melhor evidência que existe, e rebaixá-lo deixaria o item sem
+# âncora nenhuma.
 com_vizinhanca_local = 0.15
 sem_brick = 0.00
 sem_web = 1.00
@@ -131,6 +199,42 @@ cv_alto_limite = 0.25
 spread_etiqueta = 0.03   # etiqueta física estimada = VUM_brick * (1 + spread)
 divergencia_brick_web_limite = 0.25   # |web/brick - 1| acima disso -> REVISAO
 
+[mercado.brick_incoerente]
+# Descarta o Brick INTEIRO quando ele é erro de unidade (preço de caixa/display
+# lido como unidade avulsa). Decisão de negócio 2026-08-11: quando o custo e os
+# concorrentes concordam entre si -- os dois fazem sentido -- e o Brick está a
+# uma ordem de grandeza dos dois, o errado é o Brick.
+#
+# Não confundir com [mercado.brick].divergencia_brick_web_limite (25%), que só
+# LEVANTA A BANDEIRA e continua usando o Brick no blend. Medido em 2026-08-11:
+# os 5 casos absurdos saíam com status DIVERGENCIA_BRICK_WEB e mesmo assim com
+# preço sugerido tirado do Brick (DORALGINA C/4: custo 3,05, concorrentes 5,45,
+# Brick 110,85 -> R$ 112,99; RESSALIV: custo 0,46, web 1,99 -> R$ 66,49).
+#
+# Calibração (2026-08-11, 1.256 EANs com custo + Brick + web):
+#   razao_min  -- Brick/mediana_web fica em [0,5; 2,0] em 1.241 EANs e em
+#                 [0,33; 0,5] em 10; salta direto para 20-40x em 5. Não existe
+#                 NADA entre 2x e 20x, então 3x separa os dois grupos com folga
+#                 larga dos dois lados (simétrico: pega erro nas duas direções).
+#   markup_max -- mediana_web/custo tem p50 1,65x, p95 2,88x e p99 4,46x
+#                 (n=2.127). 6,0x fica acima do p99; só 7 itens ficam de fora.
+#   n_min_web  -- exige o segundo testemunho. Sem NENHUMA web o Brick continua
+#                 sendo a única âncora e a regra não se aplica.
+#                 Era 2 até 12/08/2026, quando o LACTA BOMBOM OURO BRANCO 20 GR
+#                 (custo R$ 1,06, uma única web a R$ 2,99, Brick R$ 120,02 =
+#                 preço de display) saiu sugerido a R$ 139,99. O "segundo
+#                 testemunho" que a regra pede já existia: o CUSTO. A guarda
+#                 exige, logo acima, que custo <= web <= 6x custo -- então com 1
+#                 observação web coerente com o custo há duas fontes
+#                 independentes contra o Brick, não uma. Medido na base inteira:
+#                 só 4 EANs têm Brick >= 3x a web com menos de 2 observações, e
+#                 nos 4 o Brick é preço de caixa (120 vs 2,99 / 108 vs 4,89 /
+#                 34,65 vs 1,29 / 24,55 vs 1,99). Nenhum falso positivo.
+ativo = true
+razao_min = 3.0     # |Brick / mediana_web| fora de [1/3, 3] -> descarta o Brick
+markup_max = 6.0    # web só é "coerente com o custo" se custo <= web <= 6x custo
+n_min_web = 1       # mínimo de observações web para a regra valer (ver acima)
+
 [mercado.fator_fisico]
 # Razão Brick / mediana_web por segmento. NOME LEGADO -- este fator NÃO mede
 # canal (site x balcão), mede FONTE DE DADO. Ver _fator_brick_para_web.
@@ -142,9 +246,9 @@ divergencia_brick_web_limite = 0.25   # |web/brick - 1| acima disso -> REVISAO
 # redes de desconto e regiões mais baratas do país, então fica abaixo da web.
 #
 # USO: o Brick é DIVIDIDO por este fator, subindo para a escala regional
-# observada. Até 2026-08-10 era o contrário -- a mediana web era MULTIPLICADA
-# por ele, empurrando o preço para a escala nacional (mais barata) e baixando
-# a referência do lado errado. Efeito canal vive só em [mercado.premio_balcao].
+# observada. NUNCA multiplicar a mediana web por ele -- isso empurra o preço
+# para a escala nacional (mais barata) e baixa a referência do lado errado.
+# Efeito canal vive só em [mercado.premio_balcao].
 NMED = 0.91
 GEN = 0.92
 RX = 0.94
@@ -152,15 +256,15 @@ SIM = 0.78
 default = 0.90
 
 [mercado.premio_balcao]
-# REATIVADO em 2026-08-10 (decisão do usuário, confirmada por teste presencial):
-# o balcão é mais caro que o site, não mais barato. Único lugar do motor que
-# trata efeito CANAL. Aplicado uma vez, sobre a referência já consolidada --
-# nunca por site e nunca antes das 4 camadas.
+# O balcão é mais caro que o site, não mais barato (confirmado por teste
+# presencial do usuário). Único lugar do motor que trata efeito CANAL.
 #
-# Substitui o `fator_canal_por_site` (1.10-1.18, removido nesta data): aquele
-# multiplicava cada observação ANTES dos filtros, empilhando com fator_fisico
-# e deslocando a banda de âncora (teto efetivo caía de 1,60x para 1,45x do
-# Brick). Medido: 66% dos itens saíam acima da mediana real dos locais.
+# Aplicado uma vez, sobre a referência já consolidada, e por NATUREZA --
+# nunca por site e nunca antes das 4 camadas. Multiplicar cada observação
+# antes dos filtros empilha com o fator_fisico (dois multiplicadores sobre o
+# mesmo preço) e desloca a banda de âncora, que compara contra o Brick cru:
+# o teto efetivo cai de 1,60x para 1,45x e passa a descartar preço alto real
+# com mais facilidade que preço baixo.
 #
 # Calibração: Procon-SP 2025 mede o site 13,88% mais barato que o balcão em
 # genérico e 3,73% em referência. Adotado o extremo BAIXO da faixa (3-6%) --
@@ -181,12 +285,84 @@ padrao = 1.03
 # própria loja não pratica no balcão joga margem fora sem ganhar cliente.
 # (O peso menor por distância já é tratado em [mercado.peso_geografico].)
 #
+# O problema dela é DISPERSÃO, não nível: medido em 2026-08-10 (preço da loja
+# / mediana das outras, mesmo EAN), Nissei 1,011, Raia 1,016, São João 1,027,
+# São Paulo 0,940 -- ela não é mais barata que as outras online, mas tem p25
+# 0,866 e p75 1,145. Por isso a correção certa é EXCLUIR da âncora, nunca
+# deslocar o nível dela por um fator: deslocamento inflaria os ~50% de casos
+# em que ela está normal.
+#
 # gap_maximo_pct: winsorização. Se o menor local está mais que isso abaixo do
 # 2º menor, é tratado como preço-isca e a âncora passa para o 2º. Protege
 # contra promoção pontual de QUALQUER loja, sem hardcodar quem é confiável.
+#
+# n_min_lojas: barra de evidência PRÓPRIA, mais baixa que a do alvo
+# ([mercado.vizinhanca].n_min_local = 3). Definir o alvo com uma loja só seria
+# frouxo; "não ficar mais barato que a loja da esquina" precisa de UM preço
+# local observado -- ele já prova que existe alguém ao lado vendendo por aquilo.
+#
+# Medido em 2026-08-12: dos 73 itens precificados abaixo de TODOS os
+# concorrentes locais, 63 tinham alvo_so_local = false. O motor via 1 ou 2
+# lojas depois das camadas de frescor/âncora, embora o dado bruto tivesse 3 ou
+# 4 -- então o piso competitivo nunca recebia âncora e o alvo caía nos sites
+# REMOTOS, que são mais baratos e não disputam este cliente. A mediana desses
+# 73 estava só 0,9% abaixo do menor local (não era um rombo), mas o p75 chegava
+# a 5,2% e o p90 a 6,8%, e a causa era falha de dado, não decisão comercial.
 ativo = true
 excluir_sites = ["nissei"]
 gap_maximo_pct = 0.15
+n_min_lojas = 1
+# n_min_lojas_teto: barra MAIS ALTA para a ponta de cima, por estatística e não
+# por gosto. O MÍNIMO de uma amostra é limite superior do mínimo verdadeiro --
+# se vi uma loja a R$ 20, existe alguém ao lado vendendo por R$ 20 ou menos, e
+# errar aqui erra na direção segura. O MÁXIMO de uma amostra pequena
+# SUBESTIMA o máximo verdadeiro: com uma loja observada eu não sei quem é o
+# mais caro da praça, sei só quem eu vi -- e usar isso como TETO transforma o
+# único preço coletado, que pode estar em promoção, em trava dura.
+#
+# Medido em 12/08/2026: com a mesma barra (1 loja) nas duas pontas,
+# PISO_ACIMA_DO_MERCADO saltou de 30 para 204 itens numa rodada.
+n_min_lojas_teto = 3
+
+[mercado.pmpf]
+# TERCEIRA ÂNCORA: Preço Médio Ponderado ao Consumidor Final do Paraná
+# (SEFAZ-PR, NPF 07/2026, vigente 01/04/2026 a 30/09/2026, 11.023 medicamentos).
+#
+# É a melhor fonte de preço que esta loja tem, e por três motivos que nenhuma
+# outra reúne: é preço de BALCÃO (apurado em NFC-e emitidas ao consumidor
+# final, não em vitrine de site), é ESTADUAL (Paraná, não a média nacional do
+# Brick) e é OFICIAL e gratuito, por EAN.
+#
+# Validação em 12/08/2026 contra o catálogo:
+#   cobertura de natureza=medicamento .... 527/553 = 95,3%
+#   cobertura do catálogo inteiro ........ 1.021/3.041 = 33,6%
+#   correlação de log-preço com a mediana local (539 EANs) ... 0,958
+#   PMPF / mediana local ... p25 0,91 | mediana 0,98 | p75 1,07
+#   PMPF / PMC ............. p25 0,48 | mediana 0,70 | p75 0,82 (coerente)
+#
+# A mediana de 0,98 é o achado que muda o desenho: o PMPF JÁ ESTÁ na escala do
+# balcão local, sem fator de conversão -- ao contrário do Brick, que precisa de
+# 0,78 a 0,94. Duas consequências implementadas:
+#   1. ele tem prioridade sobre o Brick como âncora da camada 3;
+#   2. o prêmio de balcão NÃO se aplica sobre a parcela dele (ver o cálculo em
+#      calcular_mercado: o PMPF entra depois do prêmio, não antes).
+#
+# NOTA PARA REVISÃO: essa mesma medição sugere que [mercado.premio_balcao] de
+# 1,05 pode estar alto -- mediana_local × 1,05 fica ~7% acima do PMPF. Não foi
+# alterado aqui porque mexer no prêmio move o nível de preço do catálogo todo e
+# o PMPF é média do estado inteiro (inclui cidades e canais mais baratos que
+# Maringá centro). Decisão consciente do usuário, não ajuste automático.
+#
+# ATUALIZAR a cada semestre: a NPF nova sai em torno de 01/04 e 01/10.
+#   https://www.fazenda.pr.gov.br/Pagina/Pauta-de-Medicamentos
+ativo = true
+arquivo = "pmpf_pr.csv"
+prioridade_ancora = true
+# Pesos no blend. O PMPF é melhor que o Brick e pior que o concorrente real
+# medido hoje -- a tabela vale por SEMESTRE e é média do estado inteiro.
+com_vizinhanca_local = 0.25    # há 3+ lojas locais: o vizinho de hoje manda
+sem_vizinhanca_local = 0.45    # web fraca ou remota: o PMPF pesa mais
+sem_web = 0.80                 # nenhuma observação: quase só ele
 
 [mercado.marketplace]
 # Decisao de negocio 2026-08-05: preco de vendedor terceiro dentro do site da
@@ -213,26 +389,7 @@ gap_maximo_pct = 0.15
 # a ancora competitiva), nao atribuir peso numerico aqui.
 peso = 0.90
 
-# [mercado.fator_canal_por_site] REMOVIDO em 2026-08-10.
-# Existiu de 08/08 a 10/08. Multiplicava cada observação (1.10 geral, 1.18
-# Nissei) ANTES das 4 camadas, para converter site em balcão. Três defeitos:
-#   1. Empilhava com fator_fisico, que já multiplicava a mediana web -- dois
-#      multiplicadores sobre o mesmo preço. Líquido em RX: 1.10 x 0.94 = 1.034,
-#      e 1.109 na Nissei. Medido: 66% dos itens saíam acima da mediana real dos
-#      concorrentes locais, e 16,3% acima do MAIOR local.
-#   2. Deslocava a banda de âncora, que compara contra o Brick cru: o teto
-#      efetivo caía de 1,60x para 1,45x (1,36x na Nissei), descartando preço
-#      alto real com mais facilidade que preço baixo.
-#   3. Misturava "esta loja é cara/barata" com "site vs balcão". Medido em
-#      2026-08-10 (preço da loja / mediana das outras, mesmo EAN): Nissei 1,011,
-#      Raia 1,016, São João 1,027, São Paulo 0,940. A Nissei NÃO é mais barata
-#      que as outras online -- ela tem mais DISPERSÃO (p25 0,866 / p75 1,145).
-#      Corrigir dispersão com deslocamento de nível inflava os 50% de casos em
-#      que ela está normal. O gap online-balcão dela virou exclusão de âncora
-#      (ver [mercado.ancora_competitiva]); a distância, peso geográfico.
-# Efeito canal agora vive só em [mercado.premio_balcao].
-
-# NOVO (2026-08-08): peso geografico por concorrente na media das medianas.
+# Peso geografico por concorrente na media das medianas.
 # Cada concorrente contribui com sua MEDIANA (um preco representativo),
 # ponderada pelo peso geografico. Peso maior = mais proximo/relevante.
 # Evita que sites distantes diluam a influencia de quem realmente disputa
@@ -365,12 +522,124 @@ razao_max = 2.5
 # cluster em vez de colar no Brick puro -- o Brick pode estar desatualizado
 # e vender abaixo do mercado real deixa margem na mesa (caso BUPROVIL 600mg
 # C/20, 2026-08-04: Brick 13,93 vs. concorrentes reais 19,58-27,50).
+#
+# n_min_sob_pmpf: quando a âncora é o PMPF a barra sobe, porque devolver preço
+# que uma fonte OFICIAL rejeitou exige mais evidência. Não é desligar (foi o que
+# se fez em 12/08/2026 e custou o PROFENID 100mg INJ: PMPF R$ 7,65 contra oito
+# lojas de R$ 30,92 a R$ 43,49, todas apagadas, sugestão R$ 7,79 = 20% do
+# mercado). O PMPF é semestral: quando envelhece ou traz outra apresentação, sem
+# cluster não sobra proteção nenhuma.
+# Calibração: os dois casos reais separam-se pelo nº de LOJAS INDEPENDENTES --
+# DORALGINA C/4 (devolução ruim) tinha 2, PROFENID tem 8. Erro de apresentação é
+# de site; não se repete idêntico em três lojas. Medido na base: só 5 EANs têm
+# 3+ lojas totalmente apagadas pela banda do PMPF, e nos 5 o mercado está certo.
 n_min = 2          # minimo de concorrentes no cluster para confiar nele
+n_min_sob_pmpf = 3 # ...e de LOJAS distintas, quando a ancora e o PMPF
 cv_max = 0.20       # dispersao maxima (coeficiente de variacao) do cluster
 peso_brick = 0.30   # peso do Brick no blend quando o cluster e adotado
 
+[mix]
+# Fase 3: controle de margem do MIX. Fecha o laço que faltava -- até aqui o
+# motor otimizava item a item e a margem agregada era consequência, não meta.
+#
+# Se o conjunto fica abaixo da meta da DRE, o ajuste sai EXCLUSIVAMENTE dos
+# itens sem vizinhança local visível. Subir preço onde o cliente compara é
+# literalmente como se perde cliente; a cauda longa de baixa comparabilidade é
+# quem pode absorver. É o subsídio cruzado na ordem certa: primeiro medir o
+# buraco, depois escolher quem paga -- e não uma tabela de margem por categoria
+# escrita a priori, como o relatório anexo sugere.
+#
+# Medido em 12/08/2026: os itens com 3+ lojas locais operam a 33,1% de margem
+# bruta mediana e os sem vizinhança a 44,1%. O ajuste mexe só no segundo grupo.
+#
+# ajuste_maximo_pp: teto do que se admite corrigir no preço. Se o buraco for
+# maior, ele APARECE no relatório em vez de ser espremido em silêncio -- aí a
+# resposta é compra, mix ou estrutura, não etiqueta.
+ativo = true
+tolerancia_pp = 0.01
+ajuste_maximo_pp = 0.05
+
+[xyz]
+# Fase 6: segundo eixo da matriz ABC-XYZ (previsibilidade da demanda).
+#
+# DESLIGADO até haver histórico. O CV de demanda com menos de 26 semanas é
+# ruído, não previsibilidade -- e a loja ainda não completou o primeiro mês.
+# Ligar quando `semanas_minimas` estiver satisfeito para uma fatia relevante do
+# catálogo; até lá, premio_risco_xyz devolve 0,0 para tudo.
+#
+# A lógica do prêmio é de risco de INVENTÁRIO, não de sensibilidade a preço:
+# item de alto valor e demanda errática (célula AZ) exige estoque de segurança
+# grande e corre risco real de vencer na prateleira. Item AX gira sozinho.
+ativo = false
+semanas_minimas = 26
+limite_x = 0.25
+limite_y = 0.50
+
+[xyz.premio]
+# Acréscimo em pontos de lucro-alvo por célula. Só as células de risco real.
+AZ = 0.04
+BZ = 0.03
+CZ = 0.02
+AY = 0.01
+BY = 0.01
+
+[teto_competitivo]
+# Simétrico de [piso_competitivo]: não ficar ACIMA de toda a praça quando há
+# vizinhança confiável. Medido em 2026-08-12 sobre o catálogo (1.504 itens com
+# custo e preço): 156 dos 999 com >= 3 lojas locais (15,6%) saíam mais caros que
+# o MAIOR concorrente local, excesso mediano de +6,4% (p90 +14,5%) -- 87 deles
+# de Curva A, justamente os de maior visibilidade.
+#
+# A origem NÃO era o piso: era o teto frouxo do tier PROTECAO_MARGEM
+# (`min(alvo_econ, referencia * 1,15)`), que somado ao prêmio de balcão passava
+# do concorrente mais caro da vizinhança. Margem que não vende não é margem.
+#
+# O piso vence sempre: quando ele não cabe abaixo do maior local, o preço fica
+# onde está e o status honesto (PISO_ACIMA_DO_MERCADO / CUSTO_ACIMA_DO_MERCADO)
+# continua sinalizando -- 65 itens na medição, todos casos reais de compra ruim
+# ou de piso apertado, que se resolvem renegociando a compra, não no preço.
+# Chamariz fica isento (já é precificado por baixo, de propósito).
+#
+# Custo medido de ligar isto sozinho: -0,83% de receita agregada.
+ativo = true
+folga_pct = 0.0   # 0 = empata com o mais caro da praça; 0.05 = tolera 5% acima
+
 [grade]
 terminacoes = [0.49, 0.79, 0.90, 0.95, 0.99]
+
+[grade.limiar]
+# Arredondamento por LIMIAR psicológico, no lugar de "a terminação mais próxima
+# do alvo". Sobe o preço até a maior terminação que ainda fica abaixo da
+# fronteira de dígito da esquerda -- e nunca ultrapassa um concorrente local.
+#
+# Base: o efeito de dígito da esquerda (Thomas & Morwitz, Journal of Consumer
+# Research 2005) só dispara quando o dígito mais à esquerda muda. R$ 19,49 e
+# R$ 19,99 são lidos como "dezenove e pouco"; R$ 20,49 vira "vinte". Os 50
+# centavos entre 19,49 e 19,99 são margem que o cliente não percebe.
+#
+# Por que a trava competitiva é obrigatória: sem ela (medido em 2026-08-12),
+# subir por limiar levava 148 itens a virar o mais caro da praça -- ganho de
+# receita comprado com perda de cliente. Com a trava: ZERO.
+#
+# Medição no catálogo (2026-08-12, tolerância 3%):
+#   sem trava: sobe 80% dos itens, +1,91% de receita, 78 viram os mais caros
+#   com trava: sobe 64% dos itens, +1,37% de receita, 0 viram os mais caros
+# Combinado com [teto_competitivo]: +0,77% de receita, +2,11% de LUCRO BRUTO,
+# margem bruta agregada 36,58% -> 37,07%, e os itens acima de toda a praça caem
+# de 156 para 65.
+#
+# ATENÇÃO: 37,9% dos preços do catálogo terminavam em ",49" -- a pior das cinco
+# terminações do ponto de vista perceptual, e artefato de "escolher a mais
+# próxima do alvo". É esse resíduo que esta regra recupera.
+ativo = true
+# Teto de quanto o preço pode subir acima do alvo econômico. 3% foi escolhido
+# medindo 2%/3%/5%: a 5% o ganho sobe para +2,02% mas 49 itens perdem posição
+# no ranking local; a 3% são 47, a 2% são 39, com +0,90%.
+tolerancia_pct = 0.03
+# [limite_de_preço, passo]. Abaixo de R$ 20 o cliente lê o real (fronteiras em
+# 18, 19, 20...); até R$ 100 lê a dezena em múltiplos de 5 (45, 50, 55...);
+# acima disso, a dezena (110, 120...). Acima do último limite vale passo 10.
+degraus = [[20.0, 1.0], [100.0, 5.0]]
 
 [ranking]
 # Decisao de negocio 2026-08-05: a loja nao precisa ser a mais barata. Em vez
@@ -392,14 +661,35 @@ B = 3
 C = 3
 
 [chamariz]
-# Excecao estrategica controlada (Secao 4 do relatorio "Diagnostico e Plano
-# v4"): lista pequena de itens chamariz/KVI, selecionada automaticamente
-# (engine/chamariz.py) a partir do ranking de mais vendidos do Brick por
-# segmento (RX/GEN/SIM/NMED). Nunca aplicado ao catalogo inteiro.
-top_n_por_segmento = 8
+# Exceção estratégica controlada: lista CURTA de itens chamariz/KVI, escolhida
+# automaticamente (engine/chamariz.py). Nunca aplicada ao catálogo inteiro.
+#
+# MUDANÇA 12/08/2026 (decisão do usuário): de 32 itens (top 8 × 4 segmentos)
+# para 7 no TOTAL, escolhidos pelos mais vendidos E mais lucrativos, sem cota
+# por segmento.
+#
+# A evidência sustenta a lista curta. Hamilton & Chernev (Journal of Marketing,
+# 2013) mostram que imagem de preço não é média de preço: o consumidor apoia a
+# percepção da loja em POUCOS itens que conhece de cor -- a literatura de KVI
+# fala em três a cinco. Trinta e dois itens não compram seis vezes mais
+# percepção que cinco; compram a mesma percepção gastando seis vezes mais
+# margem. E a cota por segmento era pior ainda: obrigava a rebaixar 8 itens de
+# NMED (não-medicamento) mesmo quando nenhum deles era conhecido do bairro,
+# só para preencher a cota.
+#
+# `peso_margem` é o que faz "lucrativo" entrar no critério: entre dois itens de
+# giro parecido, o chamariz certo é o que ainda sobra margem depois do
+# desconto. Chamariz de margem magra é desconto sobre desconto.
+top_n_global = 7
 n_concorrentes_minimo = 3
 desconto_maximo_pct = 0.02   # ate 2% abaixo do menor concorrente elegivel -- nunca desconto livre
 revisar_a_cada_dias = 90
+# Pesos do score (somam 1,0): giro (posição no Brick), margem disponível,
+# comparabilidade (nº de concorrentes) e dispersão (CV baixo = mais comparável).
+peso_giro = 0.40
+peso_margem = 0.30
+peso_comparabilidade = 0.20
+peso_dispersao = 0.10
 
 [custo_estimado]
 # Item sem custo validado por NF (ex.: herdado de compra de ponto de venda):
@@ -418,3 +708,15 @@ pct_do_preco_mercado = 0.60
 PADRAO = 0.50
 PROTECAO_MARGEM = 0.30
 PRECO_IMAGEM = 0.60
+
+[embalagem]
+# Margem bruta suposta no preço do CONCORRENTE, usada só para deduzir o
+# `fator_venda` provável quando a NF vem em pack e a venda é na unidade
+# (ver economico.fator_venda_provavel). Não entra em nenhum preço.
+#
+# Calibrado em 12/08/2026 no único caso da base cuja embalagem está escrita no
+# nome -- SAB PROTEX CREAM 85G **C/12**, custo de NF R$ 39,89 contra mercado de
+# R$ 5,08 (razão crua 7,9). Com 0,35 a fórmula devolve exatamente 12; com 0,21
+# devolvia 10. Um ponto de validação só, e é por isso que o resultado é
+# SUGESTÃO na justificativa e nunca correção automática -- quem confirma é a NF.
+margem_referencia_pct = 0.35
