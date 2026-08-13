@@ -51,7 +51,12 @@ EANS_NEGATIVOS_CSV = CONSULTA_PRECOS / "eans_negativos.csv"
 
 
 def normalizar_ean(valor) -> str:
-    return "".join(c for c in str(valor or "") if c.isdigit())
+    # Zero à esquerda é só preenchimento de GTIN: a coleta grava o EAN-8/UPC
+    # preenchido a 13 ("0000078948327") e o ERP guarda o código cru
+    # ("78948327"). Sem tirar o zero, o mesmo produto vira duas chaves e o
+    # preço coletado nunca encontra o item.
+    digitos = "".join(c for c in str(valor or "") if c.isdigit())
+    return digitos.lstrip("0") or digitos
 
 
 def _numero(valor) -> float | None:
