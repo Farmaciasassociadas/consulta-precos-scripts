@@ -101,6 +101,60 @@ STATUS_PRECO_VALIDO = ("OK", "MARKETPLACE")
 # independente). Continua sujeito às mesmas camadas de frescor/âncora/MAD.
 
 
+# Sugestao de varias vezes o que TODO o mercado coletado pratica nao e' politica
+# de preco: e' custo podre ou base de embalagem errada passando pelo markup.
+# Medido em 15/08/2026 contra a internet: Paracetamol 500 C/10 saiu a R$ 313
+# (mercado R$ 5,99), Vick Vaporub 12g a R$ 587 (mercado R$ 13,90-22,11), Torsilax
+# C/4 a R$ 168 (mercado R$ 4,99), Loratadina C/12 a R$ 51,79 (mercado ate R$ 11).
+# Nos quatro o motor validou o erro do cadastro em vez de barra-lo.
+RAZAO_SANIDADE_MAX = 3.0
+# Em item de centavos a razao explode sozinha: agulha descartavel sugerida a
+# R$ 0,79 contra mediana de R$ 0,21 e' "4x", mas a diferenca inteira sao 58
+# centavos e a coleta pode ser preco de caixa de 100. Sem este piso a guarda
+# passa a apagar sugestao boa de item barato, que e' justamente onde ela nao
+# tem evidencia para agir.
+GAP_SANIDADE_MINIMO = 5.0
+
+
+def excede_sanidade(preco: float | None, observacoes: list[Observacao],
+                    teto_cmed: float | None = None,
+                    razao_max: float = RAZAO_SANIDADE_MAX,
+                    gap_minimo: float = GAP_SANIDADE_MINIMO) -> tuple[float, int] | None:
+    """(mediana do mercado, n lojas) quando `preco` a supera `razao_max` vezes.
+
+    Ultima linha de defesa, aplicada sobre o preco final -- inclusive o manual,
+    porque o erro tipico e' o usuario aplicar a sugestao errada e ela virar
+    "manual". Nao substitui as 4 camadas de outlier: elas limpam a AMOSTRA, esta
+    confere o RESULTADO contra a amostra crua.
+
+    Diferente do teto competitivo local, que so age quando as lojas proximas
+    concordam entre si (CV <= 15%), aqui a dispersao nao importa. Um item que o
+    mercado inteiro vende entre R$ 3 e R$ 37 nao passa a valer R$ 315 porque os
+    concorrentes discordam -- a Loratadina C/12 escapava exatamente por isso.
+
+    O PMC isenta: preco de tabela de medicamento de marca fica legitimamente
+    varias vezes acima da mediana coletada, porque a coleta pega a promocao das
+    grandes redes (Aradois 50mg, PMC ~R$ 57, aparece a R$ 5-12 online). Enquanto
+    a sugestao respeita o teto legal, ela e' preco de tabela, nao erro de dado.
+    """
+    if not preco or preco <= 0:
+        return None
+    if teto_cmed and preco <= teto_cmed:
+        return None
+    # Mediana por loja antes da mediana geral: sem isso um site com 40 coletas
+    # decide sozinho o centro e a guarda passa a refletir uma loja so.
+    por_loja: dict[str, list[float]] = {}
+    for o in observacoes:
+        if o.status in STATUS_PRECO_VALIDO and o.preco and o.preco > 0:
+            por_loja.setdefault(o.site, []).append(o.preco)
+    if len(por_loja) < 2:
+        return None
+    centro = median([median(v) for v in por_loja.values()])
+    if centro <= 0 or preco <= centro * razao_max or preco - centro < gap_minimo:
+        return None
+    return centro, len(por_loja)
+
+
 def _camada_1_natureza(obs: list[Observacao]) -> tuple[list[Observacao], list[Descarte]]:
     mantidas, descartadas = [], []
     for o in obs:

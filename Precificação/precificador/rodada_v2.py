@@ -7,6 +7,7 @@ Melhorias:
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import replace
 from datetime import date
 from statistics import median
 
@@ -320,6 +321,23 @@ def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = N
             justificativa_final += (
                 f" Vizinhanca insuficiente ({resultado_mercado.n_local} de "
                 f"{resultado_mercado.n}): alvo usou todos os concorrentes.")
+
+        # Paridade com o app: guarda de sanidade sobre o preco final. Ver
+        # mercado.excede_sanidade -- sugestao de 3x+ a mediana crua de todos os
+        # concorrentes, sem PMC que a justifique, e' custo/embalagem errada, nao
+        # preco. Descartada em vez de gravada, senao vira preco aplicado.
+        sanidade = mercado.excede_sanidade(resultado.preco_sugerido, obs, row["pmc"])
+        if sanidade:
+            centro, n_lojas = sanidade
+            justificativa_final = (
+                f"SUGESTAO DESCARTADA: R$ {resultado.preco_sugerido:.2f} e' "
+                f"{resultado.preco_sugerido / centro:.0f}x a mediana de {n_lojas} "
+                f"concorrentes (R$ {centro:.2f}) e nao ha PMC que justifique. Quase "
+                f"sempre custo cadastrado errado ou preco de caixa lancado como "
+                f"unidade -- conferir o cadastro. {justificativa_final}"
+            )
+            resultado = replace(resultado, preco_sugerido=None)
+            status_gravado = "REVISAO_MANUAL_SUGESTAO_IMPOSSIVEL"
 
         mediana_historico = mediana_sugerido_historico(conn, ean, rodada_id)
         if economico.preco_atual_e_outlier_historico(preco_atual_final, mediana_historico):
