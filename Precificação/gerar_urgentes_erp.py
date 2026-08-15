@@ -24,27 +24,40 @@ PLANILHA_PADRAO = Path(
     r"G:\.shortcut-targets-by-id\1q0IRmUp06SR55V7qNb7wVLwWjEauQntR\DROGARIA"
     r"\Planilha de itens em estoque tratado - PRECIFICADO.xlsx")
 
-# Precos conferidos um a um na internet em 15/08/2026 (ver dados/pesquisa_web_*).
-# So entram aqui os que tem fonte -- o resto sai das regras abaixo.
-WEB = {
-    "7899547543896": (5.99, 7.99, "Drogasil, Droga Raia e Pacheco"),
-    "78911222": (13.90, 22.11, "CliqueFarma (9 farmacias) e Sao Joao"),
-    "7896714257594": (3.76, 6.55, "CliqueFarma e Preco Popular"),
-    "7896094931879": (3.53, 4.98, "CliqueFarma, Drogaria Globo e Droga Raia"),
-    "7896714292533": (34.50, 90.26, "6 farmacias, de Drogaria Sao Paulo a Pense Farma"),
-    "7896104994009": (52.90, 59.90, "Amazon, Sao Joao e VileoFarma"),
-    "7891106910118": (28.70, 35.00, "CliqueFarma (Bayer C/10) -- dado de 2023"),
-    "7891317017668": (49.15, 80.46, "Drogaria Minas Brasil e Coop Drogaria"),
-    "7891317025045": (28.50, 89.89, "Preco Popular, Panvel e Drogasil (generico)"),
-    "7891000062661": (44.64, 102.58, "Amazon e Farmacias Sao Joao"),
-    "7896544902176": (18.57, 24.99, "Drogarias Pacheco (micropore 5x4,5)"),
-}
+DIR_DADOS = Path(__file__).resolve().parent / "dados"
 
 CAMPO_PRECO = "Preco de Promocao (o preco praticado)"
 CAMPO_CUSTO = "Ult. Prc. Entrada / Preco de Compra"
 
 ARQUIVO_MARKUP = APP / "precificacao" / "dados" / "politica_markup.csv"
 MARKUP_PADRAO = 56.2  # ETICOS/PADRAO, a linha 1 da politica
+
+
+def carregar_web() -> dict[str, tuple[float, float, str, bool]]:
+    """Faixas conferidas a mao na internet: (min, max, fonte, manter).
+
+    Fonte unica com o `estoque_tratado_precificar.py`, que le os mesmos arquivos.
+    Estava duplicado numa constante aqui dentro com 11 EANs enquanto os CSVs ja
+    tinham 45 -- a fila deixava de fora 36 itens conferidos, e as duas listas
+    iam divergir a cada rodada nova de pesquisa. Arquivo mais novo vence.
+
+    `manter` marca o que a pesquisa classificou como FALSO POSITIVO: ali o preco
+    de balcao esta certo e a faixa serve so de evidencia, nunca de correcao. Sem
+    isto a Loratadina (praticado R$ 11,99, faixa ate R$ 11,07) entraria na fila
+    mandando baixar R$ 0,92 num item que a propria pesquisa manda deixar quieto.
+    """
+    faixas: dict[str, tuple[float, float, str, bool]] = {}
+    for arquivo in sorted(DIR_DADOS.glob("pesquisa_web_*.csv")):
+        d = pd.read_csv(arquivo, sep=";", decimal=",", dtype={"ean": str},
+                        encoding="utf-8-sig")
+        for _, r in d.iterrows():
+            if pd.isna(r["preco_mercado_min"]) or pd.isna(r["preco_mercado_max"]):
+                continue
+            manter = str(r.get("acao") or "").strip().upper().startswith("MANTER")
+            faixas[norm(r["ean"])] = (float(r["preco_mercado_min"]),
+                                      float(r["preco_mercado_max"]),
+                                      str(r["fonte"])[:70], manter)
+    return faixas
 
 
 def carregar_markup() -> dict[str, float]:
@@ -99,8 +112,8 @@ def carregar(planilha: Path) -> pd.DataFrame:
     return df
 
 
-def acoes(df: pd.DataFrame, pmc: dict[str, float],
-          markup: dict[str, float]) -> pd.DataFrame:
+def acoes(df: pd.DataFrame, pmc: dict[str, float], markup: dict[str, float],
+          web: dict[str, tuple[float, float, str, bool]]) -> pd.DataFrame:
     """Uma linha por acao. `dinheiro` e' o criterio de ordem: o que muda mais
     caixa vem primeiro, seja margem entregue de graca ou venda que nao acontece."""
     out = []
@@ -126,7 +139,7 @@ def acoes(df: pd.DataFrame, pmc: dict[str, float],
         k, est = r["k"], float(r["estoque"] or 0)
         custo = r["custo_real"] if pd.notna(r["custo_real"]) else 0
         prat = r["preco_praticado"] if pd.notna(r["preco_praticado"]) else 0
-        faixa = WEB.get(k)
+        faixa = web.get(k)
 
         # 1. Custo impossivel: acima do proprio preco de venda e sem NF.
         #    O pipeline ja zera `custo_real` nesses (senao vira piso e empurra a
@@ -162,8 +175,8 @@ def acoes(df: pd.DataFrame, pmc: dict[str, float],
                 "tabela CMED", (prat - novo) * max(est, 1))
 
         # 3. Preco fora da faixa conferida na internet.
-        if faixa and prat > 0:
-            minimo, maximo, fonte = faixa
+        if faixa and prat > 0 and not faixa[3]:
+            minimo, maximo, fonte, _ = faixa
             if prat < minimo * 0.95:
                 add(r, 2, "SUBIR PRECO", CAMPO_PRECO, prat, minimo,
                     f"vendendo {1 - prat / minimo:.0%} abaixo do menor concorrente",
@@ -251,7 +264,10 @@ def main() -> None:
     pmc = {k: v["pmc"] for k, v in motor.carregar_referencia().items() if v.get("pmc")}
 
     df = carregar(planilha)
-    a = acoes(df, pmc, carregar_markup())
+    web = carregar_web()
+    print(f"Pesquisa web: {len(web)} EANs com faixa conferida "
+          f"({sum(1 for v in web.values() if v[3])} marcados MANTER)")
+    a = acoes(df, pmc, carregar_markup(), web)
 
     with pd.ExcelWriter(saida, engine="openpyxl") as xl:
         for nome, prio in (("1 - Faca hoje", 1), ("2 - Esta semana", 2), ("3 - Quando der", 3)):
