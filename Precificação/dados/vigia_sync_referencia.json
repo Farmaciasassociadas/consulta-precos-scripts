@@ -1,0 +1,15 @@
+{
+  "gravado_em": "2026-08-15T15:34:16",
+  "valores": {
+    "categorias_total": 3216,
+    "categorias_auditadas": 2906,
+    "categorias_manuais": 57,
+    "eans_linhas": 3125,
+    "eans_com_preco": 222,
+    "eans_sem_duplicata": 0,
+    "negativos": 218,
+    "embalagens": 12,
+    "custos": 3107,
+    "marcas_proprias": 4
+  }
+}
