@@ -43,6 +43,50 @@ WEB = {
 CAMPO_PRECO = "Preco de Promocao (o preco praticado)"
 CAMPO_CUSTO = "Ult. Prc. Entrada / Preco de Compra"
 
+ARQUIVO_MARKUP = APP / "precificacao" / "dados" / "politica_markup.csv"
+MARKUP_PADRAO = 56.2  # ETICOS/PADRAO, a linha 1 da politica
+
+
+def carregar_markup() -> dict[str, float]:
+    """markup_sobre_custo_pct por categoria, da mesma politica que o motor usa.
+
+    O arquivo tem linhas com campo a mais (ponto-e-virgula dentro da observacao),
+    que o parser em C rejeita; o engine='python' com on_bad_lines pula so essas.
+    """
+    d = pd.read_csv(ARQUIVO_MARKUP, sep=";", decimal=",", encoding="utf-8-sig",
+                    engine="python", on_bad_lines="skip")
+    return {str(r["categoria_exata"]).strip(): float(r["markup_sobre_custo_pct"])
+            for _, r in d.iterrows() if pd.notna(r["markup_sobre_custo_pct"])}
+
+
+def custo_estimado(r, markup: dict[str, float]) -> tuple[float | None, str]:
+    """Custo a por no lugar do impossivel, e de onde ele saiu.
+
+    Estimativa, nao leitura de nota -- por isso devolve junto a origem, para a
+    linha da planilha dizer em que confiar. A ancora vem do melhor dado
+    disponivel, nesta ordem: o menor concorrente coletado (preco real de
+    mercado), a sugestao do motor (que nesses itens ja foi calculada SEM o custo
+    podre, so pela concorrencia) e por fim o proprio preco de balcao.
+    Dividida pelo markup da categoria, que e' a mesma politica que o motor
+    aplica -- assim o custo estimado e o preco sugerido ficam coerentes.
+    """
+    pct = markup.get(str(r.get("categoria_final") or "").strip(), MARKUP_PADRAO)
+    # Uma loja so nao e' mercado: a Atorvastatina 40 C/30 tinha um unico
+    # concorrente a R$ 149,49 (contra sugestao de R$ 60,95 e balcao de R$ 37,49)
+    # e o custo estimado saiu R$ 95,70. Com 2+ lojas o minimo ja e' um preco que
+    # alguem de fato pratica; abaixo disso a sugestao do motor, que passou pelas
+    # camadas de outlier, e' a ancora melhor.
+    lojas = r.get("lojas_na_faixa")
+    ancoras = [("preco_sugerido", "sugestao do motor (calculada so pelo mercado)"),
+               ("preco_praticado", "preco de balcao de hoje")]
+    if pd.notna(lojas) and lojas >= 2:
+        ancoras.insert(0, ("mercado_min", f"menor de {lojas:.0f} concorrentes coletados"))
+    for campo, nome in ancoras:
+        v = r.get(campo)
+        if pd.notna(v) and v and v > 0:
+            return round(float(v) / (1 + pct / 100), 2), f"estimado de {nome} / markup {pct:.0f}%"
+    return None, "sem ancora: confira a nota fiscal"
+
 
 def carregar(planilha: Path) -> pd.DataFrame:
     df = pd.read_excel(planilha, sheet_name="Estoque precificado", dtype={"ean": str})
@@ -55,17 +99,26 @@ def carregar(planilha: Path) -> pd.DataFrame:
     return df
 
 
-def acoes(df: pd.DataFrame, pmc: dict[str, float]) -> pd.DataFrame:
+def acoes(df: pd.DataFrame, pmc: dict[str, float],
+          markup: dict[str, float]) -> pd.DataFrame:
     """Uma linha por acao. `dinheiro` e' o criterio de ordem: o que muda mais
     caixa vem primeiro, seja margem entregue de graca ou venda que nao acontece."""
     out = []
 
     def add(r, prio, acao, campo, de, para, motivo, evidencia, dinheiro):
+        # preco de hoje, sugerido e faixa de mercado vao em TODA linha: quem
+        # digita precisa ver o preco na mesma tela da correcao de custo ou de
+        # EAN, senao tem de voltar na planilha grande para decidir.
+        faixa_txt = (f"R$ {r['mercado_min']:.2f}-{r['mercado_max']:.2f} "
+                     f"({r['lojas_na_faixa']:.0f} lojas)"
+                     if pd.notna(r.get("mercado_min")) else "")
         out.append({
             "prioridade": prio, "acao": acao, "ean": r["ean"],
             "descricao": r["descricao"], "campo_no_erp": campo,
             "valor_hoje": round(float(de), 2) if de is not None else None,
             "valor_novo": round(float(para), 2) if para is not None else None,
+            "preco_hoje": r["preco_praticado"], "preco_sugerido": r["preco_sugerido"],
+            "faixa_de_mercado": faixa_txt,
             "estoque": r["estoque"], "dinheiro_em_jogo": round(float(dinheiro), 2),
             "motivo": motivo, "evidencia": evidencia})
 
@@ -83,13 +136,21 @@ def acoes(df: pd.DataFrame, pmc: dict[str, float]) -> pd.DataFrame:
             no_erp = max([v for v in (r["custo_unit_erp"], r["ult_entrada"])
                           if pd.notna(v) and v > 0], default=0)
             if no_erp > 0:
-                add(r, 1, "CORRIGIR CUSTO", CAMPO_CUSTO, no_erp,
-                    round(faixa[0] * 0.6, 2) if faixa else None,
-                    f"custo R$ {no_erp:.2f} acima do proprio preco de venda "
-                    f"(R$ {prat:.2f}) e sem NF que comprove",
-                    (f"mercado vende a R$ {faixa[0]:.2f}-{faixa[1]:.2f} ({faixa[2]}); "
-                     f"valor novo e' uma estimativa -- confira a nota"
-                     if faixa else "sem nota fiscal no periodo: confira a ultima entrada"),
+                novo, origem = custo_estimado(r, markup)
+                fonte = (f"internet: R$ {faixa[0]:.2f}-{faixa[1]:.2f} em {faixa[2]}. "
+                         if faixa else "")
+                motivo = (f"custo R$ {no_erp:.2f} acima do proprio preco de venda "
+                          f"(R$ {prat:.2f}) e sem NF que comprove")
+                # Custo estimado a partir do mercado que ainda fica acima do
+                # preco de balcao significa que o cadastro tem DOIS problemas:
+                # o custo esta podre e o preco esta baixo demais. Sem este aviso
+                # a linha manda por um custo maior que o preco e parece erro.
+                if novo and prat > 0 and novo >= prat:
+                    motivo += (f". ATENCAO: mesmo o custo estimado (R$ {novo:.2f}) fica "
+                               f"acima do seu preco -- o preco tambem esta errado, "
+                               f"veja a aba 2")
+                add(r, 1, "CORRIGIR CUSTO", CAMPO_CUSTO, no_erp, novo, motivo,
+                    f"{fonte}{origem} -- ESTIMATIVA, confira a nota fiscal",
                     no_erp * max(est, 1))
 
         # 2. Acima do PMC: teto legal, nao admite excecao.
@@ -144,7 +205,8 @@ def formatar(caminho: Path) -> None:
 
     largura = {"prioridade": 11, "acao": 28, "ean": 16, "descricao": 46,
                "campo_no_erp": 34, "valor_hoje": 14, "valor_novo": 14,
-               "estoque": 10, "dinheiro_em_jogo": 17, "motivo": 62, "evidencia": 62}
+               "preco_hoje": 13, "preco_sugerido": 15, "faixa_de_mercado": 24,
+               "estoque": 10, "dinheiro_em_jogo": 17, "motivo": 62, "evidencia": 68}
     cor = {1: "FFC7CE", 2: "FFD9A0", 3: "FFEB9C"}
     wb = load_workbook(caminho)
     for ws in wb.worksheets:
@@ -165,7 +227,7 @@ def formatar(caminho: Path) -> None:
                         c.alignment = Alignment(horizontal="left")
                     elif nome != "ean":
                         c.number_format = r'_-"R$" * #,##0.00_-;-"R$" * #,##0.00_-'
-            elif nome == "dinheiro_em_jogo":
+            elif nome in ("dinheiro_em_jogo", "preco_hoje", "preco_sugerido"):
                 for c in ws[letra][1:]:
                     c.number_format = r'_-"R$" * #,##0.00_-;-"R$" * #,##0.00_-'
         if "prioridade" in nomes:
@@ -189,7 +251,7 @@ def main() -> None:
     pmc = {k: v["pmc"] for k, v in motor.carregar_referencia().items() if v.get("pmc")}
 
     df = carregar(planilha)
-    a = acoes(df, pmc)
+    a = acoes(df, pmc, carregar_markup())
 
     with pd.ExcelWriter(saida, engine="openpyxl") as xl:
         for nome, prio in (("1 - Faca hoje", 1), ("2 - Esta semana", 2), ("3 - Quando der", 3)):
