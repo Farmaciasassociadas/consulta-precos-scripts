@@ -14,6 +14,7 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 import db
+from atualizar_brick import BRICK_ATUAL, ler_brick
 from caminhos import CONSULTA_PRECOS, MARCA_EXCLUSIVA_XLSX, SUBCATEGORIA_XLSX
 
 ROOT = Path(__file__).parent.parent
@@ -208,19 +209,20 @@ def carregar_brick_e_estoque(conn: sqlite3.Connection) -> tuple[int, int]:
             segmento_por_ean[ean] = str(row[9]).strip()
         totais_por_ean[ean] = (_numero(row[2]), _numero(row[3]), _numero(row[4]))
 
-    brick_linhas, estoque_linhas, produtos = [], [], {}
+    # O VUM/curva/segmento do Brick vem da planilha CORRENTE do painel
+    # farmaceutico (atualizar_brick.BRICK_ATUAL), nao mais do consolidado de
+    # 08/2026: o consolidado continua sendo a fonte de ESTOQUE e do PMC, que a
+    # planilha do Brick nao traz.
+    pmc_por_ean, estoque_linhas, produtos = {}, [], {}
     for row in wb["Tabela"].iter_rows(min_row=2, values_only=True):
         ean = normalizar_ean(row[0])
         if not ean:
             continue
         descricao = row[1]
-        custo_unit, venda_unit, pmc, curva, vum, posicao = row[2], row[3], row[4], row[6], row[7], row[8]
+        custo_unit, venda_unit, pmc = row[2], row[3], row[4]
 
-        if _numero(vum):
-            brick_linhas.append((
-                ean, _numero(vum), curva, str(posicao) if posicao is not None else None,
-                segmento_por_ean.get(ean), _numero(pmc),
-            ))
+        if _numero(pmc):
+            pmc_por_ean[ean] = _numero(pmc)
         if _numero(custo_unit) or _numero(venda_unit):
             estoque_atual, valor_total_custo, valor_total_venda = totais_por_ean.get(ean, (None, None, None))
             estoque_linhas.append((
@@ -230,6 +232,11 @@ def carregar_brick_e_estoque(conn: sqlite3.Connection) -> tuple[int, int]:
         if descricao:
             produtos.setdefault(ean, str(descricao).strip())
 
+    brick_linhas = [
+        (ean, dados["vum"], dados["curva"] or None, dados["posicao"] or None,
+         dados["segmento"] or None, pmc_por_ean.get(ean))
+        for ean, dados in ler_brick(BRICK_ATUAL).items()
+    ]
     conn.execute("DELETE FROM preco_brick")
     conn.executemany(
         "INSERT INTO preco_brick (ean, vum, curva_abc, posicao_mais_vendidos, segmento, pmc_maximo) "
@@ -411,9 +418,9 @@ def main() -> None:
         print(f"{fonte:20s} {n:6d} linhas  <- {arquivo.name}")
 
     n_brick, n_estoque = carregar_brick_e_estoque(conn)
-    db.registrar_carga(conn, "preco_brick", BRICK_ESTOQUE_XLSX.name, n_brick)
+    db.registrar_carga(conn, "preco_brick", BRICK_ATUAL.name, n_brick)
     db.registrar_carga(conn, "estoque", BRICK_ESTOQUE_XLSX.name, n_estoque)
-    print(f"{'preco_brick':20s} {n_brick:6d} linhas  <- {BRICK_ESTOQUE_XLSX.name}")
+    print(f"{'preco_brick':20s} {n_brick:6d} linhas  <- {BRICK_ATUAL.name}")
     print(f"{'estoque':20s} {n_estoque:6d} linhas  <- {BRICK_ESTOQUE_XLSX.name}")
 
     n_marca_propria = carregar_marca_propria(conn)
