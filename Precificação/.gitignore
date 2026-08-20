@@ -22,3 +22,8 @@ work/
 # Rodadas exportadas: regeneraveis via rodada.py + exportar_excel.py,
 # nao precisam ficar versionadas (ficam so localmente).
 # PRECIFICACAO_RODADA_*.xlsx  # desativado: RODADA_10 com classificacoes corretas versionada
+
+# Planilha do painel farmaceutico (Brick): 40 mil EANs com VUM, curva, ranking
+# e faturamento por produto. O remoto deste repo e' PUBLICO -- o arquivo fica
+# so' na maquina, e o atualizar_brick.py o le de outputs/consolidado_estoque/.
+outputs/consolidado_estoque/BRICK*.xlsx
