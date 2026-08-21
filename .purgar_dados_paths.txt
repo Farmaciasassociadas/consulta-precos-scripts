@@ -1,0 +1,22 @@
+Precificação/ESTOQUE_DROGARIA_PRECIFICADO.xlsx
+Precificação/ESTOQUE_DROGARIA_PRECIFICADO_FROM_RODADA.xlsx
+Precificação/LISTA_CLASSIFICADA_COM_PRECOS_UNITARIOS.xlsx
+Precificação/PERFUMARIA CLASSIFICADO - COM CATEGORIAS.xlsx
+Precificação/POLITICA_MARKUP_POR_CATEGORIA.csv
+Precificação/PRECIFICACAO_COMPLETA_20260726.xlsx
+Precificação/PRECIFICACAO_RODADA_10.xlsx
+Precificação/Precificacao_Catalogo_Geral_v3_20260727_classificado.xlsx
+Precificação/RECOMENDACAO_PRECOS_PERFUMARIA.xlsx
+Precificação/Relatório notas fiscais 24-07 - PERFUMARIA.xlsx
+Precificação/Relatório notas fiscais 24-07_PERFUMARIA.xlsx
+Precificação/Relatório notas fiscais 24-07_com_custo_unitario.xlsx
+Precificação/Relatório notas fiscais 24-07_sem_marca_propria.xlsx
+Precificação/dados/comparativo_mercado.xlsx
+Precificação/dados/pesquisa_web_2026-08-14.csv
+Precificação/dados/pesquisa_web_2026-08-15.csv
+Precificação/lista de produtos_com_precos_unitarios.xlsx
+Precificação/outputs/consolidado_estoque/estoque_pmc_brick.xlsx
+Precificação/outputs/eans_pmc/ean_descricao_fabricante_pmc.xlsx
+Precificação/outputs/eans_pmc/ean_descricao_fabricante_pmc_pr.xlsx
+Precificação/precificador/precificador.db
+Precificação/subcategoria_classificada.csv
