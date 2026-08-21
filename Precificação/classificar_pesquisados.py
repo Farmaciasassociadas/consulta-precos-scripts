@@ -31,6 +31,36 @@ CLASSIFICACAO = {
     "7897595630773": ("SIMILAR > RX-SIMILAR", "similar, referencia Tandrilax; relaxante muscular + AINE"),
     "7897595630803": ("SIMILAR > RX-SIMILAR", "similar, referencia Tandrilax; relaxante muscular + AINE"),
     "7897595618733": ("SIMILAR > RX-SIMILAR", "Brick SIM; sildenafila"),
+    # --- Os 27 que ficaram so com o eixo (XML sem Grupo, e 3 do relatorio cujo
+    # --- par pai>filho nao existe na politica). O app SO aceita "PAI > FILHO":
+    # --- categoria de nivel pai e' rejeitada e o item aparece sem categoria.
+    "7896269900150": ("ETICOS > USO CONTINUO", "salbutamol, broncodilatador de manutencao"),
+    "5000456028387": ("ETICOS > USO CONTINUO", "dapagliflozina+metformina, diabetes"),
+    "7896422504621": ("ETICOS > USO CONTINUO", "sinvastatina+ezetimiba, colesterol"),
+    "7896422504645": ("ETICOS > USO CONTINUO", "sinvastatina+ezetimiba, colesterol"),
+    "7896422504652": ("ETICOS > USO CONTINUO", "sinvastatina+ezetimiba, colesterol"),
+    "7897595602626": ("GENERICO > ANTIMICROBIANO", "aciclovir, antiviral"),
+    "7897595605900": ("GENERICO > USO CONTINUO", "alopurinol, gota"),
+    "7897595634788": ("GENERICO > USO CONTINUO", "apixabana, anticoagulante"),
+    "7897595602572": ("GENERICO > USO CONTINUO", "atenolol, anti-hipertensivo"),
+    "7897595605412": ("GENERICO > USO CONTINUO", "atenolol, anti-hipertensivo"),
+    "7897595602589": ("GENERICO > USO CONTINUO", "atenolol, anti-hipertensivo"),
+    "7897595605429": ("GENERICO > USO CONTINUO", "atenolol, anti-hipertensivo"),
+    "7897595620552": ("GENERICO > ANTIMICROBIANO", "azitromicina, antibiotico"),
+    "7897595611178": ("GENERICO > USO CONTINUO", "candesartana, anti-hipertensivo"),
+    "7897595626127": ("GENERICO > USO CONTINUO", "candesartana+hidroclorotiazida"),
+    "7897595633668": ("GENERICO > CONTROLADO", "escitalopram, lista C1 na propria descricao"),
+    "7896004796352": ("GENERICO > O.T.C/MIP", "xarope expectorante, venda livre"),
+    "7897595606259": ("GENERICO > USO CONTINUO", "pantoprazol"),
+    "7897595606297": ("GENERICO > USO CONTINUO", "pantoprazol"),
+    "7897595620620": ("GENERICO > USO CONTINUO", "rosuvastatina, colesterol"),
+    "7897595620644": ("GENERICO > USO CONTINUO", "rosuvastatina, colesterol"),
+    "7897595618658": ("GENERICO > RX", "sildenafila"),
+    "7897595618610": ("GENERICO > RX", "sildenafila"),
+    "7897595615480": ("GENERICO > O.T.C/MIP", "simeticona, venda livre"),
+    "7897595608161": ("GENERICO > CONTROLADO", "zolpidem, lista B1 na propria descricao"),
+    "7896004772325": ("SIMILAR > O.T.C/MIP-SIMILAR", "complexo B EMS, polivitaminico isento de prescricao"),
+    "7891317040949": ("SIMILAR > RX-SIMILAR", "LARC = etodolaco, anti-inflamatorio sob prescricao"),
 }
 
 
