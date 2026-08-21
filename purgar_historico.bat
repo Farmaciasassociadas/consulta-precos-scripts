@@ -1,93 +1,81 @@
 @echo off
 REM ============================================================
 REM  UMA VEZ SO. Apaga custo e margem do HISTORICO do repo publico.
+REM  Reescreve os 84 commits: o repositorio cai de 163 MB para ~2 MB.
 REM
-REM  Reescreve os 83 commits: o repositorio cai de 163 MB para 1.6 MB.
-REM  Testado em clone descartavel -- a arvore atual fica identica, so o
-REM  historico perde os 22 arquivos de dados.
+REM    purgar_historico.bat        -> pede confirmacao
+REM    purgar_historico.bat /S     -> sem perguntar (terminal do VS Code)
 REM
-REM  DEPOIS DISSO os outros 2 PCs TEM que re-clonar. Os SHAs mudam todos;
-REM  um "git pull" la vai dar conflito irreconciliavel.
+REM  DEPOIS os outros 2 PCs TEM que re-clonar: todos os SHAs mudam.
 REM ============================================================
 setlocal
 cd /d "%~dp0"
+set AUTO=
+if /i "%~1"=="/S" set AUTO=1
 
 echo === 1. Conferindo se e seguro ===
-
 for /f %%w in ('git worktree list ^| find /c /v ""') do set WT=%%w
 if not "%WT%"=="1" (
-    echo ERRO: existe worktree ativa alem da principal.
+    echo ERRO: existe worktree ativa alem da principal. Abortado.
     git worktree list
-    echo.
-    echo Provavelmente e outra sessao do Claude Code trabalhando neste repo.
-    echo Reescrever o historico agora destruiria o trabalho dela.
-    echo Feche a sessao, rode "git worktree prune" e tente de novo.
-    goto fim
+    echo Feche a sessao e rode: git worktree remove --force ^<caminho^>
+    exit /b 1
 )
-
 git diff-index --quiet HEAD --
 if errorlevel 1 (
-    echo ERRO: ha mudancas nao commitadas. Commite ou guarde antes.
+    echo ERRO: ha mudancas nao commitadas. Commite ou descarte antes. Abortado.
     git status --short
-    goto fim
+    exit /b 1
 )
-
 for /f "delims=" %%u in ('git remote get-url origin') do set ORIGIN=%%u
-echo Worktree unica, arvore limpa. Origin: %ORIGIN%
+echo OK: worktree unica, arvore limpa.
+echo Origin: %ORIGIN%
 echo.
 
 echo === 2. Backup do historico completo ===
 git bundle create "%TEMP%\claude_antes_da_purga.bundle" --all
-if errorlevel 1 goto fim
-echo Backup: %TEMP%\claude_antes_da_purga.bundle
-echo Para desfazer tudo:  git clone "%TEMP%\claude_antes_da_purga.bundle" recuperado
+if errorlevel 1 (echo ERRO no backup. Abortado.& exit /b 1)
+echo Backup em: %TEMP%\claude_antes_da_purga.bundle
+echo Desfazer tudo:  git clone "%TEMP%\claude_antes_da_purga.bundle" recuperado
 echo.
-
-echo === 3. O que sai do historico ===
+echo Sai do historico (nao apaga copias que terceiros ja baixaram):
 type .purgar_dados_paths.txt
 echo.
-echo Isto NAO apaga copias que terceiros ja tenham baixado do GitHub.
-echo.
 
+if defined AUTO goto executa
 choice /c SN /n /m "Reescrever o historico e forcar o push? [S=sim / N=nao] "
-if errorlevel 2 (
-    echo Cancelado. Nada mudou.
-    goto fim
-)
+if errorlevel 2 (echo Cancelado. Nada mudou.& exit /b 0)
 
+:executa
 echo.
-echo === 4. Reescrevendo ===
+echo === 3. Reescrevendo ===
 python -m git_filter_repo --invert-paths --paths-from-file .purgar_dados_paths.txt --force
 if errorlevel 1 (
-    echo FALHOU. O repositorio local pode estar em estado intermediario.
-    echo Recupere do bundle acima antes de mexer em qualquer coisa.
-    goto fim
+    echo ############################################################
+    echo #  A REESCRITA FALHOU. Recupere do bundle antes de mexer.
+    echo ############################################################
+    exit /b 1
 )
 
 echo.
-echo === 5. Republicando ===
+echo === 4. Republicando ===
 git remote add origin "%ORIGIN%" 2>nul
 git push --force origin master
 if errorlevel 1 (
-    echo.
-    echo O push falhou. O historico local JA foi reescrito.
-    echo Rode manualmente:  git push --force origin master
-    goto fim
+    echo ############################################################
+    echo #  O PUSH FALHOU, mas o historico local JA foi reescrito.
+    echo #  Rode:  git push --force origin master
+    echo ############################################################
+    exit /b 1
 )
 
 echo.
 echo ============================================================
-echo  Pronto. O historico publico nao tem mais custo nem margem.
+echo  PRONTO. O historico publico nao tem mais custo nem margem.
 echo.
 echo  AGORA, nos outros 2 PCs (SRVBIG-LJ1 e o terceiro):
-echo    1. Salve qualquer trabalho nao commitado
-echo    2. Apague a pasta C:\Claude
+echo    1. Salve trabalho nao commitado   2. Apague C:\Claude
 echo    3. git clone %ORIGIN% C:\Claude
-echo  Um "git pull" NAO funciona: os SHAs mudaram todos.
-echo.
-echo  Os dados continuam sincronizando, pelo repo PRIVADO do app.
+echo  "git pull" NAO funciona: os SHAs mudaram todos.
 echo ============================================================
-
-:fim
-echo.
-pause
+exit /b 0
