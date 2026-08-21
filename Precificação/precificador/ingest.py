@@ -46,7 +46,13 @@ def _carregar_fatores_venda() -> dict[str, float]:
     return fatores
 BRICK_ESTOQUE_XLSX = ROOT / "outputs" / "consolidado_estoque" / "estoque_pmc_brick.xlsx"
 PMC_PR_XLSX = ROOT / "outputs" / "eans_pmc" / "ean_descricao_fabricante_pmc_pr.xlsx"
-POLITICA_CSV = ROOT / "POLITICA_MARKUP_POR_CATEGORIA.csv"
+# Politica de margem: fonte da verdade e' a do app (repo PRIVADO), nao a copia
+# daqui. Alem de ser dado de negocio que nao pode ir para repo publico, a copia
+# local estava DESATUALIZADA: BEBIDAS E BOMBONIERE e VAREJINHO rodavam com
+# lucro-alvo de 28% quando a revisao de 07/08/2026 baixou para 20%.
+POLITICA_CSV = CONSULTA_PRECOS / "precificacao" / "dados" / "politica_markup.csv"
+if not POLITICA_CSV.exists():  # fallback: copia antiga versionada aqui
+    POLITICA_CSV = ROOT / "POLITICA_MARKUP_POR_CATEGORIA.csv"
 PRECOS_CSV = CONSULTA_PRECOS / "precos.csv"
 EANS_NEGATIVOS_CSV = CONSULTA_PRECOS / "eans_negativos.csv"
 
@@ -369,6 +375,55 @@ def carregar_subcategoria_classificada(conn: sqlite3.Connection) -> int:
     return len(linhas)
 
 
+def carregar_sync_privado(conn: sqlite3.Connection) -> int:
+    """Reimporta o que so existe por trabalho humano, do repo PRIVADO do app.
+
+    O .db nao viaja entre os PCs: e' binario de 53 MB, o git nao o reconcilia e
+    ele carrega custo e margem. O que viaja sao estes CSVs (~290 KB), gerados
+    por Precificacao/exportar_para_sync.py. Sem esta carga, um PC que rode o
+    ingest do zero perde as classificacoes feitas a mao.
+
+    Roda DEPOIS de carregar_subcategoria_classificada de proposito: a planilha
+    e' a base, e o que foi decidido a mao vem por cima.
+    """
+    pasta = CONSULTA_PRECOS / "precificacao" / "dados"
+    total = 0
+
+    caminho = pasta / "sync_produto.csv"
+    if caminho.exists():
+        with caminho.open(encoding="utf-8", newline="") as fh:
+            for linha in csv.DictReader(fh):
+                ean = normalizar_ean(linha["ean"])
+                if not ean:
+                    continue
+                conn.execute(
+                    "INSERT INTO produto (ean, descricao, grupo_pai_nf, grupo_filho_nf) "
+                    "VALUES (?, ?, ?, ?) ON CONFLICT(ean) DO UPDATE SET "
+                    "descricao = COALESCE(produto.descricao, excluded.descricao), "
+                    "grupo_pai_nf = COALESCE(produto.grupo_pai_nf, excluded.grupo_pai_nf), "
+                    "grupo_filho_nf = COALESCE(produto.grupo_filho_nf, excluded.grupo_filho_nf)",
+                    (ean, linha["descricao"] or None,
+                     linha["grupo_pai_nf"] or None, linha["grupo_filho_nf"] or None))
+                total += 1
+
+    caminho = pasta / "sync_subcategoria_classificada.csv"
+    if caminho.exists():
+        with caminho.open(encoding="utf-8", newline="") as fh:
+            for linha in csv.DictReader(fh):
+                ean, exata = normalizar_ean(linha["ean"]), (linha["classificacao_exata"] or "").strip()
+                if not (ean and exata):
+                    continue
+                conn.execute(
+                    "INSERT INTO subcategoria_classificada (ean, classificacao_exata, fonte) "
+                    "VALUES (?, ?, ?) ON CONFLICT(ean) DO UPDATE SET "
+                    "classificacao_exata = excluded.classificacao_exata, fonte = excluded.fonte",
+                    (ean, exata, linha["fonte"] or "sync privado"))
+                total += 1
+
+    conn.commit()
+    return total
+
+
 def carregar_marca_exclusiva(conn: sqlite3.Connection) -> int:
     """Preco de venda dos itens de Marca Exclusiva Associados (planilha do
     usuario, coluna K = 'Preco Venda'), gravado em produto.marca_exclusiva_preco.
@@ -445,6 +500,9 @@ def main() -> None:
     n_subcategoria = carregar_subcategoria_classificada(conn)
     db.registrar_carga(conn, "subcategoria_classificada", SUBCATEGORIA_XLSX.name, n_subcategoria)
     print(f"{'subcategoria':20s} {n_subcategoria:6d} EANs classificados")
+
+    n_sync = carregar_sync_privado(conn)
+    print(f"{'sync privado':20s} {n_sync:6d} linhas  <- ConsultaPrecosEAN/precificacao/dados")
 
     n_marca_exclusiva = carregar_marca_exclusiva(conn)
     db.registrar_carga(conn, "marca_exclusiva", MARCA_EXCLUSIVA_XLSX.name, n_marca_exclusiva)

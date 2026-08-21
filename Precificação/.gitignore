@@ -27,3 +27,22 @@ work/
 # e faturamento por produto. O remoto deste repo e' PUBLICO -- o arquivo fica
 # so' na maquina, e o atualizar_brick.py o le de outputs/consolidado_estoque/.
 outputs/consolidado_estoque/BRICK*.xlsx
+
+# ---- Dado de negocio NUNCA vai para este repo: o origin e PUBLICO ----
+# Custo, margem, preco praticado e coleta de concorrente. O que precisa
+# viajar entre os 3 PCs sai por exportar_para_sync.py para o repo PRIVADO
+# do app (ConsultaPrecosEAN/precificacao/dados), e o ingest le de la.
+# O .db nao sincroniza: e binario de 53 MB e cada PC o reconstroi com ingest.py.
+precificador/*.db
+POLITICA_MARKUP_POR_CATEGORIA.csv
+subcategoria_classificada.csv
+ESTOQUE_DROGARIA_PRECIFICADO*.xlsx
+PRECIFICACAO_RODADA_*.xlsx
+decisao_humana_rodada_*.xlsx
+eans_nunca_pesquisados.xlsx
+fila_coleta*.csv
+dados/comparativo_mercado.xlsx
+dados/pesquisa_web_*.csv
+outputs/**/*.xlsx
+outputs/**/*.csv
+outputs/**/*.txt
