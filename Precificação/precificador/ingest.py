@@ -354,9 +354,15 @@ def carregar_subcategoria_classificada(conn: sqlite3.Connection) -> int:
         if ean and categoria:
             linhas.append((ean, str(categoria).strip(), SUBCATEGORIA_XLSX.name))
 
-    conn.execute("DELETE FROM subcategoria_classificada")
+    # Apaga so o que veio DESTA planilha. Classificacao de outra fonte
+    # (importar_entradas.py, a partir do Grupo/Grupo Pai do relatorio de
+    # entradas) tem que sobreviver a recarga -- senao o ingest a destroi.
+    conn.execute("DELETE FROM subcategoria_classificada WHERE fonte IS NULL OR fonte = ?",
+                 (SUBCATEGORIA_XLSX.name,))
     conn.executemany(
-        "INSERT INTO subcategoria_classificada (ean, classificacao_exata, fonte) VALUES (?, ?, ?)",
+        "INSERT INTO subcategoria_classificada (ean, classificacao_exata, fonte) VALUES (?, ?, ?) "
+        "ON CONFLICT(ean) DO UPDATE SET classificacao_exata = excluded.classificacao_exata, "
+        "fonte = excluded.fonte",
         linhas,
     )
     conn.commit()
@@ -412,6 +418,15 @@ def main() -> None:
         ("politica_categoria", POLITICA_CSV, lambda: carregar_politica(conn)),
         ("pmc_cmed_pr", PMC_PR_XLSX, lambda: carregar_pmc_cmed(conn)),
     ]
+    if not CUSTO_NF_XLSX.exists():
+        # Recarga total de custo_nf precisa do export COMPLETO de entradas.
+        # Faltando ele, pular e' o certo: apontar esta carga para um relatorio
+        # parcial apagaria o historico de custo dos outros EANs.
+        print(f"AVISO: {CUSTO_NF_XLSX.name} nao encontrado -- custo_nf mantido como esta.")
+        print("       Relatorio parcial de entradas? use, sem apagar o resto:")
+        print("       python ../importar_entradas.py <relatorio.xls>")
+        cargas = [c for c in cargas if c[0] != "custo_nf"]
+
     for fonte, arquivo, funcao in cargas:
         n = funcao()
         db.registrar_carga(conn, fonte, arquivo.name, n)
