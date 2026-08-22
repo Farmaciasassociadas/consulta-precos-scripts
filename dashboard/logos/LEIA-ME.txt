@@ -1,0 +1,19 @@
+Logos das farmácias.
+
+Um arquivo por farmácia, com o nome da chave usada no app. O código procura
+<chave>.png, depois <chave>.svg, e só então mostra o monograma colorido.
+
+  drogaraia      Droga Raia            .png  16x16  (fonte só tinha o favicon)
+  nissei         Nissei                .png  128x38
+  saojoao        São João              .png  32x32
+  farmasp        Farmácias São Paulo   .svg  vetor
+  panvel         Panvel                .png  128x128
+  paguemenos     Pague Menos           .svg  vetor
+  precopopular   Preço Popular         .svg  vetor
+  drogariasp     Drogaria São Paulo    .png  128x128
+
+Baixados dos próprios sites em 22/08/2026 (favicon/apple-touch-icon, manifesto
+e asset de logo). Droga Raia e São João só publicam ícone pequeno; se quiser
+melhor, troque o arquivo por um PNG maior com o mesmo nome.
+
+Farmácia nova: acrescente a chave em FARMACIAS no código e o arquivo aqui.
