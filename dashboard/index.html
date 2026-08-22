@@ -328,6 +328,25 @@ DADOS SINTÉTICOS: nenhum EAN, custo, preço ou margem real neste arquivo.
   .g-nota{font-size:12px;color:var(--texto-suave);margin:10px 0 0;max-width:75ch;line-height:1.5}
 
 
+  /* ---------- entrada ---------- */
+  .fundo-login{position:fixed;inset:0;background:var(--fundo);z-index:200;
+    display:none;align-items:center;justify-content:center;padding:24px}
+  .fundo-login.aberto{display:flex}
+  .login{width:100%;max-width:360px;background:var(--branco);
+    border:1px solid var(--linha);border-radius:10px;padding:28px 26px}
+  .login h1{margin:0;font-size:19px;font-weight:700;letter-spacing:-.01em}
+  .login .sub{margin:4px 0 20px;font-size:13px;color:var(--texto-suave)}
+  .login label{display:block;font-size:12px;color:var(--texto-suave);margin:12px 0 4px}
+  .login input{width:100%;font:inherit;font-size:14px;padding:9px 10px;
+    border:1px solid var(--linha);border-radius:6px;background:var(--branco)}
+  .login input:focus{outline:2px solid var(--teal-acao);outline-offset:-2px;border-color:transparent}
+  .login .btn{width:100%;justify-content:center;margin-top:18px;padding:10px}
+  .login .erro{margin:14px 0 0;font-size:13px;color:#B91C1C;background:#FEF2F2;
+    border:1px solid #FECACA;border-radius:6px;padding:8px 10px}
+  .login .nota{margin:16px 0 0;font-size:11px;color:var(--texto-suave);line-height:1.5}
+  .sessao .sair{margin-left:10px;font:inherit;font-size:11px;color:var(--teal-acao);
+    background:none;border:0;cursor:pointer;text-decoration:underline;padding:0}
+
   /* ---------- seleção e etiquetas ---------- */
   td.sel,th.sel{width:34px;text-align:center;padding:0 0 0 8px}
   td.sel input,th.sel input{width:15px;height:15px;accent-color:var(--teal-acao);cursor:pointer;margin:0}
@@ -406,8 +425,9 @@ DADOS SINTÉTICOS: nenhum EAN, custo, preço ou margem real neste arquivo.
     <input id="busca" type="search" placeholder="EAN ou nome do produto — no balcão, bipe o código de barras" autocomplete="off">
   </div>
   <div class="sessao">
-    <div class="sync"><i></i><span>Sincronizado 14:32</span></div>
-    <div class="conta"><b>contato@…maringa.com.br</b><span class="papel">ADMIN</span></div>
+    <div class="sync"><i></i><span id="sync">Carregando…</span></div>
+    <div class="conta"><b id="conta-email">—</b><span class="papel" id="conta-papel">—</span>
+      <button class="sair" id="btn-sair" title="Sair desta conta">Sair</button></div>
   </div>
 </header>
 
@@ -469,6 +489,21 @@ DADOS SINTÉTICOS: nenhum EAN, custo, preço ou margem real neste arquivo.
   Mockup com <b>dados sintéticos</b> — nenhum EAN, custo, preço ou margem real.
   Botão direito numa linha abre o menu; duplo clique abre o histórico.
 </p>
+
+<div class="fundo-login" id="fundo-login" role="dialog" aria-modal="true"
+     aria-labelledby="login-titulo">
+  <form class="login" id="form-login">
+    <h1 id="login-titulo">Painel de precificação</h1>
+    <p class="sub">Entre com a conta das Farmácias Associadas.</p>
+    <label for="login-email">E-mail</label>
+    <input type="email" id="login-email" autocomplete="username" required>
+    <label for="login-senha">Senha</label>
+    <input type="password" id="login-senha" autocomplete="current-password" required>
+    <p class="erro" id="login-erro" role="alert" hidden></p>
+    <button class="btn" type="submit" id="login-btn">Entrar</button>
+    <p class="nota">Quem não está na lista de acesso não enxerga nada — nem com o link.</p>
+  </form>
+</div>
 
 <div class="menu" id="menu" role="menu" aria-hidden="true">
   <div class="cab" id="menu-cab">PRODUTO</div>
@@ -533,9 +568,7 @@ DADOS SINTÉTICOS: nenhum EAN, custo, preço ou margem real neste arquivo.
 </div>
 
 <script>
-const FARMACIAS=[["drogaraia","Droga Raia"],["nissei","Nissei"],["saojoao","São João"],
-["farmasp","Farmácias São Paulo"],["panvel","Panvel"],["paguemenos","Pague Menos"],
-["precopopular","Preço Popular"],["drogariasp","Drogaria São Paulo"]];
+let FARMACIAS=[];   // preenchido por carregar(): vem da tabela `farmacia`
 
 /* Paleta categórica de 8 posições, validada para daltonismo e para o fundo
    branco (pior par adjacente ΔE 9.1 protan, 19.6 visão normal). A ordem é fixa:
@@ -573,87 +606,150 @@ function trocaLogos(){
 }
 
 
-const NOMES=[["Dipirona Monoidratada 500mg","20 comprimidos","GENERICOS"],
-["Losartana Potássica 50mg","30 comprimidos","GENERICOS"],
-["Rosuvastatina Cálcica 20mg","30 comprimidos revestidos","ETICOS > RX"],
-["Vitamina D3 2.000UI","60 cápsulas moles","VAREJO > VITAMINAS"],
-["Omeprazol 20mg","28 cápsulas","GENERICOS"],
-["Sabonete Líquido Íntimo 200ml","frasco","VAREJO > CONVENIENCIAS"],
-["Metformina 850mg","30 comprimidos","GENERICOS"],
-["Escitalopram 10mg","30 comprimidos","ETICOS > RX"],
-["Fralda Geriátrica Tamanho G","pacote com 8","VAREJO > CONVENIENCIAS"],
-["Colágeno Hidrolisado Verisol","30 sachês","VAREJO > VITAMINAS"],
-["Ibuprofeno 600mg","20 comprimidos","GENERICOS"],
-["Cloridrato de Sertralina 50mg","30 comprimidos","ETICOS > RX"],
-["Protetor Solar FPS 70","200ml","VAREJO > CONVENIENCIAS"],
-["Magnésio Dimalato 500mg","120 cápsulas","VAREJO > VITAMINAS"],
-["Amoxicilina 500mg","21 cápsulas","ETICOS > RX"],
-["Creme Dental Branqueador","90g","VAREJO > CONVENIENCIAS"],
-["Dexametasona Creme 0,1%","bisnaga 10g","GENERICOS"],
-["Ômega 3 1000mg","120 cápsulas","VAREJO > VITAMINAS"],
-["Enalapril 10mg","30 comprimidos","GENERICOS"],
-["Desodorante Antitranspirante","150ml","VAREJO > CONVENIENCIAS"],
-["Pantoprazol 40mg","28 comprimidos","ETICOS > RX"],
-["Soro Fisiológico 0,9%","500ml","GENERICOS"],
-["Multivitamínico A-Z","60 comprimidos","VAREJO > VITAMINAS"],
-["Prednisona 20mg","10 comprimidos","ETICOS > RX"],
-["Shampoo Anticaspa","400ml","VAREJO > CONVENIENCIAS"],
-["Atorvastatina Cálcica 20mg","30 comprimidos","GENERICOS"],
-["Clonazepam 2mg","30 comprimidos","ETICOS > RX"],
-["Creatina Monohidratada","300g","VAREJO > VITAMINAS"],
-["Paracetamol 750mg","20 comprimidos","GENERICOS"],
-["Álcool em Gel 70%","500ml","VAREJO > CONVENIENCIAS"],
-["Levotiroxina Sódica 50mcg","30 comprimidos","ETICOS > RX"],
-["Vitamina C 1g Efervescente","10 comprimidos","VAREJO > VITAMINAS"],
-["Hidratante Corporal Ureia 10%","400ml","VAREJO > CONVENIENCIAS"],
-["Ácido Fólico 5mg","30 comprimidos","GENERICOS"],
-["Fluconazol 150mg","1 cápsula","GENERICOS"],
-["Escova Dental Macia","unidade","VAREJO > CONVENIENCIAS"],
-["Zolpidem 10mg","30 comprimidos","ETICOS > RX"],
-["Whey Protein Concentrado","900g","VAREJO > VITAMINAS"],
-["Nimesulida 100mg","12 comprimidos","GENERICOS"],
-["Repelente Icaridina","100ml","VAREJO > CONVENIENCIAS"]];
+/* ---------------------------------------------------------------------------
+   Dados reais, do schema `precificacao`. Sem biblioteca: e' HTTP com JSON, e
+   uma dependencia a menos e' uma coisa a menos para quebrar -- mesma razao do
+   nuvem.py no app.
 
-/* EAN sintético COM dígito verificador correto: o código de barras da etiqueta
-   é desenhado de verdade e um leitor real consegue ler. Sem isso o mockup
-   mostraria uma etiqueta que o caixa recusa. */
-function eanValido(doze){
-  const d=String(doze).padStart(12,'0').slice(0,12);
-  let soma=0;
-  for(let i=0;i<12;i++)soma+=(+d[i])*(i%2?3:1);
-  return d+((10-soma%10)%10);
+   DUAS credenciais, com papeis diferentes (confundi-las ja' custou uma tarde):
+   `apikey` e' a chave PUBLICAVEL, o ingresso que o gateway exige; o
+   `Authorization` carrega o token da PESSOA logada, e e' ele que faz o RLS
+   decidir se ela edita ou so' consulta. A publicavel sozinha nao abre nada.
+--------------------------------------------------------------------------- */
+const API='https://qzlabizghmjjoilgdvoy.supabase.co';
+const PUBLICA='sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
+
+let sessao=null;            // {access_token, refresh_token, email}
+let papel='nenhum';         // 'admin' | 'leitura' -- quem edita e quem so' ve
+let DADOS=[];
+
+function guardarSessao(s){
+  sessao=s;
+  try{localStorage.setItem('sessao',JSON.stringify(s))}catch(e){}
+}
+function lerSessao(){
+  try{return JSON.parse(localStorage.getItem('sessao')||'null')}catch(e){return null}
 }
 
-let semente=20260822;
-function rnd(){semente=(semente*1103515245+12345)&0x7fffffff;return semente/0x7fffffff}
-function dinheiro(v){return v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}
+async function rest(caminho,opcoes){
+  const o=opcoes||{};
+  const r=await fetch(API+'/rest/v1/'+caminho,{
+    method:o.metodo||'GET',
+    headers:Object.assign({
+      'apikey':PUBLICA,
+      'Authorization':'Bearer '+(sessao?sessao.access_token:PUBLICA),
+      'Accept-Profile':'precificacao',
+      'Content-Profile':'precificacao'
+    },o.corpo?{'Content-Type':'application/json'}:{},o.cabecalhos||{}),
+    body:o.corpo?JSON.stringify(o.corpo):undefined
+  });
+  if(r.status===401&&sessao){ await sair('Sua sessao expirou. Entre de novo.'); throw new Error('401'); }
+  if(!r.ok) throw new Error('HTTP '+r.status+': '+(await r.text()).slice(0,200));
+  return r.status===204?null:r.json();
+}
 
-const DADOS=NOMES.map((p,i)=>{
-  const custo=+(2+rnd()*90).toFixed(2);
-  const alvo=+(custo*(1.28+rnd()*.5)).toFixed(2);
-  const motor=+(alvo*(.94+rnd()*.12)).toFixed(2);
-  const manual=rnd()<.24;
-  let meu=manual?+(motor*(1.01+rnd()*.17)).toFixed(2):(rnd()<.08?null:motor);
-  // Alguns itens abaixo do piso: é um estado real e o painel precisa mostrá-lo.
-  if(meu!=null&&rnd()<.09) meu=+(custo*1.04).toFixed(2);
-  const coletados=Math.max(2,Math.round(4+rnd()*4));
-  const precos={};
-  FARMACIAS.forEach(([k],j)=>{precos[k]=j<coletados?+(motor*(.86+rnd()*.34)).toFixed(2):null});
-  const vals=Object.values(precos).filter(v=>v!=null);
-  const menor=Math.min.apply(null,vals), media=vals.reduce((a,b)=>a+b,0)/vals.length;
-  return{
-    id:i, ean:eanValido('789'+String(1000000000+i*7919).slice(0,9)),
-    nome:p[0], apres:p[1], cat:rnd()<.06?'':p[2],
-    custo, motor, meu, manual,
-    piso:+(custo*1.12).toFixed(2), alvo,
-    brick:+(media*(.9+rnd()*.2)).toFixed(2),
-    menor, media:+media.toFixed(2), precos, coletados,
-    abc:['A','A','B','C'][Math.floor(rnd()*4)],
-    cmed:p[2]==='ETICOS > RX'?+(motor*1.14).toFixed(2):null,
-    visto:['hoje 06:12','hoje 06:14','ontem 21:40'][Math.floor(rnd()*3)],
-    calc:['22/08/2026','19/08/2026','11/07/2026'][Math.floor(rnd()*3)]
-  };
-});
+/* Le TUDO, paginando. O PostgREST corta em max_rows sem avisar que cortou: uma
+   leitura ingenua traria 1.000 de 4.321 e a tela diria, em silencio, que a
+   farmacia tem um quarto do catalogo. */
+const PAGINA=1000;
+async function restTudo(tabela,consulta){
+  const tudo=[];
+  for(;;){
+    const lote=await rest(tabela+'?'+consulta+'&limit='+PAGINA+'&offset='+tudo.length);
+    tudo.push.apply(tudo,lote);
+    if(lote.length<PAGINA) return tudo;
+  }
+}
+
+async function entrar(email,senha){
+  const r=await fetch(API+'/auth/v1/token?grant_type=password',{
+    method:'POST',
+    headers:{'apikey':PUBLICA,'Content-Type':'application/json'},
+    body:JSON.stringify({email:email,password:senha})
+  });
+  const d=await r.json();
+  if(!r.ok) throw new Error(d.error_description||d.msg||d.message||'Nao foi possivel entrar.');
+  guardarSessao({access_token:d.access_token,refresh_token:d.refresh_token,
+                 email:(d.user&&d.user.email)||email});
+  return d;
+}
+
+async function sair(aviso){
+  try{localStorage.removeItem('sessao')}catch(e){}
+  sessao=null; papel='nenhum';
+  mostrarLogin(aviso||'');
+}
+
+/* O papel vem do BANCO, nunca do que o navegador acha. Esta consulta passa pelo
+   RLS: quem nao esta na tabela `acesso` le zero linhas e nao entra. */
+async function descobrirPapel(){
+  const r=await rest('acesso?select=email,papel,nome');
+  const meu=r.find(function(a){return a.email===sessao.email});
+  papel=meu?meu.papel:'nenhum';
+  return papel;
+}
+
+function num(v){return v==null?null:+v}
+
+/* painel + observacoes + brick viram a forma que a tela ja' consome. O mockup
+   provou o desenho; aqui so' troca a origem. */
+async function carregar(){
+  const farm=await rest('farmacia?select=chave,nome,ordem&ativa=is.true&order=ordem');
+  FARMACIAS=farm.map(function(f){return [f.chave,f.nome]});
+
+  const linhas=await restTudo('painel',
+    'select=gtin,descricao,categoria,custo,preco_motor,preco_manual,meu_preco,'+
+    'meu_preco_origem,piso,alvo,status,justificativa,data_calculo,meu_preco_em');
+
+  // Brick da competencia mais recente de cada item.
+  const brick={};
+  (await restTudo('referencia_brick','select=gtin,competencia,vum_brick,curva_abc&order=competencia'))
+    .forEach(function(b){brick[b.gtin]=b});
+
+  // Mercado ja' agregado pelo banco: uma linha por produto, com o ultimo preco
+  // de cada farmacia dentro. A tabela crua tem 81.599 linhas -- 82 paginas,
+  // uns 2,5 minutos so' para desenhar a primeira tela.
+  const mercado={};
+  (await restTudo('mercado','select=gtin,precos,coletados,menor,maior,media,mediana,visto'))
+    .forEach(function(m){mercado[m.gtin]=m});
+
+  DADOS=linhas.map(function(l,i){
+    const m=mercado[l.gtin]||{};
+    const precos={};
+    // Sempre TODAS as farmacias, na ordem da tabela `farmacia`: farmacia que
+    // nao coletou tem de aparecer como buraco, nao sumir da linha.
+    FARMACIAS.forEach(function(f){
+      precos[f[0]]=m.precos&&m.precos[f[0]]!=null?num(m.precos[f[0]]):null});
+    const b=brick[l.gtin];
+    const partes=String(l.descricao||'').split(' — ');
+    return {
+      id:i, gtin:l.gtin, ean:l.gtin.replace(/^0+(?=\d{8})/,''),
+      nome:partes[0]||l.gtin, apres:partes.slice(1).join(' — '),
+      cat:l.categoria||'',
+      custo:num(l.custo), motor:num(l.preco_motor),
+      meu:num(l.meu_preco), manual:l.preco_manual!=null,
+      piso:num(l.piso), alvo:num(l.alvo),
+      brick:b?num(b.vum_brick):null, abc:b?b.curva_abc:null,
+      cmed:null, status:l.status||'', justificativa:l.justificativa||'',
+      menor:num(m.menor), maior:num(m.maior),
+      media:num(m.media), mediana:num(m.mediana),
+      precos:precos, coletados:m.coletados||0,
+      visto:m.visto?quando(m.visto):'sem coleta',
+      calc:l.data_calculo?dia(l.data_calculo):'—'
+    };
+  });
+}
+
+function dia(iso){const d=new Date(iso);
+  return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+
+    '/'+d.getFullYear()}
+function quando(iso){
+  const d=new Date(iso), hoje=new Date(), h=String(d.getHours()).padStart(2,'0')+':'+
+    String(d.getMinutes()).padStart(2,'0');
+  const dif=Math.floor((new Date(hoje.getFullYear(),hoje.getMonth(),hoje.getDate())-
+                        new Date(d.getFullYear(),d.getMonth(),d.getDate()))/86400000);
+  return dif===0?'hoje '+h:dif===1?'ontem '+h:dia(iso);
+}
 
 function pct(a,b){return (a==null||!b)?null:(a-b)/b*100}
 function classe(v){return v==null?'zero':v>0.05?'mais':v<-0.05?'menos':'zero'}
@@ -1290,5 +1386,65 @@ function ajustarAltura(){
 }
 window.addEventListener('resize',ajustarAltura);
 
-trilho(); desenhar(); painel(0); ajustarAltura();
+/* ---------------------------------------------------------------------------
+   Arranque. Nada de tabela antes de haver sessao E dados: uma tela montada com
+   DADOS vazio parece "a farmacia nao tem produto", que e' pior que esperar.
+--------------------------------------------------------------------------- */
+function mostrarLogin(erro){
+  document.getElementById('fundo-login').classList.add('aberto');
+  const e=document.getElementById('login-erro');
+  e.textContent=erro||''; e.hidden=!erro;
+  document.getElementById('login-btn').disabled=false;
+  document.getElementById('login-btn').textContent='Entrar';
+}
+
+function esconderLogin(){
+  document.getElementById('fundo-login').classList.remove('aberto');
+}
+
+async function abrirPainel(){
+  document.getElementById('sync').textContent='Carregando…';
+  await descobrirPapel();
+  if(papel==='nenhum'){
+    await sair('Esta conta não está na lista de acesso deste painel.');
+    return;
+  }
+  document.getElementById('conta-email').textContent=sessao.email;
+  document.getElementById('conta-papel').textContent=papel.toUpperCase();
+  // Quem e' 'leitura' nao ve botao que nao pode usar: botao que existe e nega
+  // ensina errado. O RLS continua sendo a garantia -- isto e' so' a tela.
+  if(papel!=='admin')
+    document.querySelectorAll('#btn-editar,[data-acao="editar"],[data-acao="manual"]')
+      .forEach(function(b){b.remove()});
+  esconderLogin();
+  await carregar();
+  document.getElementById('sync').textContent=
+    DADOS.length.toLocaleString('pt-BR')+' produtos · '+
+    new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  trilho(); desenhar(); if(DADOS.length)painel(0); ajustarAltura();
+}
+
+document.getElementById('form-login').addEventListener('submit',async function(ev){
+  ev.preventDefault();
+  const b=document.getElementById('login-btn');
+  b.disabled=true; b.textContent='Entrando…';
+  document.getElementById('login-erro').hidden=true;
+  try{
+    await entrar(document.getElementById('login-email').value.trim(),
+                 document.getElementById('login-senha').value);
+    document.getElementById('login-senha').value='';
+    await abrirPainel();
+  }catch(err){ mostrarLogin(String(err.message||err)); }
+});
+
+document.getElementById('btn-sair').onclick=function(){sair('')};
+
+(async function(){
+  ajustarAltura();
+  const s=lerSessao();
+  if(!s){ mostrarLogin(''); return; }
+  sessao=s;
+  try{ await abrirPainel(); }
+  catch(err){ if(sessao) mostrarLogin('Nao foi possivel carregar: '+(err.message||err)); }
+})();
 </script>
