@@ -691,6 +691,13 @@ async function descobrirPapel(){
 
 function num(v){return v==null?null:+v}
 
+/* Dinheiro em pt-BR, sempre com duas casas. Aceita nulo porque preco ausente e
+   preco zero sao coisas diferentes: 'sem coleta' nunca pode virar 'R$ 0,00'. */
+function dinheiro(v){
+  return v==null?'—':Number(v).toLocaleString('pt-BR',
+    {minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
 /* painel + observacoes + brick viram a forma que a tela ja' consome. O mockup
    provou o desenho; aqui so' troca a origem. */
 async function carregar(){
@@ -928,44 +935,100 @@ function painel(id){
   desenhar();
 }
 
-function historico(id){
+/* Histórico REAL, buscado por produto no momento em que a linha é aberta.
+   Um produto de cada vez é uma consulta pequena; puxar o histórico dos 4.321
+   de uma vez seria arrastar a base inteira para desenhar um gráfico.
+
+   O mockup fabricava estes 60 dias com um gerador aleatório, ancorando só o
+   último ponto no preço real. Ali era honesto -- era um mockup. Aqui seria uma
+   tela com cara de autoridade mostrando número inventado, que é pior do que
+   não ter gráfico. */
+const DIAS=60;
+
+function chaveDia(d){return d.toISOString().slice(0,10)}
+
+function eixoDias(){
+  const hoje=new Date(); const eixo=[];
+  for(let i=DIAS-1;i>=0;i--){
+    const d=new Date(hoje); d.setDate(hoje.getDate()-i); eixo.push(chaveDia(d));
+  }
+  return eixo;
+}
+
+/* Preço não muda porque ninguém coletou: entre uma coleta e outra ele CONTINUA
+   valendo. Repetir o último valor conhecido é o que o usuário pediu ao ver
+   linhas caindo a zero -- "se não achou agora e achou antes, permanece". Antes
+   da primeira coleta fica nulo: aí não se sabe mesmo. */
+function continuar(porDia,eixo){
+  let ultimo=null;
+  return eixo.map(function(dia){
+    if(porDia[dia]!=null)ultimo=porDia[dia];
+    return ultimo;
+  });
+}
+
+async function historico(id){
   const d=DADOS.find(x=>x.id===id); if(!d)return;
   document.getElementById('g-titulo').textContent=d.nome;
-  document.getElementById('g-sub').textContent='EAN '+d.ean+' · 60 dias · todas as farmácias, Brick e meu preço';
-  const W=940,H=340,ml=56,mr=14,mt=14,mb=26,dias=60;
-  let s2=id*7717+13;
-  const r2=function(){s2=(s2*1103515245+12345)&0x7fffffff;return s2/0x7fffffff};
-  const linhas=FARMACIAS.map(function(f){
-    if(d.precos[f[0]]==null)return{k:f[0],n:f[1],pts:null};
-    let v=d.precos[f[0]]*(0.94+r2()*0.1); const pts=[];
-    for(let i=0;i<dias;i++){
-      if(r2()<0.06){pts.push(null);continue}
-      if(r2()<0.09) v*=(0.94+r2()*0.13);
-      pts.push(+v.toFixed(2));
-    }
-    pts[dias-1]=d.precos[f[0]];
-    return{k:f[0],n:f[1],pts:pts};
-  });
-  const meu=[]; let mv=(d.meu==null?d.motor:d.meu);
-  for(let i=0;i<dias;i++){if(i===22||i===44)mv=+(mv*(0.97+r2()*0.09)).toFixed(2);meu.push(mv)}
-  if(d.meu!=null)meu[dias-1]=d.meu;
+  document.getElementById('g-sub').textContent='EAN '+d.ean+' · '+DIAS+
+    ' dias · todas as farmácias, Brick e meu preço';
+  document.getElementById('modal').classList.add('aberto');
 
-  /* Brick é atualizado uma vez por mês: degrau, não linha horizontal. O valor
-     vale o mês inteiro e salta na virada -- desenhar inclinado sugeriria uma
+  const eixo=eixoDias(), desde=eixo[0]+'T00:00:00Z';
+  const [coletas,meus,bricks]=await Promise.all([
+    rest('observacao_farmacia?select=farmacia,preco,quando&gtin=eq.'+d.gtin+
+         '&quando=gte.'+desde+'&order=quando'),
+    rest('meu_preco_historico?select=preco_para,quando&gtin=eq.'+d.gtin+'&order=quando'),
+    rest('referencia_brick?select=competencia,vum_brick&gtin=eq.'+d.gtin+'&order=competencia')
+  ]);
+
+  const W=940,H=340,ml=56,mr=14,mt=14,mb=26,dias=DIAS;
+
+  const porFarmacia={};
+  coletas.forEach(function(o){
+    if(o.preco==null)return;               // falha de coleta nao e' preco
+    (porFarmacia[o.farmacia]=porFarmacia[o.farmacia]||{})[o.quando.slice(0,10)]=+o.preco;
+  });
+  const linhas=FARMACIAS.map(function(f){
+    const pontos=porFarmacia[f[0]];
+    return {k:f[0], n:f[1], pts:pontos?continuar(pontos,eixo):null};
+  });
+
+  // Meu preço: o histórico versionado, mais o valor de hoje como último ponto.
+  const meusDia={};
+  meus.forEach(function(m){meusDia[m.quando.slice(0,10)]=+m.preco_para});
+  const meu=continuar(meusDia,eixo);
+  const atual=(d.meu==null?d.motor:d.meu);
+  if(meu[dias-1]==null&&atual!=null)meu[dias-1]=atual;
+  for(let i=0;i<dias;i++)if(meu[i]==null&&atual!=null)meu[i]=null;
+
+  /* Brick é carregado uma vez por mês: degrau, não linha inclinada. O valor
+     vale a competência inteira e salta na virada -- inclinar sugeriria uma
      variação diária que não existe. */
-  const MES=[{ate:20,f:0.94},{ate:50,f:0.99},{ate:dias,f:1}];
-  const brick=[]; for(let i=0;i<dias;i++){
-    brick.push(+(d.brick*MES.find(m=>i<m.ate).f).toFixed(2))}
-  const degrau=function(pts){let s='';
+  const brickDia={};
+  bricks.forEach(function(b){brickDia[b.competencia]=b.vum_brick==null?null:+b.vum_brick});
+  const brick=continuar(brickDia,eixo).map(function(v){
+    return v==null?(d.brick==null?null:d.brick):v});
+  const degrau=function(pts){let s='',pen=true,ant=null;
     pts.forEach(function(v,i){
-      if(i===0){s='M'+X(0).toFixed(1)+' '+Y(v).toFixed(1)+' ';return}
-      if(v!==pts[i-1])s+='L'+X(i).toFixed(1)+' '+Y(pts[i-1]).toFixed(1)+' ';
-      s+='L'+X(i).toFixed(1)+' '+Y(v).toFixed(1)+' '});
+      if(v==null)return;                    // sem brick naquele mes: sem traco
+      if(pen){s+='M'+X(i).toFixed(1)+' '+Y(v).toFixed(1)+' ';pen=false;ant=v;return}
+      if(v!==ant)s+='L'+X(i).toFixed(1)+' '+Y(ant).toFixed(1)+' ';
+      s+='L'+X(i).toFixed(1)+' '+Y(v).toFixed(1)+' '; ant=v});
     return s.trim()};
 
   const todos=[].concat.apply([],linhas.map(l=>l.pts||[])).filter(v=>v!=null)
     .concat(meu).concat(brick);
-  const min=Math.min.apply(null,todos)*0.96, max=Math.max.apply(null,todos)*1.04;
+  /* Com dado real ha' nulo: produto sem coleta, sem brick, sem meu preco. Sem
+     filtrar, Math.min devolve NaN e o grafico sai vazio sem dizer por que. */
+  const validos=todos.filter(function(v){return v!=null&&isFinite(v)});
+  if(!validos.length){
+    document.getElementById('g-svg').innerHTML=
+      '<p class="vazio">Sem histórico nos últimos '+dias+' dias para este produto.</p>';
+    document.getElementById('g-leg').innerHTML='';
+    return;
+  }
+  const min=Math.min.apply(null,validos)*0.96, max=Math.max.apply(null,validos)*1.04;
   const X=i=>ml+i*(W-ml-mr)/(dias-1);
   const Y=v=>mt+(max-v)/(max-min)*(H-mt-mb);
   /* Falha de coleta NÃO interrompe a linha: preço não visto é preço que não
@@ -994,7 +1057,8 @@ function historico(id){
     '<path class="serie" data-k="brick" d="'+degrau(brick)+'" fill="none" '+
       'stroke="#5C7478" stroke-width="2" stroke-dasharray="7 5" stroke-linejoin="round"/>'+
     '<path class="serie" data-k="meu" d="'+caminho(meu)+'" fill="none" stroke="#00706D" stroke-width="3.5" stroke-linejoin="round"/>'+
-    '<circle cx="'+X(dias-1)+'" cy="'+Y(meu[dias-1])+'" r="5" fill="#00706D" stroke="#fff" stroke-width="2"/>'+
+    (meu[dias-1]==null?'':
+      '<circle cx="'+X(dias-1)+'" cy="'+Y(meu[dias-1])+'" r="5" fill="#00706D" stroke="#fff" stroke-width="2"/>')+
     '<rect class="captura" x="'+ml+'" y="'+mt+'" width="'+(W-ml-mr)+'" height="'+(H-mt-mb)+'" fill="transparent"/>'+
     '<line id="guia" x1="0" y1="'+mt+'" x2="0" y2="'+(H-mb)+'" stroke="#5C9490" stroke-width="1" opacity="0"/>'+
     '<text x="'+ml+'" y="'+(H-8)+'" font-size="10.5" fill="#5C7478">24/06</text>'+
