@@ -990,8 +990,12 @@ async function historico(id){
 
   const eixo=eixoDias(), desde=eixo[0]+'T00:00:00Z';
   const [coletas,meus,bricks]=await Promise.all([
+    /* status=neq.DIVERGENTE: DIVERGENTE quer dizer que a pagina raspada era de
+       OUTRO produto -- o preco existe, mas nao e' deste GTIN. Sem este filtro o
+       grafico desenhava, por exemplo, R$ 12,99 de uma Dipirona como se fosse o
+       preco Panvel da fralda Crescendo 7891522057947. */
     rest('observacao_farmacia?select=farmacia,preco,quando&gtin=eq.'+d.gtin+
-         '&quando=gte.'+desde+'&order=quando'),
+         '&status=neq.DIVERGENTE&quando=gte.'+desde+'&order=quando'),
     rest('meu_preco_historico?select=preco_para,quando&gtin=eq.'+d.gtin+'&order=quando'),
     rest('referencia_brick?select=competencia,vum_brick&gtin=eq.'+d.gtin+'&order=competencia')
   ]);
