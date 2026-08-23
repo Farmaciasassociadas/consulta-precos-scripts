@@ -501,7 +501,7 @@ DADOS SINTÉTICOS: nenhum EAN, custo, preço ou margem real neste arquivo.
     <input type="password" id="login-senha" autocomplete="current-password" required>
     <p class="erro" id="login-erro" role="alert" hidden></p>
     <button class="btn" type="submit" id="login-btn">Entrar</button>
-    <p class="nota">Quem não está na lista de acesso não enxerga nada — nem com o link.</p>
+    <p class="nota">Entre com a mesma conta do AssociChat. Quem não tem conta lá não enxerga nada aqui.</p>
   </form>
 </div>
 
@@ -680,12 +680,11 @@ async function sair(aviso){
   mostrarLogin(aviso||'');
 }
 
-/* O papel vem do BANCO, nunca do que o navegador acha. Esta consulta passa pelo
-   RLS: quem nao esta na tabela `acesso` le zero linhas e nao entra. */
+/* O papel vem do BANCO, nunca do que o navegador acha -- e a mesma funcao que o
+   RLS usa para decidir, entao tela e permissao nao podem discordar. Quem e'
+   admin no AssociChat e' admin aqui; usuario de la' e' leitura aqui. */
 async function descobrirPapel(){
-  const r=await rest('acesso?select=email,papel,nome');
-  const meu=r.find(function(a){return a.email===sessao.email});
-  papel=meu?meu.papel:'nenhum';
+  papel=await rest('rpc/papel_atual',{metodo:'POST',corpo:{}})||'nenhum';
   return papel;
 }
 
@@ -1470,7 +1469,7 @@ async function abrirPainel(){
   document.getElementById('sync').textContent='Carregando…';
   await descobrirPapel();
   if(papel==='nenhum'){
-    await sair('Esta conta não está na lista de acesso deste painel.');
+    await sair('Esta conta não tem perfil no AssociChat.');
     return;
   }
   document.getElementById('conta-email').textContent=sessao.email;
