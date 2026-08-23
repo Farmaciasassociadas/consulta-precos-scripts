@@ -486,8 +486,8 @@ DADOS SINTÉTICOS: nenhum EAN, custo, preço ou margem real neste arquivo.
 </div>
 
 <p class="rodape">
-  Mockup com <b>dados sintéticos</b> — nenhum EAN, custo, preço ou margem real.
-  Botão direito numa linha abre o menu; duplo clique abre o histórico.
+  Dados reais do banco. Botão direito numa linha abre o menu;
+  duplo clique abre o histórico.
 </p>
 
 <div class="fundo-login" id="fundo-login" role="dialog" aria-modal="true"
@@ -541,6 +541,21 @@ DADOS SINTÉTICOS: nenhum EAN, custo, preço ou margem real neste arquivo.
 </div>
 
 <div id="folha-print" aria-hidden="true"></div>
+
+<div class="fundo-modal" id="fundo-preco" role="dialog" aria-modal="true"
+     aria-labelledby="preco-titulo">
+  <form class="login" id="form-preco">
+    <h1 id="preco-titulo">Meu preço</h1>
+    <p class="sub" id="preco-sub">—</p>
+    <label for="preco-valor">Preço praticado (R$)</label>
+    <input type="text" inputmode="decimal" id="preco-valor" autocomplete="off" required>
+    <p class="nota" id="preco-refs">—</p>
+    <p class="erro" id="preco-erro" role="alert" hidden></p>
+    <button class="btn" type="submit" id="preco-btn">Salvar</button>
+    <button class="btn sec" type="button" id="preco-cancelar"
+            style="width:100%;justify-content:center;margin-top:8px;padding:10px">Cancelar</button>
+  </form>
+</div>
 
 <div class="fundo-modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="g-titulo">
   <div class="grafico">
@@ -1151,6 +1166,7 @@ document.getElementById('menu').addEventListener('click',function(e){
   const b=e.target.closest('button[data-acao]'); if(!b||b.disabled)return;
   if(b.dataset.acao==='hist')historico(alvoMenu);
   if(b.dataset.acao==='painel')painel(alvoMenu);
+  if(b.dataset.acao==='editar')abrirPreco(alvoMenu);
   document.getElementById('menu').classList.remove('aberto');
 });
 document.getElementById('g-fechar').onclick=function(){
@@ -1435,6 +1451,92 @@ document.getElementById('modal-et').addEventListener('click',function(e){
 
 document.getElementById('busca').addEventListener('input',desenhar);
 document.getElementById('cat').addEventListener('change',desenhar);
+/* ---------------------------------------------------------------------------
+   Editar meu preço
+   O botao existia desde o mockup sem gravar nada. Agora grava em meu_preco,
+   e o gatilho `versionar` registra sozinho o de-para no historico -- e' de la'
+   que a linha "meu preco" do grafico sai.
+   A tranca de verdade e' o RLS: um leitor que forjasse o clique levaria 403.
+--------------------------------------------------------------------------- */
+
+/* "19,90", "1.234,50", "R$ 19.90" -- tudo isso e' digitado na pratica.
+   Com virgula, ela e' a decimal e o ponto e' milhar; sem virgula, o ponto e'
+   a decimal. Interpretar "1.234,50" como 1,23 seria errar por mil vezes. */
+function precoDoTexto(txt){
+  const limpo=String(txt).replace(/R\$/gi,'').replace(/\s/g,'');
+  if(!limpo)return null;
+  const n=parseFloat(limpo.indexOf(',')>=0
+    ? limpo.replace(/\./g,'').replace(',','.') : limpo);
+  return (isFinite(n)&&n>0)?Math.round(n*100)/100:null;
+}
+
+let precoAlvo=null;
+
+function abrirPreco(id){
+  const d=DADOS.find(x=>x.id===id); if(!d)return;
+  precoAlvo=id;
+  document.getElementById('preco-titulo').textContent=d.nome;
+  document.getElementById('preco-sub').textContent='EAN '+d.ean+
+    (d.apres?' · '+d.apres:'');
+  // Referencias na hora de decidir: sem elas o campo e' um numero no vazio.
+  document.getElementById('preco-refs').textContent=
+    'Custo '+dinheiro(d.custo)+' · sugerido pelo motor '+dinheiro(d.motor)+
+    ' · mediana do mercado '+dinheiro(d.mediana);
+  const e=document.getElementById('preco-erro'); e.hidden=true; e.textContent='';
+  const campo=document.getElementById('preco-valor');
+  campo.value=d.meu==null?'':dinheiro(d.meu);
+  document.getElementById('preco-btn').disabled=false;
+  document.getElementById('preco-btn').textContent='Salvar';
+  document.getElementById('fundo-preco').classList.add('aberto');
+  campo.focus(); campo.select();
+}
+
+function fecharPreco(){
+  document.getElementById('fundo-preco').classList.remove('aberto');
+}
+
+async function salvarPreco(){
+  const d=DADOS.find(x=>x.id===precoAlvo); if(!d)return;
+  const e=document.getElementById('preco-erro');
+  const erro=function(msg){e.textContent=msg; e.hidden=false;
+    document.getElementById('preco-btn').disabled=false;
+    document.getElementById('preco-btn').textContent='Salvar'};
+
+  const preco=precoDoTexto(document.getElementById('preco-valor').value);
+  if(preco==null)return erro('Preço inválido. Use algo como 19,90.');
+  /* Dedo escorregado em preco e' caro dos dois lados: 1990 no lugar de 19,90
+     tira o produto do mercado, 1,99 vende abaixo do custo. So' pergunta em
+     salto grande -- perguntar sempre ensina a clicar OK sem ler. */
+  const antes=d.meu==null?d.motor:d.meu;
+  if(antes&&(preco>antes*5||preco<antes/5)&&
+     !confirm('De '+dinheiro(antes)+' para '+dinheiro(preco)+'. Confirma?'))
+    return;
+
+  document.getElementById('preco-btn').disabled=true;
+  document.getElementById('preco-btn').textContent='Salvando…';
+  try{
+    // merge-duplicates: grava por cima se o produto ja' tem preco. Sem isso o
+    // segundo salvamento do mesmo item volta 409 chave duplicada.
+    await rest('meu_preco',{metodo:'POST',
+      corpo:{gtin:d.gtin, preco:preco, origem:'manual'},
+      cabecalhos:{'Prefer':'resolution=merge-duplicates,return=representation'}});
+  }catch(err){
+    return erro(/40[13]/.test(err.message)
+      ? 'Sua conta não tem permissão para editar preço.'
+      : 'Não foi possível salvar: '+err.message);
+  }
+  d.meu=preco;
+  fecharPreco();
+  desenhar(); painel(d.id);
+}
+
+document.getElementById('btn-editar').onclick=function(){abrirPreco(selecionado)};
+document.getElementById('preco-cancelar').onclick=fecharPreco;
+document.getElementById('fundo-preco').addEventListener('click',function(ev){
+  if(ev.target.id==='fundo-preco')fecharPreco()});
+document.getElementById('form-preco').addEventListener('submit',function(ev){
+  ev.preventDefault(); salvarPreco()});
+
 document.getElementById('btn-hist').onclick=function(){historico(selecionado)};
 window.limpar=function(){document.getElementById('busca').value='';
   document.getElementById('cat').value='Todas as categorias';desenhar()};
