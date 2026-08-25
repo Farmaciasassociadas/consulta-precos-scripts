@@ -442,6 +442,10 @@ DADOS SINTÉTICOS: nenhum EAN, custo, preço ou margem real neste arquivo.
       <option>VAREJO &gt; VITAMINAS</option>
       <option>VAREJO &gt; CONVENIENCIAS</option>
     </select>
+    <button class="btn sec" id="btn-pip" title="Abre uma janelinha que fica por cima do ERP">Destacar</button>
+    <button class="btn sec" id="btn-nf" data-acao="editar"
+      title="Lê o XML da NF-e e grava o custo de todos os itens de uma vez">Importar NF-e</button>
+    <input type="file" id="nf-arquivo" accept=".xml,text/xml" multiple hidden>
     <span id="contagem">—</span>
   </div>
 </div>
@@ -536,6 +540,30 @@ DADOS SINTÉTICOS: nenhum EAN, custo, preço ou margem real neste arquivo.
     <div class="acoes" style="justify-content:flex-end">
       <button class="btn sec" id="et-cancelar">Fechar</button>
       <button class="btn" id="et-imprimir">Imprimir</button>
+    </div>
+  </div>
+</div>
+
+<div class="fundo-modal" id="modal-nf" role="dialog" aria-modal="true" aria-labelledby="nf-titulo">
+  <div class="grafico">
+    <div class="g-topo">
+      <div><h3 id="nf-titulo">Importar nota fiscal</h3>
+        <p id="nf-sub">O custo unitário sai da NF-e já com desconto, IPI, ST e frete.</p></div>
+      <button class="fechar" id="nf-fechar" aria-label="Fechar importação">&#10005;</button>
+    </div>
+    <div class="g-corpo">
+      <div class="et-topo">
+        <button class="btn sec" id="nf-escolher">Escolher XML…</button>
+        <label><input type="checkbox" id="nf-todos" checked> marcar todos</label>
+        <span class="resumo" id="nf-resumo">Nenhum arquivo escolhido.</span>
+      </div>
+      <div class="et-lista" id="nf-lista"></div>
+      <div class="et-descartados" id="nf-descartados" hidden></div>
+      <p class="erro" id="nf-erro" role="alert" hidden></p>
+    </div>
+    <div class="acoes" style="justify-content:flex-end">
+      <button class="btn sec" id="nf-cancelar">Fechar</button>
+      <button class="btn" id="nf-gravar" disabled>Gravar custos</button>
     </div>
   </div>
 </div>
@@ -720,7 +748,8 @@ async function carregar(){
 
   const linhas=await restTudo('painel',
     'select=gtin,descricao,categoria,custo,preco_motor,preco_manual,meu_preco,'+
-    'meu_preco_origem,piso,alvo,status,justificativa,data_calculo,meu_preco_em');
+    'meu_preco_origem,piso,alvo,status,justificativa,data_calculo,meu_preco_em,'+
+    'ancora_pmc');
 
   // Brick da competencia mais recente de cada item.
   const brick={};
@@ -751,7 +780,7 @@ async function carregar(){
       meu:num(l.meu_preco), manual:l.preco_manual!=null,
       piso:num(l.piso), alvo:num(l.alvo),
       brick:b?num(b.vum_brick):null, abc:b?b.curva_abc:null,
-      cmed:null, status:l.status||'', justificativa:l.justificativa||'',
+      cmed:num(l.ancora_pmc), status:l.status||'', justificativa:l.justificativa||'',
       menor:num(m.menor), maior:num(m.maior),
       media:num(m.media), mediana:num(m.mediana),
       precos:precos, coletados:m.coletados||0,
@@ -843,8 +872,17 @@ function trilho(){
 function visiveis(){
   const q=document.getElementById('busca').value.trim().toLowerCase();
   const c=document.getElementById('cat').value;
+  /* Procura na descricao INTEIRA (nome + apresentacao) e nas duas formas do
+     codigo -- cru e preenchido com zeros a 13. "DIPIRONA 500" achava nada
+     porque so' o pedaco antes do travessao era indexado, e o balcao bipa o
+     codigo de barras, que pode vir com ou sem os zeros da frente.
+     Termos soltos, em qualquer ordem: "500 dipirona" tambem acha. */
+  const termos=q?q.split(/\s+/):[];
   const lista=DADOS.filter(d=>{
-    if(q&&!(d.ean.includes(q)||d.nome.toLowerCase().includes(q)))return false;
+    if(termos.length){
+      const alvo=(d.ean+' '+d.gtin+' '+d.nome+' '+d.apres).toLowerCase();
+      if(!termos.every(t=>alvo.includes(t)))return false;
+    }
     if(c!=='Todas as categorias'&&d.cat!==c)return false;
     return vista.filtro(d);
   });
@@ -864,7 +902,7 @@ function desenhar(){
        'Nada aqui — nenhum produto neste estado.')+
       '<br><button class="btn sec" style="margin-top:10px" '+
       'onclick="limpar()">Limpar busca e filtros</button></td></tr>';
-    return;
+    pipSync([]); return;
   }
   tbody.innerHTML=lista.map(d=>{
     const dc=pct(d.meu,d.media);
@@ -881,9 +919,10 @@ function desenhar(){
       '<td><span class="coleta">'+FARMACIAS.map(f=>
         '<i class="'+(d.precos[f[0]]!=null?'ok':'')+'"></i>').join('')+
         '<span>'+d.coletados+'/'+FARMACIAS.length+'</span></span></td>'+
-      '<td><span class="abc '+(d.abc==='A'?'a':'')+'">'+d.abc+'</span></td></tr>';
+      '<td><span class="abc '+(d.abc==='A'?'a':'')+'">'+(d.abc||'—')+'</span></td></tr>';
   }).join('');
   atualizarSelbar();
+  pipSync(lista);
 }
 
 function painel(id){
@@ -927,7 +966,7 @@ function painel(id){
     '<div class="linha"><dt>Alvo de margem</dt><dd class="num">R$ '+dinheiro(d.alvo)+'</dd></div>'+
     '<div class="linha"><dt>Margem sobre o custo</dt><dd class="num">'+(d.meu==null?'—':
       ((d.meu-d.custo)/d.custo*100).toFixed(1).replace('.',',')+'%')+'</dd></div>'+
-    '<div class="linha"><dt>Curva ABC</dt><dd>'+d.abc+'</dd></div></dl>'+
+    '<div class="linha"><dt>Curva ABC</dt><dd>'+(d.abc||'—')+'</dd></div></dl>'+
 
     '<div class="secao">REFERÊNCIAS DE MERCADO</div><div class="regua"></div><dl>'+
     '<div class="linha"><dt>Menor concorrente</dt><dd class="num">R$ '+dinheiro(d.menor)+'</dd></div>'+
@@ -1607,6 +1646,325 @@ document.getElementById('form-login').addEventListener('submit',async function(e
 });
 
 document.getElementById('btn-sair').onclick=function(){sair('')};
+
+/* ---------- Importação de custo pela NF-e ----------
+   Digitar custo item a item e' o gargalo: uma nota de 60 linhas leva a tarde
+   inteira e erra. O XML da NF-e ja' traz EAN, descricao e valor -- e ler o
+   arquivo aqui no navegador evita subir nota fiscal para lugar nenhum.
+
+   Custo unitario = (vProd - vDesc + frete + seguro + outros + IPI + ICMS-ST)
+   dividido por qCom. E' o custo que entra no estoque, nao o "valor da linha":
+   ignorar ST e IPI subestima o custo justo nos itens de maior margem.
+
+   O que NAO se faz aqui: converter caixa em unidade. Se a nota veio em CX e a
+   venda e' avulsa, a coluna mostra a unidade da NOTA e o ajuste continua sendo
+   o fator_venda da embalagem -- dividir por conta propria aqui e' o jeito
+   classico de errar custo em massa. */
+let NF=[];
+
+function nfTexto(el,tag){
+  const n=el.getElementsByTagName(tag)[0];
+  return n?String(n.textContent).trim():'';
+}
+function nfNum(el,tag){const v=nfTexto(el,tag); return v?(+v||0):0}
+
+function nfLer(xml,arquivo){
+  const doc=new DOMParser().parseFromString(xml,'application/xml');
+  if(doc.getElementsByTagName('parsererror').length)
+    throw new Error(arquivo+': não parece um XML válido.');
+  const ide=doc.getElementsByTagName('ide')[0];
+  const emit=doc.getElementsByTagName('emit')[0];
+  const nota=ide?nfTexto(ide,'nNF'):'';
+  const forn=emit?nfTexto(emit,'xNome'):'';
+  const dets=doc.getElementsByTagName('det');
+  if(!dets.length) throw new Error(arquivo+': nenhum item encontrado no XML.');
+  const itens=[];
+  for(let i=0;i<dets.length;i++){
+    const det=dets[i], prod=det.getElementsByTagName('prod')[0];
+    if(!prod) continue;
+    const qtd=nfNum(prod,'qCom')||1;
+    const total=nfNum(prod,'vProd')-nfNum(prod,'vDesc')+nfNum(prod,'vFrete')+
+                nfNum(prod,'vSeg')+nfNum(prod,'vOutro')+
+                nfNum(det,'vIPI')+nfNum(det,'vICMSST')+nfNum(det,'vFCPST');
+    // cEAN vem "SEM GTIN" em item sem codigo de barras; as vezes so' o cEANTrib
+    // tem o codigo de verdade.
+    const ean=[nfTexto(prod,'cEAN'),nfTexto(prod,'cEANTrib')]
+      .filter(function(v){return /^\d{8,14}$/.test(v)})[0]||'';
+    itens.push({ean:ean, cod:nfTexto(prod,'cProd'), nome:nfTexto(prod,'xProd'),
+                qtd:qtd, un:nfTexto(prod,'uCom'), custo:total/qtd,
+                nota:nota, forn:forn, arquivo:arquivo, marcado:!!ean});
+  }
+  return itens;
+}
+
+function nfCurto(ean){return String(ean).replace(/^0+(?=\d{8})/,'')}
+
+function nfDesenhar(){
+  const lista=document.getElementById('nf-lista');
+  const atual={};
+  DADOS.forEach(function(d){atual[nfCurto(d.gtin)]=d});
+  lista.innerHTML=NF.map(function(it,i){
+    const d=it.ean?atual[nfCurto(it.ean)]:null;
+    const antes=d?d.custo:null;
+    const varia=(antes&&antes>0)?(it.custo-antes)/antes*100:null;
+    const sub=!it.ean
+      ? '<small>'+it.cod+' \u2014 sem EAN na nota, não dá para gravar</small>'
+      : '<small>'+nfCurto(it.ean)+' \u00b7 '+it.qtd.toLocaleString('pt-BR')+' '+it.un+
+        (d?' \u00b7 custo hoje '+dinheiro(antes):' \u00b7 produto novo')+
+        (varia!=null&&Math.abs(varia)>=20
+          ? ' \u00b7 <b class="'+classe(varia)+'">'+fmtPct(varia)+'</b>':'')+'</small>';
+    return '<label class="et-item">'+
+      '<input type="checkbox" data-i="'+i+'"'+(it.marcado?' checked':'')+
+      (it.ean?'':' disabled')+'>'+
+      '<span class="nome">'+it.nome+sub+'</span>'+
+      '<span class="preco">'+dinheiro(it.custo)+'</span></label>';
+  }).join('');
+  lista.querySelectorAll('input[type=checkbox]').forEach(function(c){
+    c.onchange=function(){NF[+c.dataset.i].marcado=c.checked; nfResumo()};
+  });
+  nfResumo();
+}
+
+function nfResumo(){
+  const marcados=NF.filter(function(i){return i.marcado&&i.ean});
+  const semEan=NF.filter(function(i){return !i.ean});
+  const notas=Array.from(new Set(NF.map(function(i){return i.nota}))).filter(Boolean);
+  document.getElementById('nf-resumo').textContent=NF.length
+    ? marcados.length+' de '+NF.length+' itens'+(notas.length?' \u00b7 NF '+notas.join(', '):'')
+    : 'Nenhum arquivo escolhido.';
+  const av=document.getElementById('nf-descartados');
+  av.hidden=!semEan.length;
+  if(semEan.length)
+    av.innerHTML='<b>'+semEan.length+' item(ns) sem EAN na nota</b>'+
+      '<span>Sem código de barras não dá para casar com o cadastro; ficam de fora.</span>';
+  document.getElementById('nf-gravar').disabled=!marcados.length;
+}
+
+function nfAbrir(){
+  NF=[]; nfDesenhar();
+  document.getElementById('nf-erro').hidden=true;
+  document.getElementById('modal-nf').classList.add('aberto');
+}
+function nfFechar(){document.getElementById('modal-nf').classList.remove('aberto')}
+
+async function nfArquivos(lista){
+  const e=document.getElementById('nf-erro');
+  e.hidden=true; NF=[];
+  for(let i=0;i<lista.length;i++){
+    try{ NF=NF.concat(nfLer(await lista[i].text(), lista[i].name)); }
+    catch(err){ e.textContent=String(err.message||err); e.hidden=false; }
+  }
+  document.getElementById('nf-todos').checked=true;
+  nfDesenhar();
+}
+
+async function nfGravar(){
+  const b=document.getElementById('nf-gravar'), e=document.getElementById('nf-erro');
+  const itens=NF.filter(function(i){return i.marcado&&i.ean}).map(function(i){
+    return {gtin:i.ean, descricao:i.nome, custo:+i.custo.toFixed(4), nota:i.nota};
+  });
+  if(!itens.length) return;
+  b.disabled=true; b.textContent='Gravando\u2026'; e.hidden=true;
+  try{
+    await rest('rpc/importar_custos',{metodo:'POST',corpo:{itens:itens}});
+  }catch(err){
+    b.disabled=false; b.textContent='Gravar custos';
+    e.textContent=/40[13]/.test(err.message)
+      ? 'Sua conta não tem permissão para gravar custo.'
+      : 'Não foi possível gravar: '+err.message;
+    e.hidden=false; return;
+  }
+  b.textContent='Gravar custos';
+  nfFechar();
+  // Recarrega em vez de remendar a memoria: item novo da nota ainda nao existe
+  // em DADOS, e custo mexe em piso, alvo e status, que quem calcula e' o banco.
+  document.getElementById('sync').textContent='Atualizando\u2026';
+  await carregar(); desenhar(); if(selecionado!=null)painel(selecionado);
+  document.getElementById('sync').textContent=
+    itens.length+' custos gravados \u00b7 '+DADOS.length.toLocaleString('pt-BR')+' produtos';
+}
+
+document.getElementById('btn-nf').onclick=nfAbrir;
+document.getElementById('nf-escolher').onclick=function(){
+  document.getElementById('nf-arquivo').click()};
+document.getElementById('nf-arquivo').onchange=function(ev){
+  nfArquivos(ev.target.files); ev.target.value=''};
+document.getElementById('nf-todos').onchange=function(ev){
+  NF.forEach(function(i){i.marcado=ev.target.checked&&!!i.ean}); nfDesenhar()};
+document.getElementById('nf-fechar').onclick=nfFechar;
+document.getElementById('nf-cancelar').onclick=nfFechar;
+document.getElementById('nf-gravar').onclick=nfGravar;
+document.getElementById('modal-nf').addEventListener('click',function(ev){
+  if(ev.target.id==='modal-nf')nfFechar()});
+
+/* ---------- Janela destacada (Document Picture-in-Picture) ----------
+   O ERP e' janela nativa do Windows: nenhum z-index de pagina fica por cima
+   dele — quem fica e' a janela. A do PiP o SO ja' trata como always-on-top,
+   sem instalar nada. Aqui NAO se abre iframe nem window.open: e' um documento
+   de mesma origem, mesmo JS, entao copiar para a area de transferencia e as
+   teclas continuam funcionando la' dentro.
+   O preco mostrado e' o que se digita no ERP: se houve override manual, e' o
+   manual — mostrar o do motor nesse caso faria digitar preco errado. */
+let pipJanela=null, pipIdx=0, pipLista=[];
+
+function pipItens(vis){
+  return marcados.size?DADOS.filter(function(d){return marcados.has(d.id)}):(vis||visiveis());
+}
+function pipPreco(d){return d.manual&&d.meu!=null?d.meu:d.motor}
+
+function pipDesenhar(){
+  if(!pipJanela)return;
+  const doc=pipJanela.document, d=pipLista[pipIdx];
+  const põe=function(id,txt,copia){
+    const el=doc.getElementById(id);
+    el.textContent=txt;
+    if(copia!==undefined)el.setAttribute('data-copia',copia==null?'':copia);
+  };
+  põe('pip-pos',d?(pipIdx+1)+'/'+pipLista.length:'0/0');
+  if(!d){
+    põe('pip-nome','Nenhum produto na lista atual.',''); põe('pip-cat','');
+    põe('pip-ean','—',''); põe('pip-sug','—',''); põe('pip-custo','—','');
+    põe('pip-pmc','—',''); põe('pip-preco','—',''); põe('pip-rot','SUGERIDO');
+    return;
+  }
+  põe('pip-nome',d.nome,d.nome);
+  doc.getElementById('pip-nome').title=d.nome+(d.apres?' — '+d.apres:'');
+  põe('pip-cat',d.cat||'sem categoria');
+  põe('pip-ean',d.ean,d.ean);
+  /* Mostra com R$, copia so' o numero: o ERP recusa o simbolo no campo de preco. */
+  const trinca=function(id,v){põe(id,v!=null?'R$ '+dinheiro(v):'—',v!=null?dinheiro(v):'')};
+  trinca('pip-sug',d.motor); trinca('pip-custo',d.custo); trinca('pip-pmc',d.cmed);
+  /* Sugestao em laranja quando o preco manual discorda dela: a divergencia e'
+     justamente o que se quer ver antes de digitar. */
+  doc.getElementById('pip-sug').classList.toggle('difere',
+    d.manual&&d.meu!=null&&d.motor!=null&&d.meu!==d.motor);
+  põe('pip-rot',d.manual&&d.meu!=null?'MEU PREÇO (manual)':'SUGERIDO');
+  const pv=pipPreco(d);
+  põe('pip-preco','R$ '+dinheiro(pv),pv!=null?dinheiro(pv):'');
+}
+
+function pipAndar(n){
+  if(!pipLista.length)return;
+  pipIdx=Math.min(Math.max(pipIdx+n,0),pipLista.length-1);
+  pipDesenhar();
+}
+
+/* Chamado por desenhar(): filtrar a tabela com a janela aberta tem de mexer na
+   janela tambem, senao ela mostra uma lista que nao existe mais. Mantem o item
+   corrente quando ele sobrevive ao novo filtro. Recebe a lista que desenhar()
+   ja' filtrou e ordenou: refazer aqui custaria um filter+sort por tecla. */
+function pipSync(vis){
+  if(!pipJanela)return;
+  const atual=pipLista[pipIdx];
+  pipLista=pipItens(vis);
+  const i=atual?pipLista.findIndex(function(d){return d.id===atual.id}):-1;
+  pipIdx=i>=0?i:Math.min(pipIdx,Math.max(pipLista.length-1,0));
+  pipDesenhar();
+}
+
+/* Confirmacao no rodape em vez de balaozinho: e' o unico lugar que nao empurra
+   layout, e a janela tem 190px de altura para gastar. */
+let pipAviso=0;
+function pipCopiar(texto,el){
+  pipJanela.navigator.clipboard.writeText(texto).then(function(){
+    const pes=pipJanela.document.getElementById('pip-pes');
+    pes.classList.add('copiou');
+    pipJanela.document.getElementById('pip-copiado').textContent='copiado: '+texto;
+    pipJanela.clearTimeout(pipAviso);
+    pipAviso=pipJanela.setTimeout(function(){pes.classList.remove('copiou')},1100);
+  }).catch(function(){});
+}
+
+const PIP_CSS=
+ '*{box-sizing:border-box}'+
+ "body{margin:0;height:100vh;display:flex;flex-direction:column;"+
+   "font:13px 'Segoe UI',system-ui,sans-serif;background:#fff;color:#123B42;"+
+   '-webkit-font-smoothing:antialiased;user-select:none}'+
+ '.copiavel{cursor:pointer}'+
+ '.cab{padding:8px 10px 7px;border-bottom:1px solid #9FC9C7;text-align:center}'+
+ '#pip-nome{display:inline-block;max-width:100%;font-size:15px;font-weight:600;'+
+   'line-height:1.15;border-radius:3px;padding:1px 4px;'+
+   'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}'+
+ '#pip-cat{font-size:11px;color:#5C7478;margin-top:2px}'+
+ '.ean{text-align:center;padding:6px 10px}'+
+ '#pip-ean{font-variant-numeric:tabular-nums;font-size:17px;letter-spacing:.02em;'+
+   'border-radius:3px;padding:1px 5px}'+
+ '#pip-nome:hover,#pip-ean:hover{background:#E3F6F5}'+
+ '.tri{display:flex;gap:1px;background:#9FC9C7;border-top:1px solid #9FC9C7}'+
+ '.tri>div{flex:1;background:#F3F8F8;padding:3px 0;text-align:center;'+
+   'font-size:10px;color:#5C7478;line-height:1.25}'+
+ '.tri>div:hover{background:#E3F6F5}'+
+ '.tri b{display:block;font-variant-numeric:tabular-nums;font-size:12px;color:#123B42}'+
+ '.tri b.difere{color:#C2410C}'+
+ '.faixa{margin-top:auto;background:#00706D;color:#fff;padding:7px 10px;'+
+   'display:flex;align-items:baseline;justify-content:space-between}'+
+ '.faixa:hover{background:#005F5C}'+
+ '#pip-rot{font-size:10px;letter-spacing:.08em;color:#E3F6F5}'+
+ '#pip-preco{font-variant-numeric:tabular-nums;font-size:26px;font-weight:600}'+
+ '#pip-pes{display:flex;align-items:center;justify-content:center;gap:10px;'+
+   'padding:2px 10px;font-size:10px;color:#5C7478}'+
+ '#pip-pes button{border:0;background:none;color:#5C7478;cursor:pointer;'+
+   "font:600 13px 'Segoe UI',sans-serif;padding:0 6px;line-height:1}"+
+ '#pip-pes button:hover{color:#00706D}'+
+ '#pip-copiado{display:none;color:#00706D}'+
+ '#pip-pes.copiou #pip-nav{display:none}'+
+ '#pip-pes.copiou #pip-copiado{display:inline}';
+
+const PIP_HTML=
+ '<div class="cab">'+
+   '<div class="copiavel" id="pip-nome" title="Clique para copiar a descrição">—</div>'+
+   '<div id="pip-cat">—</div>'+
+ '</div>'+
+ '<div class="ean"><span class="copiavel" id="pip-ean" '+
+   'title="Clique para copiar o EAN">—</span></div>'+
+ '<div class="tri">'+
+   '<div class="copiavel" data-alvo="pip-sug">sugestão<b id="pip-sug">—</b></div>'+
+   '<div class="copiavel" data-alvo="pip-custo">custo<b id="pip-custo">—</b></div>'+
+   '<div class="copiavel" data-alvo="pip-pmc">PMC<b id="pip-pmc">—</b></div>'+
+ '</div>'+
+ '<div class="faixa copiavel" data-alvo="pip-preco">'+
+   '<span id="pip-rot">SUGERIDO</span><b id="pip-preco">—</b></div>'+
+ '<div id="pip-pes">'+
+   '<span id="pip-nav"><button id="pip-ant">←</button>'+
+     '<b id="pip-pos">0/0</b><button id="pip-prox">→</button></span>'+
+   '<span id="pip-copiado"></span>'+
+ '</div>';
+
+async function abrirPip(){
+  if(pipJanela){pipJanela.focus();return}
+  pipLista=pipItens(); pipIdx=Math.min(pipIdx,Math.max(pipLista.length-1,0));
+  const w=await documentPictureInPicture.requestWindow({width:300,height:190});
+  pipJanela=w;
+  w.document.head.innerHTML='<style>'+PIP_CSS+'</style>';
+  w.document.body.innerHTML=PIP_HTML;
+  w.document.getElementById('pip-ant').onclick=function(){pipAndar(-1)};
+  w.document.getElementById('pip-prox').onclick=function(){pipAndar(1)};
+  /* Um so' listener: cada .copiavel carrega o valor ja' formatado em data-copia,
+     escrito por pipDesenhar(). Evita quatro handlers lendo o modelo de novo. */
+  w.document.body.addEventListener('click',function(e){
+    const alvo=e.target.closest('.copiavel'); if(!alvo)return;
+    const el=alvo.dataset.alvo?w.document.getElementById(alvo.dataset.alvo):alvo;
+    const v=el.getAttribute('data-copia');
+    if(v)pipCopiar(v,el);
+  });
+  w.document.addEventListener('keydown',function(e){
+    if(e.key==='ArrowRight'||e.key==='ArrowDown'||e.key===' '){e.preventDefault();pipAndar(1)}
+    if(e.key==='ArrowLeft'||e.key==='ArrowUp'){e.preventDefault();pipAndar(-1)}
+  });
+  w.addEventListener('pagehide',function(){pipJanela=null});
+  pipDesenhar();
+}
+
+(function(){
+  const b=document.getElementById('btn-pip');
+  if(!('documentPictureInPicture' in window)){
+    b.disabled=true;
+    b.title='Precisa de Chrome ou Edge 116+ — este navegador nao tem janela destacada.';
+    return;
+  }
+  b.onclick=function(){abrirPip().catch(function(err){
+    b.title='Nao abriu: '+(err.message||err)})};
+})();
 
 (async function(){
   ajustarAltura();

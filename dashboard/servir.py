@@ -10,6 +10,7 @@ navegador busca sempre.
 
     python dashboard/servir.py [porta]
 """
+import os
 import sys
 from functools import partial
 from http.server import HTTPServer, SimpleHTTPRequestHandler
@@ -33,7 +34,9 @@ class SemCache(SimpleHTTPRequestHandler):
 
 
 def main() -> int:
-    porta = int(sys.argv[1]) if len(sys.argv) > 1 else PORTA_PADRAO
+    # Argumento manda; depois PORT, que e como o preview do Claude Code
+    # aponta uma porta livre quando a 5173 ja esta ocupada por outra sessao.
+    porta = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("PORT") or PORTA_PADRAO)
     servidor = HTTPServer(("127.0.0.1", porta),
                           partial(SemCache, directory=str(PASTA)))
     print(f"Painel em http://localhost:{porta}/index.html  (sem cache)")
