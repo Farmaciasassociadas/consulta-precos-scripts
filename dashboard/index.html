@@ -1788,7 +1788,11 @@ document.getElementById('btn-nf').onclick=nfAbrir;
 document.getElementById('nf-escolher').onclick=function(){
   document.getElementById('nf-arquivo').click()};
 document.getElementById('nf-arquivo').onchange=function(ev){
-  nfArquivos(ev.target.files); ev.target.value=''};
+  /* Copia os File ANTES de limpar o input: `value=''` esvazia o FileList, que e'
+     vivo. Como nfArquivos e' async, o primeiro await devolvia o controle, a
+     limpeza rodava, e na retomada lista[0] ja' era undefined -- "Cannot read
+     properties of undefined (reading 'name')" em toda importacao. */
+  const arquivos=Array.from(ev.target.files); ev.target.value=''; nfArquivos(arquivos)};
 document.getElementById('nf-todos').onchange=function(ev){
   NF.forEach(function(i){i.marcado=ev.target.checked&&!!i.ean}); nfDesenhar()};
 document.getElementById('nf-fechar').onclick=nfFechar;
