@@ -366,6 +366,27 @@ def selecionar_vizinhanca(
     lojas_distintas = {apelidos.get(o.site, o.site) for o in locais}
     if len(lojas_distintas) >= cfg.get("n_min_local", 3):
         return locais, len(lojas_distintas), True, locais
+
+    # Sem vizinhanca local suficiente o alvo caia em TODOS os sites, e o ranking
+    # pegava o 2o mais barato entre e-commerces que nao disputam este cliente --
+    # quanto mais site remoto ligado, mais barato o alvo, embora nenhum deles
+    # tenha loja na cidade. Medido em 27/08/2026 no catalogo inteiro, ligar 14
+    # remotas novas derrubava o alvo -11,3% na mediana (68% dos itens caindo mais
+    # de 5%); colapsando o bloco remoto num preco so' o mesmo cenario da +1,8%.
+    #
+    # O bloco vira UMA voz, nao some: `mantidas`, `n`, `cv` e a divergencia
+    # Brick/web continuam vendo todas as observacoes -- so o conjunto que define
+    # o alvo e' colapsado. Vale tambem com ZERO locais (nao so' "abaixo do
+    # minimo"): la o vies e' o mesmo, e sem locais a lista colapsada tem 1 item,
+    # entao `alvo_por_ranking` devolve None por falta de amostra e o chamador cai
+    # no guarda-corpo `valor_referencia * 0,99` -- que e' a mediana do bloco,
+    # nao o 2o mais barato dele.
+    remotos = [o for o in mantidas if o.site not in locais_cfg]
+    if len(remotos) > 1:
+        preco_remoto = _mediana_ponderada(remotos, params)
+        if preco_remoto is not None:
+            sintetica = Observacao("_remoto", preco_remoto, "OK", None)
+            return locais + [sintetica], len(lojas_distintas), False, locais
     return mantidas, len(lojas_distintas), False, locais
 
 

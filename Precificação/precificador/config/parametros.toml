@@ -147,7 +147,8 @@ desconto_maximo_pct = 0.15   # teto do desconto total, mesmo que o piso permita 
 # mercado inteiro pratica ~47% abaixo do PMC (menor local / PMC = 0,53) e o
 # cliente que já comprou o item sabe disso.
 # Fora da faixa, a âncora certa é o concorrente ("na X está R$ 32, aqui R$ 27"),
-# que é verificável. PMC só cobre 16,3% do catálogo (0% em perfumaria/varejo).
+# que é verificável. PMC cobre 51% do catálogo (remedido em 27/08/2026; os 16,3%
+# que este comentário trazia eram de uma medição antiga e já não valiam).
 ancora_pmc_desconto_min = 0.08
 ancora_pmc_desconto_max = 0.30
 
@@ -494,6 +495,17 @@ cv_remoto_confiavel = 0.20
 # (Sub-tabela por ultimo: em TOML tudo que vier depois pertenceria a ela.)
 [mercado.vizinhanca.apelidos_site]
 saopaulo = "farmasp"
+# Clones de rede, medidos em 27/08/2026 sobre o catalogo inteiro: preco identico
+# ao centavo na maioria dos EANs em que os dois aparecem. Sem o apelido a rede
+# vota duas ou tres vezes na mesma mediana -- e no cluster_acima_brick, que conta
+# OBSERVACOES, ela sozinha ja atingiria o n_min de 2.
+drogasmil = "tamoio"       # 97% identico ao centavo em 1.640 EANs
+farmalife = "tamoio"       # 93%
+extrafarma = "paguemenos"  # 53% identico, razao mediana 1,000 (mesmo grupo)
+# NAO aliasados de proposito: rosario/globo (razao 0,993 e 0,971, identidade
+# <20% -- vozes de preco separadas de verdade), pacheco/drogariasp e
+# catarinense/precopopular (razao 1,000 mas identidade so' 20-21%: mesmo NIVEL
+# de preco, catalogo diferente). Rever com os dois ligados e medindo de novo.
 
 [mercado.outliers]
 frescor_dias_max = 45
@@ -650,7 +662,12 @@ degraus = [[20.0, 1.0], [100.0, 5.0]]
 n_min_observacoes = 3
 [ranking.rank_alvo_por_tier]
 PRECO_IMAGEM = 2   # itens de alta visibilidade: 2o menor preco
-PADRAO = 2         # demais itens com mercado (sem Curva ABC conhecida): 2o menor preco
+# Item sem Curva ABC nao e' item de alta visibilidade -- so' nao foi cadastrado.
+# Medido em 27/08/2026: 598 itens (16% do catalogo) nao tem curva, e os 311 com
+# vizinhanca local tem o MAIOR ticket mediano do catalogo (R$ 43,64, acima ate'
+# da Curva A, R$ 28,44). Dar tratamento de KVI a eles era regalar margem na
+# cauda mais cara. Quem tem curva conhecida continua em [rank_alvo_por_curva].
+PADRAO = 3         # demais itens com mercado (sem Curva ABC conhecida): 3o menor preco
 
 [ranking.rank_alvo_por_curva]
 # Quando a Curva ABC (giro/faturamento) e conhecida, ela manda mais que o
