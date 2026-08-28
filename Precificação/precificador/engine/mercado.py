@@ -99,6 +99,15 @@ STATUS_PRECO_VALIDO = ("OK", "MARKETPLACE")
 # default 0.90) na mediana final, porque é um canal menos confiável que o
 # preço vendido pela própria farmácia (pode ter ágio ou desconto de vendedor
 # independente). Continua sujeito às mesmas camadas de frescor/âncora/MAD.
+#
+# NÃO acrescentar `CANAL_MARKETPLACE` aqui. Esse status (Mercado Livre, ver
+# MiniPreco2/coletor/mercadolivre.py) é de OUTRO CANAL, não de concorrente: o
+# preço tem frete embutido, kit e vendedor cinza, e quem o anuncia não disputa
+# este cliente. Ele existe só como TETO DE REALIDADE, ao lado do preço, e a
+# única coisa que o mantém fora do alvo é justamente não estar nesta tupla --
+# `_camada_1_natureza` descarta tudo que não está aqui. Acrescentá-lo por
+# parecer "mais um preço" transformaria referência de canal em concorrência, em
+# silêncio, no catálogo inteiro.
 
 
 # Sugestao de varias vezes o que TODO o mercado coletado pratica nao e' politica
