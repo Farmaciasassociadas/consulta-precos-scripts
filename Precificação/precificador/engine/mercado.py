@@ -6,7 +6,7 @@ Parte 3.1 e 3.2 para a motivacao de cada regra).
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime
 from statistics import median
 from typing import Any
@@ -99,15 +99,6 @@ STATUS_PRECO_VALIDO = ("OK", "MARKETPLACE")
 # default 0.90) na mediana final, porque é um canal menos confiável que o
 # preço vendido pela própria farmácia (pode ter ágio ou desconto de vendedor
 # independente). Continua sujeito às mesmas camadas de frescor/âncora/MAD.
-#
-# NÃO acrescentar `CANAL_MARKETPLACE` aqui. Esse status (Mercado Livre, ver
-# MiniPreco2/coletor/mercadolivre.py) é de OUTRO CANAL, não de concorrente: o
-# preço tem frete embutido, kit e vendedor cinza, e quem o anuncia não disputa
-# este cliente. Ele existe só como TETO DE REALIDADE, ao lado do preço, e a
-# única coisa que o mantém fora do alvo é justamente não estar nesta tupla --
-# `_camada_1_natureza` descarta tudo que não está aqui. Acrescentá-lo por
-# parecer "mais um preço" transformaria referência de canal em concorrência, em
-# silêncio, no catálogo inteiro.
 
 
 # Sugestao de varias vezes o que TODO o mercado coletado pratica nao e' politica
@@ -273,6 +264,96 @@ def _camada_4b_razao(
     return mantidas, descartadas
 
 
+def hampel_por_serie_temporal(
+    observacoes: list[Observacao], n_min: int = 5, n_mad: float = 3.0,
+) -> tuple[list[Observacao], list[Descarte]]:
+    """Deteccao de anomalia na PROPRIA serie temporal de um par (EAN, site) --
+    sinal distinto da camada 4 (MAD cross-site, dentro do MESMO ciclo). Pega
+    "esse site caiu 40% da noite pro dia" mesmo quando nenhum outro site
+    mudou naquele ciclo -- so' possivel com o historico completo que
+    `observacao_farmacia` (MP2) acumula, nao com "so' a ultima observacao"
+    (formato do precos.csv do app). Ver item 5 do plano de melhorias
+    estatisticas (2026-08-30).
+
+    Identificador de Hampel, leave-one-out: cada ponto e' comparado contra a
+    mediana e o MAD dos OUTROS pontos da MESMA serie -- mesma ideia de
+    `_camada_4b_razao` (nao inclui o proprio ponto, para nao se
+    autojustificar), aplicada no eixo do TEMPO em vez de entre sites. Nao ha
+    janela deslizante de proposito: a amostragem e' irregular e esparsa
+    (poucos pontos por par mesmo com 45 dias de historico), entao uma janela
+    fixa deixaria pontos de fora por coincidencia de calendario, nao por
+    relevancia.
+
+    Com menos de `n_min` observacoes de preco valido, devolve tudo mantido:
+    historico curto demais para acusar alguem (mesmo espirito do
+    `outliers.mad_n_min` da camada 4).
+    """
+    validos = [(i, o.preco) for i, o in enumerate(observacoes) if o.preco is not None]
+    if len(validos) < n_min:
+        return list(observacoes), []
+
+    precos_validos = [p for _, p in validos]
+    indices_anomalos: set[int] = set()
+    for pos, (idx, preco) in enumerate(validos):
+        outros = precos_validos[:pos] + precos_validos[pos + 1:]
+        med = median(outros)
+        mad = 1.4826 * median(abs(p - med) for p in outros)
+        e_anomalo = abs(preco - med) > n_mad * mad if mad > 0 else preco != med
+        if e_anomalo:
+            indices_anomalos.add(idx)
+
+    mantidas, descartadas = [], []
+    for i, o in enumerate(observacoes):
+        if i in indices_anomalos:
+            descartadas.append(Descarte(
+                o, "hampel_temporal",
+                f"preco {o.preco} destoa da propria serie historica do site "
+                f"(mediana leave-one-out, limite {n_mad}x MAD)"))
+        else:
+            mantidas.append(o)
+    return mantidas, descartadas
+
+
+def suavizar_ewma_temporal(
+    observacoes: list[Observacao], data_referencia: date, half_life_dias: float,
+) -> Observacao | None:
+    """Substitui "ultima observacao" por uma media com decaimento por TEMPO
+    (nao por indice -- a coleta nao e' regular; um EWMA classico por indice
+    trataria uma falha de coleta de uma semana como se fosse um ciclo a mais).
+
+    Peso de cada ponto: 0.5 ** (dias_atras / half_life_dias) -- perde metade
+    do peso a cada `half_life_dias`. Observacoes sem `data_hora` conhecida
+    pesam como se fossem de HOJE (peso 1.0): mais seguro que descarta-las por
+    falta de metadado, mesma postura de `_camada_2_frescor` com
+    `data_hora=None`.
+
+    Recebe as observacoes de UM (EAN, site) -- quem agrupa e' o chamador (ver
+    `motor/calcular.py` do MP2). Devolve uma Observacao SINTETICA: preco
+    suavizado, e site/status/data_hora herdados da observacao MAIS RECENTE (a
+    camada 2 de frescor continua julgando a idade por essa data). None se a
+    lista nao tiver nenhum preco valido.
+
+    Ver item 4 do plano de melhorias estatisticas (2026-08-30). So' faz
+    sentido com HISTORICO real (observacao_farmacia no MP2, que guarda todos
+    os ciclos); o formato do app (precos.csv, uma linha por par) nao tem o
+    que suavizar.
+    """
+    validas = [o for o in observacoes if o.preco is not None and o.preco > 0]
+    if not validas:
+        return None
+
+    pesos = [
+        1.0 if o.data_hora is None
+        else 0.5 ** (max(0, (data_referencia - o.data_hora).days) / half_life_dias)
+        for o in validas
+    ]
+    soma_pesos = sum(pesos)
+    preco_suavizado = sum(o.preco * peso for o, peso in zip(validas, pesos)) / soma_pesos
+
+    mais_recente = max(validas, key=lambda o: o.data_hora or date.min)
+    return replace(mais_recente, preco=round(preco_suavizado, 4))
+
+
 def filtrar_outliers(
     observacoes: list[Observacao],
     params: dict[str, Any],
@@ -375,27 +456,6 @@ def selecionar_vizinhanca(
     lojas_distintas = {apelidos.get(o.site, o.site) for o in locais}
     if len(lojas_distintas) >= cfg.get("n_min_local", 3):
         return locais, len(lojas_distintas), True, locais
-
-    # Sem vizinhanca local suficiente o alvo caia em TODOS os sites, e o ranking
-    # pegava o 2o mais barato entre e-commerces que nao disputam este cliente --
-    # quanto mais site remoto ligado, mais barato o alvo, embora nenhum deles
-    # tenha loja na cidade. Medido em 27/08/2026 no catalogo inteiro, ligar 14
-    # remotas novas derrubava o alvo -11,3% na mediana (68% dos itens caindo mais
-    # de 5%); colapsando o bloco remoto num preco so' o mesmo cenario da +1,8%.
-    #
-    # O bloco vira UMA voz, nao some: `mantidas`, `n`, `cv` e a divergencia
-    # Brick/web continuam vendo todas as observacoes -- so o conjunto que define
-    # o alvo e' colapsado. Vale tambem com ZERO locais (nao so' "abaixo do
-    # minimo"): la o vies e' o mesmo, e sem locais a lista colapsada tem 1 item,
-    # entao `alvo_por_ranking` devolve None por falta de amostra e o chamador cai
-    # no guarda-corpo `valor_referencia * 0,99` -- que e' a mediana do bloco,
-    # nao o 2o mais barato dele.
-    remotos = [o for o in mantidas if o.site not in locais_cfg]
-    if len(remotos) > 1:
-        preco_remoto = _mediana_ponderada(remotos, params)
-        if preco_remoto is not None:
-            sintetica = Observacao("_remoto", preco_remoto, "OK", None)
-            return locais + [sintetica], len(lojas_distintas), False, locais
     return mantidas, len(lojas_distintas), False, locais
 
 
@@ -518,6 +578,58 @@ def ancora_competitiva_local(
                      f"abaixo do 2o menor: tratado como preco-isca, ancora no 2o")
             motivo = f"{motivo}; {extra}" if motivo else extra
     return menor, (elegiveis[-1] if permite_teto else None), motivo
+
+
+def dispersao_por_site(
+    observacoes_por_ean: dict[str, list[Observacao]],
+    sites_locais: set[str],
+    apelidos_site: dict[str, str] | None = None,
+    n_min_pares: int = 5,
+) -> dict[str, dict[str, float]]:
+    """Dispersao de cada site LOCAL em relacao aos OUTROS locais, agregada em
+    todos os EANs -- generaliza a medicao manual que excluiu a Nissei da
+    ancora competitiva (ver [mercado.ancora_competitiva] em parametros.toml,
+    "preco da loja / mediana das outras, mesmo EAN": Nissei 1,011 mas p25
+    0,866/p75 1,145, i.e. NIVEL normal e DISPERSAO alta).
+
+    Para cada EAN com 3+ locais validos no mesmo ciclo, cada site contribui
+    com |seu_preco / mediana_dos_OUTROS_locais - 1|. A dispersao final e' a
+    MEDIANA desses desvios (nao a media -- mesma razao de robustez usada em
+    todo o resto do motor: uma promocao pontual nao pode dominar o numero).
+
+    Isto e' SO A MEDICAO. Nao decide sozinho quem entra em
+    `ancora_competitiva.excluir_sites` -- essa continua sendo uma decisao
+    humana, deliberada (ver o comentario do TOML sobre por que peso numerico
+    por site foi rejeitado em favor de SELECIONAR quem entra). Rodar via
+    `auditar_calibracao.py --secao dispersao_sites`.
+
+    Devolve {site: {"n": pares usados, "dispersao": mediana dos desvios}}.
+    Site com menos de `n_min_pares` fica de fora -- amostra fina demais para
+    acusar alguem.
+    """
+    apelidos = apelidos_site or {}
+    desvios: dict[str, list[float]] = {}
+    for observacoes in observacoes_por_ean.values():
+        por_loja: dict[str, float] = {}
+        for o in observacoes:
+            if (o.site not in sites_locais or o.status not in STATUS_PRECO_VALIDO
+                    or not o.preco or o.preco <= 0):
+                continue
+            por_loja[apelidos.get(o.site, o.site)] = o.preco
+        if len(por_loja) < 3:
+            continue
+        for site, preco in por_loja.items():
+            outros = [p for s, p in por_loja.items() if s != site]
+            med_outros = median(outros)
+            if med_outros <= 0:
+                continue
+            desvios.setdefault(site, []).append(abs(preco / med_outros - 1))
+
+    return {
+        site: {"n": len(valores), "dispersao": median(valores)}
+        for site, valores in desvios.items()
+        if len(valores) >= n_min_pares
+    }
 
 
 def evidencia_remota_confiavel(

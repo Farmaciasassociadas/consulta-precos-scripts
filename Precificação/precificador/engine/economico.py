@@ -384,6 +384,35 @@ def fator_venda_provavel(custo_nf: float, mercado: float, params: dict[str, Any]
     return min(EMBALAGENS_USUAIS, key=lambda k: abs(k - bruto))
 
 
+def pct_custo_estimado(natureza: str | None, params: dict[str, Any]) -> float:
+    """Fracao do preco de mercado usada como custo ESTIMADO quando o item nao
+    tem custo validado por NF (ver `aplicar_travas`, status
+    OK_SEM_CUSTO_BASE_MERCADO -- so' afeta o painel/relatorio, nunca bloqueia
+    o preco sugerido).
+
+    Item 6 do plano de melhorias estatisticas (2026-08-30): substitui a
+    constante global unica (`custo_estimado.pct_do_preco_mercado`, 0,60 desde
+    sempre, igual pra todo item) por um valor com SHRINKAGE BAYESIANO por
+    natureza fiscal -- mesmo raciocinio de Efron & Morris (1973) para a media
+    de varios grupos: `pct = peso*pct_natureza_medido + (1-peso)*pct_global`,
+    `peso = n_natureza/(n_natureza + k)`. Com pouca evidencia na natureza, o
+    resultado fica perto do global; com muita (como hoje: 452 a 1651 EANs por
+    natureza), fica perto do proprio numero medido.
+
+    Os `pct_shrunk` ja' vem PRE-CALCULADOS no TOML por
+    `auditar_calibracao.py --secao shrinkage`: o `n` por natureza so' existe
+    no momento da auditoria (roda sobre a base completa), nao no calculo por
+    item. Natureza ausente da tabela (ou None) cai no `pct_do_preco_mercado`
+    global -- o mesmo fallback de sempre.
+    """
+    cfg = params.get("custo_estimado", {})
+    global_pct = cfg.get("pct_do_preco_mercado", 0.60)
+    por_natureza = cfg.get("por_natureza") or {}
+    if natureza and natureza in por_natureza:
+        return por_natureza[natureza].get("pct_shrunk", global_pct)
+    return global_pct
+
+
 def alvo_economico(custo: float, params: dict[str, Any], natureza: str, lucro_liquido_alvo_pct: float) -> float:
     return custo / divisor_alvo(params, natureza, lucro_liquido_alvo_pct)
 
@@ -485,6 +514,22 @@ def ajuste_lucro_alvo_mix(
 
 TIERS = ("PRECO_IMAGEM", "PADRAO", "PROTECAO_MARGEM", "REVISAO_HUMANA")
 
+# Categorias "formadoras de preco": decisao de negocio 2026-08-30. Uso
+# continuo (recorrencia alta, cliente fixa a percepcao de preco da farmacia
+# nesses itens) e anticoncepcional (mesma logica, alta comparacao entre
+# farmacias) devem ficar o MAIS PERTO POSSIVEL do menor preco pesquisado, nao
+# so "com mercado" como o tier PRECO_IMAGEM generico ja trata. O nome da
+# subcategoria e' o mesmo de politica_markup.csv (ETICOS/GENERICO/SIMILAR >
+# USO CONTINUO e > ANTICONCEPCIONAL), entao nao precisa de cadastro novo.
+MARCADORES_FORMADOR_OPINIAO = ("USO CONTINUO", "ANTICONCEPCIONAL")
+
+
+def e_formador_opiniao(categoria: str | None) -> bool:
+    if not categoria:
+        return False
+    cat = categoria.upper()
+    return any(marcador in cat for marcador in MARCADORES_FORMADOR_OPINIAO)
+
 
 def determinar_tier(
     papel_politica: str | None,
@@ -492,6 +537,7 @@ def determinar_tier(
     n_concorrentes: int,
     cv: float | None,
     tem_brick: bool,
+    categoria: str | None = None,
 ) -> str:
     if papel_politica == "REVISAO_HUMANA":
         return "REVISAO_HUMANA"
@@ -516,6 +562,16 @@ def determinar_tier(
         or papel_politica == "PROTECAO_MARGEM"
     )
 
+    # Formador de preco vence o heuristico de mercado fraco: sem esta excecao
+    # um item USO CONTINUO/ANTICONCEPCIONAL (papel=PRECO_IMAGEM em
+    # politica_markup.csv) com vizinhanca local fraca -- curva C com <3
+    # concorrentes, ou sem Brick com <2 -- caia em PROTECAO_MARGEM mesmo com a
+    # politica pedindo o oposto. Sem NENHUMA evidencia de mercado o item
+    # continua seguro: calcular_alvo cai no alvo economico quando
+    # valor_referencia_mercado e' None, entao nao ha preco "inventado" aqui.
+    if papel_politica == "PRECO_IMAGEM" and e_formador_opiniao(categoria):
+        return "PRECO_IMAGEM"
+
     if e_protecao:
         # Falta de mercado ou giro fraco pesa mais que um sinal isolado de imagem:
         # sem evidencia solida, protege margem em vez de inventar competitividade
@@ -531,6 +587,7 @@ def alvo_por_ranking(
     precos_concorrentes: list[float],
     params: dict[str, Any],
     curva_abc: str | None = None,
+    categoria: str | None = None,
 ) -> float | None:
     """Posiciona o preço num RANKING de concorrentes elegíveis, em vez de
     perseguir sempre o menor preço. Decisão de negócio 2026-08-05: a loja não
@@ -538,6 +595,13 @@ def alvo_por_ranking(
     conforme configurado por tier), escolhendo o MAIOR preço que ainda garanta
     essa posição. Chamariz/KVI ficam fora desta função (tratados como exceção
     comercial à parte, cadastro futuro).
+
+    EXCEÇÃO 2026-08-30: categorias formadoras de preço (uso contínuo,
+    anticoncepcional -- ver `e_formador_opiniao`) ignoram curva ABC e tier e
+    miram sempre o rank 1 (mais perto possível do menor preço pesquisado). A
+    lucratividade continua garantida por fora: o rank 1 aqui só define o
+    ALVO, e `aplicar_travas`/`arredondar_grade` nunca deixam o preço final
+    abaixo do piso.
 
     Com poucas observações (abaixo de `ranking.n_min_observacoes`) o ranking
     não é estatisticamente confiável: devolve None para o chamador cair no
@@ -550,15 +614,18 @@ def alvo_por_ranking(
         return None
 
     ordenados = sorted(precos_concorrentes)
-    # Curva ABC, quando conhecida, tem prioridade sobre o default por tier:
-    # Curva A (KVI/alta visibilidade) fica mais perto do mercado (2o lugar);
-    # Curva B/C (cauda longa) pode ficar mais atras (3o lugar), protegendo
-    # margem sem risco relevante de perda de cliente (decisao 2026-08-05).
-    cfg_curva = cfg.get("rank_alvo_por_curva", {})
-    if curva_abc and curva_abc in cfg_curva:
-        rank_alvo = cfg_curva[curva_abc]
+    if e_formador_opiniao(categoria):
+        rank_alvo = 1
     else:
-        rank_alvo = cfg["rank_alvo_por_tier"].get(tier, cfg["rank_alvo_por_tier"]["PADRAO"])
+        # Curva ABC, quando conhecida, tem prioridade sobre o default por tier:
+        # Curva A (KVI/alta visibilidade) fica mais perto do mercado (2o lugar);
+        # Curva B/C (cauda longa) pode ficar mais atras (3o lugar), protegendo
+        # margem sem risco relevante de perda de cliente (decisao 2026-08-05).
+        cfg_curva = cfg.get("rank_alvo_por_curva", {})
+        if curva_abc and curva_abc in cfg_curva:
+            rank_alvo = cfg_curva[curva_abc]
+        else:
+            rank_alvo = cfg["rank_alvo_por_tier"].get(tier, cfg["rank_alvo_por_tier"]["PADRAO"])
     rank_alvo = min(rank_alvo, len(ordenados))
 
     if rank_alvo <= 1:
@@ -580,6 +647,7 @@ def calcular_alvo(
     params: dict[str, Any] | None = None,
     curva_abc: str | None = None,
     e_chamariz: bool = False,
+    categoria: str | None = None,
 ) -> float:
     if e_chamariz and precos_concorrentes and params is not None:
         cfg_chamariz = params.get("chamariz", {})
@@ -588,7 +656,7 @@ def calcular_alvo(
             return alvo_chz
     if tier in ("PRECO_IMAGEM", "PADRAO") and valor_referencia_mercado is not None:
         if precos_concorrentes and params is not None:
-            alvo_ranking = alvo_por_ranking(tier, precos_concorrentes, params, curva_abc)
+            alvo_ranking = alvo_por_ranking(tier, precos_concorrentes, params, curva_abc, categoria)
             if alvo_ranking is not None:
                 return alvo_ranking
         # Sem concorrentes suficientes para um ranking confiável: encosta na
@@ -909,6 +977,8 @@ def aplicar_travas(
     e_chamariz: bool = False,
     menor_concorrente_local: float | None = None,
     maior_concorrente_local: float | None = None,
+    teto_competitivo_local: float | None = None,
+    categoria: str | None = None,
 ) -> ResultadoPrecificacao:
     """Sempre tenta produzir um preco sugerido; so retorna None quando nao ha
     nenhuma base (nem custo nem mercado) ou o resultado seria matematicamente
@@ -934,7 +1004,7 @@ def aplicar_travas(
         # um custo retroativo a partir do preco de mercado, so para nao deixar
         # o item "sem margem calculavel" no painel. Nao bloqueia -- e so
         # referencia ate a NF real de reposicao chegar (decisao 2026-08-05).
-        pct_estimativa = params.get("custo_estimado", {}).get("pct_do_preco_mercado", 0.60)
+        pct_estimativa = pct_custo_estimado(natureza_fiscal_item, params)
         custo_estimado = (grade.preco or alvo_mercado) * pct_estimativa
         return ResultadoPrecificacao(
             "OK_SEM_CUSTO_BASE_MERCADO", grade.preco,
@@ -979,7 +1049,8 @@ def aplicar_travas(
     if divergencia_brick_web:
         alvo_valor = max(
             calcular_alvo(
-                tier, valor_referencia_mercado, alvo_econ, precos_concorrentes, params, curva_abc, e_chamariz
+                tier, valor_referencia_mercado, alvo_econ, precos_concorrentes, params, curva_abc,
+                e_chamariz, categoria,
             ),
             piso_valor,
         )
@@ -1042,7 +1113,8 @@ def aplicar_travas(
             )
 
     alvo_valor = calcular_alvo(
-        tier, valor_referencia_mercado, alvo_econ, precos_concorrentes, params, curva_abc, e_chamariz
+        tier, valor_referencia_mercado, alvo_econ, precos_concorrentes, params, curva_abc,
+        e_chamariz, categoria,
     )
     status_margem = "OK" if not e_chamariz else "OK_CHAMARIZ"
     justificativa_margem = "Preco dentro da politica da categoria, respeitando piso, teto e variacao maxima."
@@ -1163,7 +1235,19 @@ def aplicar_travas(
     # distincao importa porque a ACAO e' diferente em cada caso:
     #   custo > menor local  -> a compra e' que esta ruim: renegociar, nao subir preco
     #   custo <= menor local -> o piso e' que esta apertado para este item
-    if (maior_concorrente_local and grade.preco > maior_concorrente_local
+    # DOIS tetos locais decidem este item, e a valvula abaixo precisa enxergar os
+    # dois. `maior_concorrente_local` e' o teto largo; `teto_competitivo_local`
+    # (mediana da vizinhanca + 5%, calculado no chamador) e' o apertado -- e era
+    # so' o largo que chegava aqui. Quando o piso cheio caia ENTRE os dois, a
+    # valvula nao disparava (o preco "cabia" embaixo do largo), mas o chamador
+    # logo em seguida julgava contra o apertado e mandava para revisao manual com
+    # um preco MAIS ALTO do que um custo maior teria produzido. Medido em
+    # 2026-08-20: 58 itens presos em REVISAO_MANUAL_MERCADO_LOCAL_ABAIXO_DO_PISO
+    # por causa dessa descontinuidade.
+    teto_local_efetivo = maior_concorrente_local
+    if maior_concorrente_local and teto_competitivo_local:
+        teto_local_efetivo = min(maior_concorrente_local, teto_competitivo_local)
+    if (teto_local_efetivo and grade.preco > teto_local_efetivo
             and not e_chamariz):
         # PRIMEIRO tenta caber no mercado com a MENOR margem possivel, antes de
         # desistir e devolver um preco que nao vende. O piso cheio carrega a
@@ -1172,22 +1256,34 @@ def aplicar_travas(
         # concorrente local, esse e' o preco -- item parado nao realiza margem
         # nenhuma. Decisao do usuario em 12/08/2026.
         piso_min = piso_minimo(custo, params, natureza_fiscal_item)
-        if piso_min <= maior_concorrente_local:
-            teto_min = maior_concorrente_local if teto_cmed is None else min(teto_cmed, maior_concorrente_local)
-            grade_min = arredondar_grade(
+        # Tenta o teto APERTADO e so entao o largo. Nao basta testar
+        # `piso_min <= teto`: a grade pode nao achar terminacao comercial numa
+        # janela estreita (caso real: piso 25.06 x teto 25.09) e devolver None.
+        # Ali o teto largo ainda e' melhor que desistir da valvula e devolver o
+        # preco cheio, que fica acima de todo mundo.
+        grade_min = None
+        for candidato_teto in (teto_local_efetivo, maior_concorrente_local):
+            if not candidato_teto or piso_min > candidato_teto:
+                continue
+            teto_min = (candidato_teto if teto_cmed is None
+                        else min(teto_cmed, candidato_teto))
+            candidata = arredondar_grade(
                 min(alvo_valor, teto_min), piso_min, teto_min,
                 params["grade"]["terminacoes"], params, precos_concorrentes)
-            if grade_min.preco is not None:
-                margem = 1 - custo / grade_min.preco
-                return ResultadoPrecificacao(
-                    "OK_MARGEM_MINIMA_MERCADO", grade_min.preco,
-                    f"Piso cheio (R$ {piso_valor:.2f}) nao cabia abaixo do maior concorrente "
-                    f"local (R$ {maior_concorrente_local:.2f}). Preco recalculado no piso MINIMO "
-                    f"(R$ {piso_min:.2f}): margem bruta de {margem * 100:.1f}%, abaixo da meta da "
-                    f"categoria mas dentro do mercado. Item de baixa rentabilidade -- avaliar "
-                    f"compra ou substituicao no mix.",
-                    piso=piso_min, alvo=alvo_valor, tier=tier,
-                )
+            if candidata.preco is not None:
+                grade_min = candidata
+                break
+        if grade_min is not None:
+            margem = 1 - custo / grade_min.preco
+            return ResultadoPrecificacao(
+                "OK_MARGEM_MINIMA_MERCADO", grade_min.preco,
+                f"Piso cheio (R$ {piso_valor:.2f}) nao cabia abaixo do teto local "
+                f"(R$ {teto_local_efetivo:.2f}). Preco recalculado no piso MINIMO "
+                f"(R$ {piso_min:.2f}): margem bruta de {margem * 100:.1f}%, abaixo da meta da "
+                f"categoria mas dentro do mercado. Item de baixa rentabilidade -- avaliar "
+                f"compra ou substituicao no mix.",
+                piso=piso_min, alvo=alvo_valor, tier=tier,
+            )
         compra_ruim = bool(menor_concorrente_local and custo > menor_concorrente_local)
         if compra_ruim:
             return ResultadoPrecificacao(

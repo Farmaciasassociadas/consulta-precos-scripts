@@ -92,14 +92,16 @@ def mediana_sugerido_historico(conn: sqlite3.Connection, ean: str, rodada_atual_
 
 def observacoes_do_ean(conn: sqlite3.Connection, ean: str) -> list[mercado.Observacao]:
     linhas = conn.execute(
-        "SELECT site, data_hora, status, preco, observacoes FROM preco_concorrente WHERE ean = ?", (ean,)
+        "SELECT site, data_hora, status, preco, observacoes, COALESCE(estoque, '') "
+        "FROM preco_concorrente WHERE ean = ?", (ean,)
     ).fetchall()
     return [
         mercado.Observacao(
             site=site, preco=preco, status=status,
             data_hora=mercado.parse_data_hora(data_hora), observacoes=observacoes,
+            estoque=estoque,
         )
-        for site, data_hora, status, preco, observacoes in linhas
+        for site, data_hora, status, preco, observacoes, estoque in linhas
     ]
 
 
@@ -219,6 +221,7 @@ def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = N
             n_concorrentes=resultado_mercado.n,
             cv=resultado_mercado.cv,
             tem_brick=row["vum_brick"] is not None,
+            categoria=categoria,
         )
 
         # NOVIDADE: habilitar controlados/fracionados com PROTECAO_MARGEM
@@ -265,6 +268,7 @@ def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = N
             e_chamariz=e_chamariz,
             menor_concorrente_local=menor_local,
             maior_concorrente_local=maior_local,
+            categoria=categoria,
         )
         status_gravado = resultado.status
 
@@ -292,6 +296,7 @@ def processar_rodada(conn: sqlite3.Connection, observacao_rodada: str | None = N
                 e_chamariz=e_chamariz,
                 menor_concorrente_local=menor_local,
                 maior_concorrente_local=maior_local,
+                categoria=categoria,
             )
             if retry.preco_sugerido is not None:
                 status_gravado = "REVISAO_MANUAL_SEM_MARKUP_MARGEM_ESTIMADA"

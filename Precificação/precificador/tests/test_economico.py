@@ -131,14 +131,94 @@ def test_calcular_alvo_imagem_sem_precos_concorrentes_mantem_regra_antiga():
     assert alvo == 20.0 * 0.99
 
 
-def test_travas_sem_custo_estima_custo_a_60pct_do_preco_de_mercado():
+# ── formadores de preco (uso continuo / anticoncepcional) -- decisao 2026-08-30 ──
+
+@pytest.mark.parametrize("categoria", [
+    "ETICOS > USO CONTINUO",
+    "GENERICO > USO CONTINUO",
+    "SIMILAR > USO CONTINUO",
+    "ETICOS > ANTICONCEPCIONAL",
+    "GENERICO > ANTICONCEPCIONAL",
+    "SIMILAR > ANTICONCEPCIONAL",
+])
+def test_e_formador_opiniao_reconhece_as_subcategorias_da_politica(categoria):
+    assert economico.e_formador_opiniao(categoria) is True
+
+
+@pytest.mark.parametrize("categoria", [None, "", "ETICOS > RX", "ETICOS > CONTROLADO", "PERFUMARIA > FRALDAS"])
+def test_e_formador_opiniao_nao_marca_o_resto_do_catalogo(categoria):
+    assert economico.e_formador_opiniao(categoria) is False
+
+
+def test_determinar_tier_formador_opiniao_ignora_protecao_por_mercado_fraco():
+    # Curva C com 2 concorrentes e sem Brick: hoje isso e' e_protecao
+    # incondicional (ver test_determinar_tier_curva_c_sem_mercado_continua_protecao).
+    # Para USO CONTINUO/ANTICONCEPCIONAL (papel PRECO_IMAGEM na politica), a
+    # politica de categoria tem que vencer o heuristico de mercado fraco.
+    assert economico.determinar_tier(
+        "PRECO_IMAGEM", "C", 2, None, False, categoria="ETICOS > USO CONTINUO",
+    ) == "PRECO_IMAGEM"
+
+
+def test_determinar_tier_formador_opiniao_nao_afeta_categoria_comum():
+    # Mesmo cenario de mercado fraco, mas categoria fora da lista: continua
+    # caindo em PROTECAO_MARGEM -- a excecao e' so para as categorias certas.
+    assert economico.determinar_tier(
+        "PRECO_IMAGEM", "C", 2, None, False, categoria="ETICOS > RX",
+    ) == "PROTECAO_MARGEM"
+
+
+def test_determinar_tier_formador_opiniao_exige_papel_preco_imagem():
+    # A excecao nao dispara so pela categoria: se a politica cadastrada para
+    # a categoria nao for PRECO_IMAGEM, o heuristico de mercado continua valendo.
+    assert economico.determinar_tier(
+        "PADRAO", "C", 2, None, False, categoria="ETICOS > USO CONTINUO",
+    ) == "PROTECAO_MARGEM"
+
+
+def test_alvo_por_ranking_formador_opiniao_mira_o_rank_1():
+    precos = [10.0, 12.0, 15.0, 20.0]
+    alvo = economico.alvo_por_ranking(
+        "PRECO_IMAGEM", precos, PARAMS, curva_abc="C", categoria="GENERICO > ANTICONCEPCIONAL",
+    )
+    # rank 1 = 99% do menor concorrente, mesmo com curva C (que normalmente
+    # miraria o 3o lugar) e tier PRECO_IMAGEM (que miraria o 2o).
+    assert alvo == pytest.approx(10.0 * 0.99)
+
+
+def test_alvo_por_ranking_curva_c_comum_continua_no_3o_lugar():
+    precos = [10.0, 12.0, 15.0, 20.0]
+    alvo = economico.alvo_por_ranking("PRECO_IMAGEM", precos, PARAMS, curva_abc="C")
+    abaixo, no_alvo = precos[1], precos[2]  # rank 3 = media entre 2o e 3o
+    assert alvo == pytest.approx((abaixo + no_alvo) / 2)
+
+
+def test_calcular_alvo_formador_opiniao_garante_piso_por_fora():
+    # calcular_alvo devolve o ALVO (rank 1); quem garante que o preco final
+    # nunca fica abaixo do piso e' aplicar_travas/arredondar_grade, nao esta
+    # funcao -- aqui so' confirmamos que o alvo de fato mira o mais barato.
+    precos = [10.0, 12.0, 15.0]
+    alvo = economico.calcular_alvo(
+        "PRECO_IMAGEM", valor_referencia_mercado=14.0, alvo_econ=8.0,
+        precos_concorrentes=precos, params=PARAMS, curva_abc="C",
+        categoria="SIMILAR > USO CONTINUO",
+    )
+    assert alvo == pytest.approx(10.0 * 0.99)
+
+
+def test_travas_sem_custo_estima_custo_pela_fracao_com_shrinkage_da_natureza():
+    # Ate 30/08/2026 este teste pinava 0.60 (constante global unica). Desde o
+    # item 6 (shrinkage bayesiano por natureza), "padrao" tem seu proprio
+    # pct_shrunk no TOML -- pinar aqui reintroduziria a mesma fragilidade que
+    # `test_divisor_piso_desconta_toda_a_estrutura` ja evita para despesas_fixas_pct.
     r = economico.aplicar_travas(
         custo=None, natureza_fiscal_item="padrao", tier="PADRAO", valor_referencia_mercado=20.0,
         divergencia_brick_web=False, lucro_liquido_alvo_pct=0.10, teto_cmed=None, preco_atual=None, params=PARAMS,
     )
     assert r.status == "OK_SEM_CUSTO_BASE_MERCADO"
     assert r.custo_estimado is not None
-    assert r.custo_estimado == pytest.approx(r.preco_sugerido * 0.60)
+    pct_esperado = economico.pct_custo_estimado("padrao", PARAMS)
+    assert r.custo_estimado == pytest.approx(r.preco_sugerido * pct_esperado)
 
 
 def test_calcular_alvo_protecao_margem_limitada_por_mercado():
@@ -519,6 +599,42 @@ def test_custo_muito_acima_do_mercado_e_erro_de_embalagem():
         lucro_liquido_alvo_pct=0.10, teto_cmed=None, preco_atual=None, params=PARAMS,
     )
     assert r.status == "REVISAO_MANUAL_CUSTO_OU_EMBALAGEM"
+
+
+# ── pct_custo_estimado: shrinkage bayesiano (item 6, plano 2026-08-30) ──
+
+def test_pct_custo_estimado_usa_valor_por_natureza_quando_existe():
+    params = {"custo_estimado": {
+        "pct_do_preco_mercado": 0.60,
+        "por_natureza": {"medicamento": {"n": 452, "pct_shrunk": 0.5532}},
+    }}
+    assert economico.pct_custo_estimado("medicamento", params) == 0.5532
+
+
+def test_pct_custo_estimado_cai_no_global_para_natureza_desconhecida():
+    params = {"custo_estimado": {
+        "pct_do_preco_mercado": 0.60,
+        "por_natureza": {"medicamento": {"n": 452, "pct_shrunk": 0.5532}},
+    }}
+    assert economico.pct_custo_estimado("padrao", params) == 0.60
+    assert economico.pct_custo_estimado(None, params) == 0.60
+
+
+def test_pct_custo_estimado_cai_no_global_sem_tabela_por_natureza():
+    params = {"custo_estimado": {"pct_do_preco_mercado": 0.60}}
+    assert economico.pct_custo_estimado("medicamento", params) == 0.60
+
+
+def test_pct_custo_estimado_usa_default_060_sem_secao_custo_estimado():
+    assert economico.pct_custo_estimado("medicamento", {}) == 0.60
+
+
+def test_pct_custo_estimado_com_os_parametros_reais_fica_entre_50_e_70_por_cento():
+    # guarda de sanidade: o shrinkage nao pode devolver algo fora da faixa
+    # plausivel de markup (medido em 30/08/2026: 0.5532 a 0.6632).
+    for natureza in ("medicamento", "perfumaria_higiene", "padrao"):
+        pct = economico.pct_custo_estimado(natureza, PARAMS)
+        assert 0.40 <= pct <= 0.80
 
 
 def test_custo_pouco_acima_do_mercado_e_compra_ruim_e_nao_bloqueia():

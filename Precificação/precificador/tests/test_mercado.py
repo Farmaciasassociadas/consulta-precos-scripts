@@ -558,3 +558,141 @@ def test_cluster_sob_pmpf_nao_age_com_duas_lojas():
     lista = [obs(60.0, site="drogaraia"), obs(62.0, site="paguemenos")]
     r = mercado.calcular_mercado(lista, PARAMS, HOJE, vum_brick=None, pmpf=5.72)
     assert r.cluster_acima_brick is False
+
+
+# ── dispersao_por_site (item 3 do plano de melhorias estatisticas, 2026-08-30) ──
+
+LOCAIS = {"farmasp", "saojoao", "drogaraia", "nissei"}
+
+
+def test_dispersao_por_site_mede_desvio_da_mediana_dos_outros_locais():
+    # site "instavel" ora acima ora abaixo dos outros dois locais; os outros
+    # dois concordam sempre entre si (dispersao ~0).
+    por_ean = {
+        "ean1": [obs(10.0, site="farmasp"), obs(10.0, site="saojoao"), obs(15.0, site="nissei")],
+        "ean2": [obs(20.0, site="farmasp"), obs(20.0, site="saojoao"), obs(14.0, site="nissei")],
+        "ean3": [obs(30.0, site="farmasp"), obs(30.0, site="saojoao"), obs(30.0, site="nissei")],
+        "ean4": [obs(8.0, site="farmasp"), obs(8.0, site="saojoao"), obs(8.5, site="nissei")],
+        "ean5": [obs(12.0, site="farmasp"), obs(12.0, site="saojoao"), obs(12.1, site="nissei")],
+    }
+    resultado = mercado.dispersao_por_site(por_ean, LOCAIS, n_min_pares=5)
+    # farmasp e saojoao sempre concordam ENTRE SI; o desvio residual que sobra
+    # vem so' de nissei entrar na mediana "dos outros" -- por isso os dois
+    # ficam iguais entre si e bem abaixo do site que realmente diverge.
+    assert resultado["farmasp"]["dispersao"] == pytest.approx(resultado["saojoao"]["dispersao"])
+    assert resultado["nissei"]["dispersao"] > resultado["farmasp"]["dispersao"]
+
+
+def test_dispersao_por_site_ignora_ean_com_menos_de_tres_locais():
+    por_ean = {"ean1": [obs(10.0, site="farmasp"), obs(50.0, site="saojoao")]}
+    resultado = mercado.dispersao_por_site(por_ean, LOCAIS, n_min_pares=1)
+    assert resultado == {}
+
+
+def test_dispersao_por_site_exige_n_min_pares():
+    por_ean = {
+        "ean1": [obs(10.0, site="farmasp"), obs(10.0, site="saojoao"), obs(20.0, site="nissei")],
+    }
+    resultado = mercado.dispersao_por_site(por_ean, LOCAIS, n_min_pares=5)
+    assert resultado == {}  # so' 1 par por site, abaixo do minimo
+
+
+def test_dispersao_por_site_aplica_apelido_antes_de_agrupar():
+    # "saopaulo" e' o nome antigo de "farmasp" -- sem o apelido, as duas
+    # entrariam como sites distintos e o agrupamento por EAN quebraria.
+    por_ean = {
+        f"ean{i}": [obs(10.0, site="saopaulo"), obs(10.0, site="saojoao"), obs(10.0 + i, site="nissei")]
+        for i in range(1, 6)
+    }
+    resultado = mercado.dispersao_por_site(
+        por_ean, {"saopaulo", "saojoao", "nissei"}, apelidos_site={"saopaulo": "farmasp"}, n_min_pares=5)
+    assert "farmasp" in resultado
+    assert "saopaulo" not in resultado
+    assert resultado["farmasp"]["n"] == 5
+
+
+# ── hampel_por_serie_temporal (item 5 do plano de melhorias estatisticas, 2026-08-30) ──
+
+def _serie(precos, site="nissei"):
+    return [obs(p, site=site, dias_atras=len(precos) - i) for i, p in enumerate(precos)]
+
+
+def test_hampel_marca_queda_pontual_na_propria_serie():
+    # 8 pontos estaveis em ~10 e um unico ponto caindo pra 4 -- nenhum outro
+    # site precisa mudar para isto ser pego (diferente da camada 4, cross-site).
+    serie = _serie([10.0, 10.1, 9.9, 10.0, 4.0, 10.2, 9.8, 10.0])
+    mantidas, descartadas = mercado.hampel_por_serie_temporal(serie, n_min=5)
+    assert len(descartadas) == 1
+    assert descartadas[0].observacao.preco == 4.0
+    assert descartadas[0].camada == "hampel_temporal"
+    assert len(mantidas) == 7
+
+
+def test_hampel_nao_marca_serie_estavel():
+    serie = _serie([10.0, 10.1, 9.9, 10.0, 10.2, 9.8, 10.0])
+    mantidas, descartadas = mercado.hampel_por_serie_temporal(serie, n_min=5)
+    assert descartadas == []
+    assert len(mantidas) == len(serie)
+
+
+def test_hampel_nao_age_com_historico_curto():
+    serie = _serie([10.0, 4.0, 10.0])  # so' 3 pontos, abaixo do n_min default (5)
+    mantidas, descartadas = mercado.hampel_por_serie_temporal(serie)
+    assert descartadas == []
+    assert len(mantidas) == 3
+
+
+def test_hampel_preserva_observacoes_sem_preco():
+    serie = _serie([10.0, 10.1, 9.9, 10.0, 4.0, 10.2, 9.8])
+    sem_preco = mercado.Observacao(site="nissei", preco=None, status="TIMEOUT", data_hora=None)
+    mantidas, descartadas = mercado.hampel_por_serie_temporal(serie + [sem_preco], n_min=5)
+    assert sem_preco in mantidas
+    assert len(descartadas) == 1
+
+
+# ── suavizar_ewma_temporal (item 4 do plano de melhorias estatisticas, 2026-08-30) ──
+
+def test_ewma_pondera_mais_o_ponto_mais_recente():
+    serie = [obs(10.0, dias_atras=20), obs(20.0, dias_atras=0)]
+    resultado = mercado.suavizar_ewma_temporal(serie, HOJE, half_life_dias=7.0)
+    assert 15.0 < resultado.preco < 20.0
+
+
+def test_ewma_ponto_unico_devolve_o_proprio_preco():
+    serie = [obs(12.34, dias_atras=3)]
+    resultado = mercado.suavizar_ewma_temporal(serie, HOJE, half_life_dias=7.0)
+    assert resultado.preco == pytest.approx(12.34)
+
+
+def test_ewma_meia_vida_decai_pela_metade():
+    # dois pontos, um exatamente 1 half-life mais velho que o outro: o peso do
+    # mais velho e' metade do mais novo.
+    serie = [obs(10.0, dias_atras=7), obs(20.0, dias_atras=0)]
+    resultado = mercado.suavizar_ewma_temporal(serie, HOJE, half_life_dias=7.0)
+    esperado = (10.0 * 0.5 + 20.0 * 1.0) / 1.5
+    assert resultado.preco == pytest.approx(esperado, abs=1e-3)
+
+
+def test_ewma_lista_vazia_ou_so_com_precos_invalidos_devolve_none():
+    assert mercado.suavizar_ewma_temporal([], HOJE, half_life_dias=7.0) is None
+    invalida = mercado.Observacao(site="nissei", preco=None, status="TIMEOUT", data_hora=HOJE)
+    assert mercado.suavizar_ewma_temporal([invalida], HOJE, half_life_dias=7.0) is None
+
+
+def test_ewma_herda_status_e_data_da_observacao_mais_recente():
+    serie = [
+        obs(10.0, dias_atras=10, status="OK"),
+        obs(30.0, dias_atras=0, status="MARKETPLACE"),
+    ]
+    resultado = mercado.suavizar_ewma_temporal(serie, HOJE, half_life_dias=7.0)
+    assert resultado.status == "MARKETPLACE"
+    assert resultado.data_hora == HOJE
+
+
+def test_ewma_sem_data_hora_pesa_como_se_fosse_hoje():
+    serie = [obs(10.0, dias_atras=30), mercado.Observacao(
+        site="teste", preco=20.0, status="OK", data_hora=None)]
+    resultado = mercado.suavizar_ewma_temporal(serie, HOJE, half_life_dias=7.0)
+    # o ponto sem data pesa como "hoje" (peso 1.0), dominando o ponto de 30
+    # dias atras (peso quase zero) -- resultado bem mais perto de 20 que de 10.
+    assert resultado.preco > 19.0

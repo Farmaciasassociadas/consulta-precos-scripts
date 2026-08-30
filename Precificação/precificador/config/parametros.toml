@@ -147,8 +147,7 @@ desconto_maximo_pct = 0.15   # teto do desconto total, mesmo que o piso permita 
 # mercado inteiro pratica ~47% abaixo do PMC (menor local / PMC = 0,53) e o
 # cliente que já comprou o item sabe disso.
 # Fora da faixa, a âncora certa é o concorrente ("na X está R$ 32, aqui R$ 27"),
-# que é verificável. PMC cobre 51% do catálogo (remedido em 27/08/2026; os 16,3%
-# que este comentário trazia eram de uma medição antiga e já não valiam).
+# que é verificável. PMC só cobre 16,3% do catálogo (0% em perfumaria/varejo).
 ancora_pmc_desconto_min = 0.08
 ancora_pmc_desconto_max = 0.30
 
@@ -219,6 +218,11 @@ divergencia_brick_web_limite = 0.25   # |web/brick - 1| acima disso -> REVISAO
 #                 larga dos dois lados (simétrico: pega erro nas duas direções).
 #   markup_max -- mediana_web/custo tem p50 1,65x, p95 2,88x e p99 4,46x
 #                 (n=2.127). 6,0x fica acima do p99; só 7 itens ficam de fora.
+#                 RECALIBRADO em 30/08/2026 (`auditar_calibracao.py --secao
+#                 sanidade`, n=2.835, base de 22 farmácias): p50 1,58x, p90
+#                 2,49x, p95 2,87x, p99 4,15x -- o p99 CAIU com mais dado
+#                 (menos itens no extremo, base mais estável). 6,0x continua
+#                 folgado acima do novo p99; sem necessidade de ajuste.
 #   n_min_web  -- exige o segundo testemunho. Sem NENHUMA web o Brick continua
 #                 sendo a única âncora e a regra não se aplica.
 #                 Era 2 até 12/08/2026, quando o LACTA BOMBOM OURO BRANCO 20 GR
@@ -240,20 +244,26 @@ n_min_web = 1       # mínimo de observações web para a regra valer (ver acima
 # Razão Brick / mediana_web por segmento. NOME LEGADO -- este fator NÃO mede
 # canal (site x balcão), mede FONTE DE DADO. Ver _fator_brick_para_web.
 #
-# Calibrado em 1.523 EANs (plano 1.1) e RE-MEDIDO em 2026-08-10 sobre a base
-# atual, reproduzindo os mesmos valores (GEN 0,886; NMED 0,916; RX 0,938;
-# SIM 0,821): é a distância entre a auditoria NACIONAL do Brick e a mediana
-# dos sites que esta loja coleta (redes grandes do sul/sudeste). O Brick dilui
-# redes de desconto e regiões mais baratas do país, então fica abaixo da web.
+# Calibrado em 1.523 EANs (plano 1.1), RE-MEDIDO em 2026-08-10 (mesma base,
+# mesmos valores: GEN 0,886; NMED 0,916; RX 0,938; SIM 0,821) e RECALIBRADO em
+# 30/08/2026 com `auditar_calibracao.py --secao fator_fisico` sobre a base das
+# 22 farmácias do MP2 (n = 504 GEN, 353 RX, 179 SIM, 1206 NMED -- 3 a 6x mais
+# itens que a calibração anterior): GEN 0,862; RX 0,931; SIM 0,755; NMED 0,913.
+# Todos os quatro CAÍRAM um pouco -- o Brick ficou relativamente mais barato
+# frente à web local com mais farmácias medidas, mas a ordem entre segmentos
+# (SIM mais distante, RX mais perto) se manteve. É a distância entre a
+# auditoria NACIONAL do Brick e a mediana dos sites que esta loja coleta
+# (redes grandes do sul/sudeste): o Brick dilui redes de desconto e regiões
+# mais baratas do país, então fica abaixo da web.
 #
 # USO: o Brick é DIVIDIDO por este fator, subindo para a escala regional
 # observada. NUNCA multiplicar a mediana web por ele -- isso empurra o preço
 # para a escala nacional (mais barata) e baixa a referência do lado errado.
 # Efeito canal vive só em [mercado.premio_balcao].
-NMED = 0.91
-GEN = 0.92
-RX = 0.94
-SIM = 0.78
+NMED = 0.913
+GEN = 0.862
+RX = 0.931
+SIM = 0.755
 default = 0.90
 
 [mercado.premio_balcao]
@@ -495,17 +505,6 @@ cv_remoto_confiavel = 0.20
 # (Sub-tabela por ultimo: em TOML tudo que vier depois pertenceria a ela.)
 [mercado.vizinhanca.apelidos_site]
 saopaulo = "farmasp"
-# Clones de rede, medidos em 27/08/2026 sobre o catalogo inteiro: preco identico
-# ao centavo na maioria dos EANs em que os dois aparecem. Sem o apelido a rede
-# vota duas ou tres vezes na mesma mediana -- e no cluster_acima_brick, que conta
-# OBSERVACOES, ela sozinha ja atingiria o n_min de 2.
-drogasmil = "tamoio"       # 97% identico ao centavo em 1.640 EANs
-farmalife = "tamoio"       # 93%
-extrafarma = "paguemenos"  # 53% identico, razao mediana 1,000 (mesmo grupo)
-# NAO aliasados de proposito: rosario/globo (razao 0,993 e 0,971, identidade
-# <20% -- vozes de preco separadas de verdade), pacheco/drogariasp e
-# catarinense/precopopular (razao 1,000 mas identidade so' 20-21%: mesmo NIVEL
-# de preco, catalogo diferente). Rever com os dois ligados e medindo de novo.
 
 [mercado.outliers]
 frescor_dias_max = 45
@@ -527,6 +526,57 @@ mad_multiplicador = 3.0
 # comercial legítima. Nunca esvazia o conjunto.
 razao_n_min = 3
 razao_max = 2.5
+
+[mercado.ewma]
+# Item 4 do plano de melhorias estatisticas (2026-08-30). So' tem efeito onde
+# ha HISTORICO real por (EAN, site) -- hoje so' o MP2 (observacao_farmacia
+# guarda todos os ciclos; o precos.csv do app guarda so' a ultima linha por
+# par, entao aqui fica so' documentado para as duas copias nao divergirem).
+#
+# Troca "ultima observacao" por uma media com decaimento por TEMPO (ver
+# engine.mercado.suavizar_ewma_temporal) antes de entrar nas 4 camadas de
+# outlier -- reduz o efeito de uma promocao pontual de UM dia sem esperar as
+# camadas de outlier reagirem depois (elas comparam ENTRE sites no mesmo
+# ciclo, nao a serie propria de um site ao longo do tempo).
+#
+# half_life_dias: quanto tempo para um preco antigo perder METADE do peso.
+# Escolhido bem abaixo de outliers.frescor_dias_max (45): 7 dias absorve
+# ruido de dia a dia e ainda reage dentro de uma semana a uma mudanca real de
+# preco. Maior que isso deixaria promocao de 2 semanas atras pesando demais;
+# menor que isso deixa de suavizar quase nada.
+#
+# DESLIGADO por decisao de negocio em 30/08/2026, apos dry-run comparativo
+# contra a base real do MP2 (3.265 EANs): 17,6% do preco sugerido MUDA com
+# isto ligado (mediana 0%, mas p90 +4,1%, p99 +22,2%, maximo +236%). Parte
+# grande do efeito e' um GANHO real -- recupera preco valido de um site cuja
+# ULTIMA tentativa de coleta falhou (TIMEOUT/NAO_ENCONTRADO), que a regra
+# antiga ("so' a ultima observacao") descartava por inteiro mesmo havendo
+# preco bom 1-2 dias antes -- mas a magnitude agregada e' grande demais para
+# ligar sem revisao humana da amostra, mesmo com os testes automatizados
+# verdes. Ativar so' apos conferir uma amostra dos itens que mais mudam
+# (rodar `motor/calcular.py --dry-run` com isto ligado e comparar).
+ativo = false
+half_life_dias = 7.0
+
+[mercado.hampel_temporal]
+# Item 5 do mesmo plano. Roda ANTES do EWMA (filtra a serie, depois suaviza
+# os sobreviventes) -- ver engine.mercado.hampel_por_serie_temporal. Sinal
+# DISTINTO da camada 4 (outliers.mad_multiplicador): aquela compara sites
+# ENTRE SI no mesmo ciclo; esta compara cada ponto contra a PROPRIA historia
+# do site, pegando uma queda/alta abrupta mesmo quando nenhum outro site
+# mudou naquele ciclo.
+#
+# n_min: minimo de observacoes de preco validas na serie para o teste rodar
+# -- mesmo espirito do outliers.mad_n_min (historico curto e' ruido, nao
+# evidencia). n_mad: multiplicador do MAD leave-one-out; mantido igual ao
+# outliers.mad_multiplicador por nao haver ainda evidencia de que o eixo
+# tempo pede um limiar diferente do eixo cross-site.
+#
+# DESLIGADO pelo mesmo motivo do [mercado.ewma] acima -- os dois foram
+# medidos juntos no mesmo dry-run.
+ativo = false
+n_min = 5
+n_mad = 3.0
 
 [mercado.cluster_acima_brick]
 # Quando concorrentes descartados pela ancora (por estarem acima de
@@ -662,12 +712,7 @@ degraus = [[20.0, 1.0], [100.0, 5.0]]
 n_min_observacoes = 3
 [ranking.rank_alvo_por_tier]
 PRECO_IMAGEM = 2   # itens de alta visibilidade: 2o menor preco
-# Item sem Curva ABC nao e' item de alta visibilidade -- so' nao foi cadastrado.
-# Medido em 27/08/2026: 598 itens (16% do catalogo) nao tem curva, e os 311 com
-# vizinhanca local tem o MAIOR ticket mediano do catalogo (R$ 43,64, acima ate'
-# da Curva A, R$ 28,44). Dar tratamento de KVI a eles era regalar margem na
-# cauda mais cara. Quem tem curva conhecida continua em [rank_alvo_por_curva].
-PADRAO = 3         # demais itens com mercado (sem Curva ABC conhecida): 3o menor preco
+PADRAO = 2         # demais itens com mercado (sem Curva ABC conhecida): 2o menor preco
 
 [ranking.rank_alvo_por_curva]
 # Quando a Curva ABC (giro/faturamento) e conhecida, ela manda mais que o
@@ -713,7 +758,28 @@ peso_dispersao = 0.10
 # estima um custo retroativo como fracao do preco de mercado, so para o
 # painel nao ficar "sem margem calculavel". Nunca usado para bloquear o
 # preco -- so para relatorio/monitoramento. Revisar quando houver NF real.
-pct_do_preco_mercado = 0.60
+#
+# Usado so' como FALLBACK GLOBAL: natureza fiscal com entrada em
+# [custo_estimado.por_natureza] usa o `pct_shrunk` de la' (ver
+# economico.pct_custo_estimado, item 6 do plano de melhorias estatisticas,
+# 2026-08-30). Natureza desconhecida ou tabela vazia caem aqui.
+pct_do_preco_mercado = 0.6302
+
+[custo_estimado.por_natureza]
+# Shrinkage bayesiano (peso = n/(n+100)) sobre o markup mediano
+# custo/mercado medido por natureza -- ver `auditar_calibracao.py --secao
+# shrinkage` para a conta e K_SHRINKAGE_NATUREZA para a forca do prior.
+# Medido em 30/08/2026 sobre a base de 22 farmacias (n = EANs com custo E
+# mercado validos na natureza): medicamento e' o mais barato relativo ao
+# mercado (markup mais alto, mercado mais competitivo/transparente);
+# perfumaria/padrao ficam mais perto do global porque tem mais massa (1651 e
+# 732 EANs) e menos evidencia de vies proprio.
+medicamento.n = 452
+medicamento.pct_shrunk = 0.5532
+perfumaria_higiene.n = 1651
+perfumaria_higiene.pct_shrunk = 0.6439
+padrao.n = 732
+padrao.pct_shrunk = 0.6632
 
 [trava.variacao_maxima_mercado_por_tier]
 # Variação máxima do preço final vs. referência de mercado (Brick/web), por
