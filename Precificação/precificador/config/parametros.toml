@@ -290,18 +290,31 @@ padrao = 1.03
 # entra no alvo -- isso é [mercado.vizinhanca]).
 #
 # excluir_sites: o site continua valendo para n, CV, ranking e validação; só
-# não define sozinho o piso. A Nissei está aqui porque o teste presencial do
-# usuário (2026-08-10) mostrou que o preço ONLINE dela diverge muito do preço
-# de BALCÃO -- e a coleta só enxerga o site. Cobrir um preço online que a
-# própria loja não pratica no balcão joga margem fora sem ganhar cliente.
-# (O peso menor por distância já é tratado em [mercado.peso_geografico].)
+# não define sozinho o piso.
 #
-# O problema dela é DISPERSÃO, não nível: medido em 2026-08-10 (preço da loja
-# / mediana das outras, mesmo EAN), Nissei 1,011, Raia 1,016, São João 1,027,
-# São Paulo 0,940 -- ela não é mais barata que as outras online, mas tem p25
-# 0,866 e p75 1,145. Por isso a correção certa é EXCLUIR da âncora, nunca
-# deslocar o nível dela por um fator: deslocamento inflaria os ~50% de casos
-# em que ela está normal.
+# REVERTIDO em 30/08/2026: a Nissei estava aqui desde 2026-08-10, quando o
+# teste presencial do usuário mostrou o preço ONLINE dela divergindo do preço
+# de BALCÃO. Medido então (preço da loja / mediana das outras, mesmo EAN):
+# Nissei 1,011, Raia 1,016, São João 1,027, São Paulo 0,940 -- dispersão era
+# o problema (p25 0,866, p75 1,145), não nível.
+#
+# RECALIBRADO em 30/08/2026 com `engine.mercado.dispersao_por_site` sobre a
+# base de 22 farmácias (dispersão = mediana de |preço do site / mediana dos
+# OUTROS locais - 1|, agregada em todos os EANs, n = pares por site):
+#   farmasp    n=1525  dispersão 0,145   <- agora a MAIOR
+#   drogaraia  n=1750  dispersão 0,122
+#   saojoao    n=1433  dispersão 0,121
+#   nissei     n=1743  dispersão 0,121   <- agora a MENOR
+# A Nissei deixou de ser o site mais disperso da vizinhança -- o cenário que
+# motivou a exclusão original não existe mais na base atual. Mantê-la fora
+# não protege nada hoje: só reduz a evidência do piso competitivo sem motivo
+# de dado. (O peso menor por distância continua em [mercado.peso_geografico],
+# que é sobre RELEVÂNCIA geográfica, não sobre confiabilidade do preço.)
+#
+# Reavaliar com `auditar_calibracao.py --secao dispersao_sites` periodicamente
+# -- se algum site voltar a destoar dos demais, a exclusão é a ferramenta
+# certa (ver o raciocínio de 2026-08-10 acima), só que aplicada a quem os
+# dados apontarem naquele momento, não a um nome fixo.
 #
 # gap_maximo_pct: winsorização. Se o menor local está mais que isso abaixo do
 # 2º menor, é tratado como preço-isca e a âncora passa para o 2º. Protege
@@ -320,7 +333,7 @@ padrao = 1.03
 # 73 estava só 0,9% abaixo do menor local (não era um rombo), mas o p75 chegava
 # a 5,2% e o p90 a 6,8%, e a causa era falha de dado, não decisão comercial.
 ativo = true
-excluir_sites = ["nissei"]
+excluir_sites = []
 gap_maximo_pct = 0.15
 n_min_lojas = 1
 # n_min_lojas_teto: barra MAIS ALTA para a ponta de cima, por estatística e não
