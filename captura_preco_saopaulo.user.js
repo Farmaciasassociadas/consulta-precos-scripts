@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Farmácias São Paulo (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      5.2
+// @version      5.3
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_saopaulo.user.js
 // @description  Busca o EAN na Farmácias São Paulo, entra no produto, lé o preço via JSON-LD e copia para a área de transferência.
@@ -542,6 +542,13 @@
     }
 
     function montarSentinel(ean, status, preco, estoque, obs, nome) {
+        // Produto SEM ESTOQUE nao tem preco de concorrencia: o site deixa
+        // congelado o ultimo valor e ninguem consegue comprar por ele.
+        // Caso real 26/08/2026 -- Farmacias Sao Paulo publicava R$ 81,36 num
+        // item com "avise-me" enquanto o mercado estava em ~R$ 119, e o motor
+        // usou o fantasma como piso competitivo. Aqui, no unico ponto por onde
+        // TODO resultado passa, o preco e' descartado e sobra so o veredito.
+        if (estoque === 'SEM_ESTOQUE') { status = 'INDISPONIVEL'; preco = ''; }
         const limpar = (t) => (t || '').replace(/[;=\n\r]/g, ' ').replace(/\s+/g, ' ').trim();
         return `EAN=${ean};SITE=${SITE};STATUS=${status};PRECO=${preco || ''};ESTOQUE=${estoque || ''};OBS=${limpar(obs)};NOME=${limpar(nome)};URL=${(URL_DO_RESULTADO || '').replace(/[;\s]/g, '')};PRINCIPIO=${limpar(PRINCIPIO_ATIVO_PAGINA)};MARCA=${limpar(MARCA_PAGINA)}`;
     }
