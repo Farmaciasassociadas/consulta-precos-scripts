@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Droga Raia (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      5.11
+// @version      5.12
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco.user.js
 // @description  Busca o EAN na Droga Raia, entra no produto, lê o preço via JSON-LD (com detecção de promoções) e copia para a área de transferência.
@@ -720,6 +720,7 @@
     }
 
     let tentativasBusca = 0;
+    let tentativasDesafio = 0;
 
     function paginaDeBusca() {
         const params = new URLSearchParams(location.search);
@@ -741,8 +742,32 @@
         // de "não encontramos resultados". Sem essa checagem o script ficava
         // mudo ate o vigia de 17s matar a aba (confirmado ao vivo em 08/2026).
         if (/access denied|you don't have permission to access|edgesuite\.net/i.test(document.body.innerText)) {
-            emitirResultado(montarSentinel(eanBuscado, 'BLOQUEIO', '', '', '', ''));
+            emitirResultado(montarSentinel(eanBuscado, 'BLOQUEIO', '', '',
+                'Access Denied do Akamai na busca', ''));
             console.log('[assistente-ean] Raia: bloqueio Akamai na busca (Access Denied) para', eanBuscado);
+            encerrarAba();
+            return;
+        }
+
+        // DESAFIO do Akamai Bot Manager (novo em 08/2026, confirmado ao vivo em
+        // 01/09/2026): na PRIMEIRA visita de uma sessao fria a Raia serve uma
+        // pagina intersticial ("Powered and protected by ... Privacy"), sem
+        // card e sem o texto de "nao encontramos". Ela NAO e' recusa: resolve
+        // sozinha em ~3-5s e recarrega a busca de verdade. Sem esta checagem o
+        // script gastava o orcamento de tentativasBusca no intersticial, ficava
+        // mudo, o app dava timeout e a retentativa imediata virava um "Access
+        // Denied" de verdade — gravado como ERRO_404 falso.
+        const noDesafio = /powered and protected by/i.test(document.body.innerText)
+            && !document.querySelector('[data-testid="container-products"]');
+        if (noDesafio) {
+            tentativasDesafio++;
+            if (tentativasDesafio <= 24) {   // 24 x 500ms = 12s, antes do vigia de 17s
+                setTimeout(paginaDeBusca, 500);
+                return;
+            }
+            emitirResultado(montarSentinel(eanBuscado, 'BLOQUEIO', '', '',
+                'desafio Akamai nao resolveu em 12s', ''));
+            console.log('[assistente-ean] Raia: desafio Akamai travado para', eanBuscado);
             encerrarAba();
             return;
         }
@@ -856,7 +881,8 @@
             // fica pausada uns minutos antes de tentar de novo.
             if (/página não encontrada|page not found/i.test(document.body.innerText)) {
                 GM_setValue('ean_buscado', '');
-                emitirResultado(montarSentinel(eanBuscado, 'BLOQUEIO', '', '', '', ''));
+                emitirResultado(montarSentinel(eanBuscado, 'BLOQUEIO', '', '',
+                    'pagina de produto 404 (pode ser antibot)', ''));
                 console.log('[assistente-ean] Raia: pagina 404 — tratado como BLOQUEIO (possível antibot) para', eanBuscado);
                 encerrarAba();
                 return;
