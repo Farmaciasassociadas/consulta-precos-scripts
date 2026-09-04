@@ -1903,11 +1903,26 @@ document.getElementById('form-login').addEventListener('submit',async function(e
   const b=document.getElementById('login-btn');
   b.disabled=true; b.textContent='Entrando…';
   document.getElementById('login-erro').hidden=true;
+  const email=document.getElementById('login-email').value.trim();
+  const campoSenha=document.getElementById('login-senha');
+  const senha=campoSenha.value;
   try{
-    await entrar(document.getElementById('login-email').value.trim(),
-                 document.getElementById('login-senha').value);
-    document.getElementById('login-senha').value='';
+    await entrar(email,senha);
+    // PEDIR AO NAVEGADOR PARA GUARDAR A SENHA, em vez de torcer para ele
+    // adivinhar. O Chrome so' oferece "salvar senha" quando ve o login dar
+    // certo -- e aqui ele nunca via: `preventDefault()` impede a navegacao que
+    // ele usa como sinal, e o campo era limpo antes de a heuristica rodar.
+    // Quem guarda continua sendo o gerenciador do navegador, nao nos.
+    if(window.PasswordCredential&&navigator.credentials)
+      try{ await navigator.credentials.store(
+        new PasswordCredential({id:email,password:senha,name:email})) }
+      catch(e){}   // navegador sem suporte ou usuario recusou: segue a vida
+    // Limpar SO' DEPOIS de a tela de login sumir. O Chrome tambem tem a
+    // heuristica dele -- ele repara no formulario preenchido desaparecendo --
+    // e esvaziar o campo antes disso apagava justamente o sinal. Com a API
+    // acima indisponivel (navegador antigo), e' este caminho que sobra.
     await abrirPainel();
+    campoSenha.value='';
   }catch(err){ mostrarLogin(String(err.message||err)); }
 });
 
