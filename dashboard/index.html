@@ -117,16 +117,25 @@ DADOS SINTÉTICOS: nenhum EAN, custo, preço ou margem real neste arquivo.
     height:calc(100vh - var(--fora,150px))}
   .area-tabela{overflow:auto;background:var(--branco)}
 
-  /* 860 = soma das colunas fixas + um mínimo legível para o nome do produto.
-     Acima disso o nome cresce; abaixo, a tabela rola em vez de espremer o
-     "vs mercado", que é a coluna que a pessoa veio olhar. */
-  table{border-collapse:separate;border-spacing:0;width:100%;min-width:860px}
+  /* 950 = soma das colunas fixas + um mínimo legível para o nome do produto.
+     Acima disso o nome cresce; abaixo, a tabela rola em vez de espremer a
+     classificação, que é a coluna que decide o próximo passo do item.
+     table-layout:fixed + colgroup: sem isso, arrastar a divisa de uma coluna
+     não gruda -- o navegador reempurra a largura pelo conteúdo da célula.
+     A largura de cada coluna vive só no <col>; largura em <th> seria fonte
+     dupla de verdade e uma delas ganharia calada. */
+  table{border-collapse:separate;border-spacing:0;width:100%;min-width:1005px;table-layout:fixed}
   thead th{
     position:sticky;top:0;z-index:10;background:var(--teal-acao);color:#fff;
     font-size:11px;font-weight:700;letter-spacing:.055em;text-transform:uppercase;
     text-align:left;padding:0 8px;height:38px;white-space:nowrap;
     border-bottom:1px solid var(--teal-press);
   }
+  /* Alça de redimensionar: vive dentro do <th>, que já é o container de
+     posicionamento (position:sticky também estabelece isso -- não precisa de
+     position:relative extra). */
+  .col-resizer{position:absolute;top:0;right:-4px;bottom:0;width:8px;cursor:col-resize;z-index:11}
+  .col-resizer:hover,.col-resizer.ativa{background:rgba(255,255,255,.35)}
   thead th.n{text-align:right}
   thead th button{
     font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;
@@ -161,8 +170,24 @@ DADOS SINTÉTICOS: nenhum EAN, custo, preço ou margem real neste arquivo.
   }
   .abc.a{border-color:var(--teal-acao);color:var(--teal-acao);background:var(--teal-claro)}
   .vazio{color:var(--texto-suave)}
-  .coleta{display:flex;gap:2px;align-items:center}
-  .coleta i{width:6px;height:12px;display:block;background:#E1E9E9}
+  /* Classificação editável na própria linha: parece rótulo até o clique --
+     sem borda, sem fundo -- e vira campo de verdade no foco/hover, do jeito
+     que uma célula de planilha se comporta. */
+  select.cat-linha{
+    width:100%;font:inherit;font-size:12.5px;color:var(--texto);background:none;
+    border:1px solid transparent;border-radius:var(--r-sm);padding:3px 4px;
+    cursor:pointer;
+  }
+  select.cat-linha:hover{border-color:var(--divisoria-forte)}
+  select.cat-linha:focus-visible{outline:2px solid var(--teal-acao);outline-offset:-1px;border-color:transparent}
+  select.cat-linha:disabled{color:var(--texto-suave);cursor:default}
+  select.cat-linha.vazia{color:var(--laranja-texto);font-weight:600}
+  .ponto-pendente{
+    display:inline-block;width:6px;height:6px;border-radius:50%;
+    background:var(--laranja);margin-right:4px;vertical-align:middle;flex:none;
+  }
+  .coleta{display:flex;gap:3px;align-items:center}
+  .coleta i{width:10px;height:18px;border-radius:1px;display:block;background:#E1E9E9}
   .coleta i.ok{background:var(--teal)}
   .coleta span{font-size:11px;color:var(--texto-suave);margin-left:5px}
   .alerta-linha{color:var(--laranja-texto);font-weight:700;font-size:11px}
@@ -222,16 +247,28 @@ DADOS SINTÉTICOS: nenhum EAN, custo, preço ou margem real neste arquivo.
   }
   .farm .v.vazio{font-weight:400;color:var(--texto-suave)}
   .proc{font-size:11px;color:var(--texto-suave);margin-top:12px;line-height:1.4}
-  .acoes{padding:10px 14px;border-top:1px solid var(--divisoria);display:flex;gap:8px;
-    flex:none;background:var(--branco)}
+  /* Grade 2x2: "Editar meu preço" + "Histórico" na primeira fileira, "Salvar"
+     ocupando a segunda inteira -- em vez de espremer os 3 numa fileira só nos
+     340px do painel, onde o rótulo mais longo truncaria. */
+  .acoes{padding:10px 14px;border-top:1px solid var(--divisoria);
+    display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:none;background:var(--branco)}
   .btn{
-    font:inherit;font-size:13px;font-weight:600;padding:9px 14px;border-radius:var(--r-sm);
+    font:inherit;font-size:13px;font-weight:600;padding:9px 10px;border-radius:var(--r-sm);
     cursor:pointer;border:1px solid var(--teal-acao);background:var(--teal-acao);color:#fff;
+    width:100%;text-align:center;
   }
   .btn:hover{background:var(--teal-press);border-color:var(--teal-press)}
   .btn:focus-visible{outline:2px solid var(--teal-acao);outline-offset:2px}
   .btn.sec{background:var(--branco);color:var(--teal-acao)}
   .btn.sec:hover{background:var(--teal-claro)}
+  /* Salvar no banco usa laranja -- o mesmo sinal de "precisa de atenção" do
+     resto da tela -- só enquanto há algo pendente. Sem pendência, apaga. */
+  .btn.salvar{background:var(--laranja);border-color:var(--laranja);grid-column:1 / -1}
+  .btn.salvar:hover{background:#D95F10;border-color:#D95F10}
+  .btn.salvar:disabled{
+    background:var(--branco);color:var(--texto-suave);border-color:var(--divisoria-forte);
+    cursor:default;
+  }
 
   .menu{
     position:fixed;z-index:60;min-width:238px;background:var(--branco);
@@ -452,12 +489,9 @@ DADOS SINTÉTICOS: nenhum EAN, custo, preço ou margem real neste arquivo.
   <div><h1 id="vista-nome">—</h1><p id="vista-desc">—</p></div>
   <div class="direita">
     <label for="cat">Categoria</label>
+    <!-- Opcoes preenchidas por carregarCategorias(), a partir do banco. -->
     <select id="cat">
       <option>Todas as categorias</option>
-      <option>ETICOS &gt; RX</option>
-      <option>GENERICOS</option>
-      <option>VAREJO &gt; VITAMINAS</option>
-      <option>VAREJO &gt; CONVENIENCIAS</option>
     </select>
     <button class="btn sec" id="btn-pip" title="Abre uma janelinha que fica por cima do ERP">Destacar</button>
     <button class="btn sec" id="btn-nf" data-acao="editar"
@@ -476,17 +510,28 @@ DADOS SINTÉTICOS: nenhum EAN, custo, preço ou margem real neste arquivo.
 <div class="corpo">
   <div class="area-tabela">
     <table id="tabela">
+      <colgroup>
+        <col style="width:34px">
+        <col style="width:112px">
+        <col>
+        <col style="width:92px">
+        <col style="width:106px">
+        <col style="width:112px">
+        <col style="width:190px">
+        <col style="width:150px">
+        <col style="width:44px">
+      </colgroup>
       <thead>
         <tr>
           <th class="sel"><input type="checkbox" id="sel-todos" aria-label="Selecionar todos os visíveis"></th>
-          <th style="width:112px"><button data-ord="ean">EAN <span class="seta">▾</span></button></th>
+          <th><button data-ord="ean">EAN <span class="seta">▾</span></button></th>
           <th><button data-ord="nome">Produto <span class="seta">▾</span></button></th>
-          <th class="n" style="width:92px"><button data-ord="custo">Custo <span class="seta">▾</span></button></th>
-          <th class="n" style="width:106px"><button data-ord="meu">Meu preço <span class="seta">▾</span></button></th>
-          <th class="n" style="width:112px"><button data-ord="motor">Sugerido motor <span class="seta">▾</span></button></th>
-          <th class="n" style="width:100px"><button data-ord="dmerc">vs mercado <span class="seta">▴</span></button></th>
-          <th style="width:96px">Coleta</th>
-          <th style="width:44px">ABC</th>
+          <th class="n"><button data-ord="custo">Custo <span class="seta">▾</span></button></th>
+          <th class="n"><button data-ord="meu">Meu preço <span class="seta">▾</span></button></th>
+          <th class="n"><button data-ord="motor">Sugerido motor <span class="seta">▾</span></button></th>
+          <th><button data-ord="cat">Classificação <span class="seta">▾</span></button></th>
+          <th>Coleta</th>
+          <th>ABC</th>
         </tr>
       </thead>
       <tbody id="linhas"></tbody>
@@ -503,6 +548,8 @@ DADOS SINTÉTICOS: nenhum EAN, custo, preço ou margem real neste arquivo.
     <div class="acoes">
       <button class="btn" id="btn-editar">Editar meu preço</button>
       <button class="btn sec" id="btn-hist">Histórico</button>
+      <button class="btn salvar" id="btn-salvar" disabled
+        title="Grava no banco tudo que foi alterado nesta sessão: preço, categoria e custo importado de NF-e. Nada disso vai para o banco antes deste clique.">Salvar</button>
     </div>
   </aside>
 </div>
@@ -581,7 +628,7 @@ DADOS SINTÉTICOS: nenhum EAN, custo, preço ou margem real neste arquivo.
     </div>
     <div class="acoes" style="justify-content:flex-end">
       <button class="btn sec" id="nf-cancelar">Fechar</button>
-      <button class="btn" id="nf-gravar" disabled>Gravar custos</button>
+      <button class="btn" id="nf-gravar" disabled>Aplicar custos</button>
     </div>
   </div>
 </div>
@@ -597,7 +644,7 @@ DADOS SINTÉTICOS: nenhum EAN, custo, preço ou margem real neste arquivo.
     <input type="text" inputmode="decimal" id="preco-valor" autocomplete="off" required>
     <p class="nota" id="preco-refs">—</p>
     <p class="erro" id="preco-erro" role="alert" hidden></p>
-    <button class="btn" type="submit" id="preco-btn">Salvar</button>
+    <button class="btn" type="submit" id="preco-btn">Aplicar</button>
     <button class="btn sec" type="button" id="preco-cancelar"
             style="width:100%;justify-content:center;margin-top:8px;padding:10px">Cancelar</button>
   </form>
@@ -684,6 +731,64 @@ let sessao=null;            // {access_token, refresh_token, email}
 let papel='nenhum';         // 'admin' | 'leitura' -- quem edita e quem so' ve
 let DADOS=[];
 
+/* ---------------------------------------------------------------------------
+   PENDÊNCIAS: nada grava no banco sozinho. Trocar categoria, editar preço ou
+   importar NF-e só MUDA a tela e fica guardado aqui -- quem grava é o clique
+   em "Salvar", e só ele. Chave = gtin, porque o mesmo produto pode acumular
+   mais de uma pendência (categoria E preço) antes do clique. Único que
+   continua ao vivo é o preço COLETADO nas farmácias -- isso não é decisão de
+   ninguém, é observação. Portado do painel/index.html do MiniPreço 2 depois
+   de provado lá (ver README de C:\MiniPreco2).
+--------------------------------------------------------------------------- */
+const PENDENTES=new Map();
+function pendente(gtin){
+  let p=PENDENTES.get(gtin); if(!p){p={}; PENDENTES.set(gtin,p)} return p;
+}
+function atualizarBotaoSalvar(){
+  const b=document.getElementById('btn-salvar'); if(!b)return;
+  const n=PENDENTES.size;
+  b.textContent='Salvar'+(n?' ('+n+')':'');
+  b.disabled=n===0;
+}
+
+/* As categorias sao as que EXISTEM no banco, nao uma lista fixa no HTML. A
+   lista fixa tinha 4 nomes e `precificacao.categoria` tem 39: o filtro do
+   cabecalho escondia 35 categorias reais -- inclusive a maior de todas,
+   PERFUMARIA > HIGIENE PESSOAL -- e o seletor da linha so' deixava
+   reclassificar entre essas 4. Preenchida uma vez, por `carregarCategorias()`. */
+let CATEGORIAS=[];
+async function carregarCategorias(){
+  const vistas=new Set();
+  (await restTudo('categoria','select=categoria'))
+    .forEach(function(c){ if(c.categoria) vistas.add(c.categoria) });
+  CATEGORIAS=[...vistas].sort();
+  const sel=document.getElementById('cat'), atual=sel.value;
+  sel.innerHTML='<option>Todas as categorias</option>'+
+    CATEGORIAS.map(function(c){return '<option>'+escHtml(c)+'</option>'}).join('');
+  // Recarregar a lista nao pode trocar o filtro que a pessoa ja' escolheu.
+  sel.value=CATEGORIAS.indexOf(atual)>=0?atual:'Todas as categorias';
+}
+function categoriaSelectHTML(d){
+  const opcoes=CATEGORIAS.slice();
+  // Categoria fora da lista (cadastro novo, classificacao automatica) entra
+  // como opcao extra, pra nao sumir do seletor nem virar troca sem querer.
+  if(d.cat&&opcoes.indexOf(d.cat)<0)opcoes.push(d.cat);
+  return '<select class="cat-linha'+(d.cat?'':' vazia')+'" data-id="'+d.id+'" '+
+    (papel!=='admin'?'disabled':'')+' aria-label="Classificação de '+escHtml(d.nome)+'">'+
+    '<option value=""'+(!d.cat?' selected':'')+'>— sem categoria —</option>'+
+    opcoes.map(function(c){
+      return '<option value="'+escHtml(c)+'"'+(c===d.cat?' selected':'')+'>'+escHtml(c)+'</option>';
+    }).join('')+
+    '</select>';
+}
+function stageCategoria(d,novaCategoria){
+  if(novaCategoria===(d.cat||''))return;
+  pendente(d.gtin).categoria=novaCategoria;
+  d.cat=novaCategoria;
+  if(selecionado===d.id)painel(d.id); else desenhar();
+  atualizarBotaoSalvar();
+}
+
 function guardarSessao(s){
   sessao=s;
   try{localStorage.setItem('sessao',JSON.stringify(s))}catch(e){}
@@ -751,6 +856,21 @@ async function descobrirPapel(){
 
 function num(v){return v==null?null:+v}
 
+/* Categoria vem do banco e vai para dentro de <option>. Um '<' solto ali sai do
+   elemento; escapar e' mais barato que confiar no cadastro. */
+function escHtml(t){
+  return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* A CHAVE DA NUVEM. Zero a esquerda e' preenchimento, nao identidade: o banco
+   guarda tudo completado a 13 (`precificacao.normalizar_gtin`). Quem chamar com
+   o codigo cru da NF-e monta uma chave que nao casa com nada. */
+function gtin13(t){
+  const d=String(t||'').replace(/\D/g,'');
+  return d.length===14&&d[0]==='0'?d.slice(1):d.padStart(13,'0');
+}
+
 /* Dinheiro em pt-BR, sempre com duas casas. Aceita nulo porque preco ausente e
    preco zero sao coisas diferentes: 'sem coleta' nunca pode virar 'R$ 0,00'. */
 function dinheiro(v){
@@ -763,6 +883,7 @@ function dinheiro(v){
 async function carregar(){
   const farm=await rest('farmacia?select=chave,nome,ordem&ativa=is.true&order=ordem');
   FARMACIAS=farm.map(function(f){return [f.chave,f.nome]});
+  if(!CATEGORIAS.length) await carregarCategorias();
 
   const linhas=await restTudo('painel',
     'select=gtin,descricao,categoria,custo,preco_motor,preco_manual,meu_preco,'+
@@ -844,7 +965,8 @@ const IC={
   piso:'<path d="M4 20h16"/><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/>',
   manual:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/>',
   categoria:'<path d="M3 7h7l2 2h9v10a2 2 0 01-2 2H3z"/><path d="M3 7V5a2 2 0 012-2h4"/>',
-  parado:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
+  parado:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  erro:'<circle cx="10" cy="10" r="6.5"/><path d="M15 15l6 6"/><path d="M7.5 10h5"/>'
 };
 const VISTAS=[
   {id:'mercado',nome:'Eu vs. mercado',desc:'Todos os produtos — meu preço contra todas as farmácias',
@@ -858,7 +980,9 @@ const VISTAS=[
   {id:'categoria',nome:'Sem categoria',desc:'O motor precificou com parâmetro genérico — classificar',
    filtro:d=>!d.cat, ordem:{col:'nome',dir:1}, marca:true},
   {id:'parado',nome:'Preço parado',desc:'Sem revisão há mais de 30 dias, com o mercado se mexendo',
-   filtro:d=>d.calc==='11/07/2026', ordem:{col:'dmerc',dir:1}, marca:true}
+   filtro:d=>d.calc==='11/07/2026', ordem:{col:'dmerc',dir:1}, marca:true},
+  {id:'erro',nome:'Não achou ou deu erro',desc:'Nenhuma farmácia coletada, ou o motor não conseguiu calcular um preço',
+   filtro:d=>d.coletados===0||d.motor==null, ordem:{col:'nome',dir:1}, marca:true}
 ];
 let vista=VISTAS[0], ordem=Object.assign({},vista.ordem), selecionado=0, alvoMenu=null;
 const tbody=document.getElementById('linhas');
@@ -905,7 +1029,7 @@ function visiveis(){
     return vista.filtro(d);
   });
   const key={ean:d=>d.ean,nome:d=>d.nome,custo:d=>d.custo,motor:d=>d.motor,
-    meu:d=>d.meu==null?-1:d.meu,
+    meu:d=>d.meu==null?-1:d.meu, cat:d=>d.cat||'',
     dmotor:d=>{const v=pct(d.meu,d.motor);return v==null?-999:v},
     dmerc:d=>{const v=pct(d.meu,d.media);return v==null?-999:v}}[ordem.col];
   return lista.sort((a,b)=>{const x=key(a),y=key(b);return (x>y?1:x<y?-1:0)*ordem.dir});
@@ -923,17 +1047,18 @@ function desenhar(){
     pipSync([]); return;
   }
   tbody.innerHTML=lista.map(d=>{
-    const dc=pct(d.meu,d.media);
+    const pend=PENDENTES.has(d.gtin);
     return '<tr data-id="'+d.id+'" '+(d.id===selecionado?'aria-selected="true"':'')+' tabindex="0">'+
       '<td class="sel"><input type="checkbox" aria-label="Selecionar"'+
         (marcados.has(d.id)?' checked':'')+'></td>'+
       '<td class="ean num">'+d.ean+'</td>'+
-      '<td class="produto" title="'+d.nome+'">'+d.nome+
-        '<small>'+d.apres+' · '+(d.cat||'<span class="alerta-linha">SEM CATEGORIA</span>')+'</small></td>'+
+      '<td class="produto" title="'+d.nome+'">'+
+        (pend?'<span class="ponto-pendente" title="Alteração ainda não salva no banco"></span>':'')+
+        d.nome+'<small>'+d.apres+'</small></td>'+
       '<td class="n num val">'+dinheiro(d.custo)+'</td>'+
       '<td class="n num val">'+(d.meu==null?'<span class="vazio">—</span>':dinheiro(d.meu))+'</td>'+
       '<td class="n num val motor">'+dinheiro(d.motor)+'</td>'+
-      '<td class="n num delta '+classe(dc)+'">'+fmtPct(dc)+'</td>'+
+      '<td>'+categoriaSelectHTML(d)+'</td>'+
       '<td><span class="coleta">'+FARMACIAS.map(f=>
         '<i class="'+(d.precos[f[0]]!=null?'ok':'')+'" title="'+f[1]+
         (d.precos[f[0]]!=null?': coletado':': não coletado')+'"></i>').join('')+
@@ -1195,8 +1320,16 @@ async function historico(id){
   document.getElementById('g-fechar').focus();
 }
 
+tbody.addEventListener('change',function(e){
+  const sel=e.target.closest('select.cat-linha'); if(!sel)return;
+  const d=DADOS.find(x=>x.id===+sel.dataset.id); if(d)stageCategoria(d,sel.value);
+});
 tbody.addEventListener('click',function(e){
   const tr=e.target.closest('tr[data-id]'); if(!tr)return;
+  // O <select> de classificação cuida do próprio clique -- deixar cair no
+  // painel() reconstruiria a linha (desenhar() troca o innerHTML inteiro) no
+  // meio do clique e fecharia o dropdown nativo antes de escolher a opção.
+  if(e.target.closest('select.cat-linha'))return;
   if(e.target.type==='checkbox'){
     const id=+tr.dataset.id;
     e.target.checked?marcados.add(id):marcados.delete(id);
@@ -1207,6 +1340,7 @@ tbody.addEventListener('dblclick',function(e){
   const tr=e.target.closest('tr[data-id]'); if(tr)historico(+tr.dataset.id)});
 tbody.addEventListener('keydown',function(e){
   const tr=e.target.closest('tr[data-id]'); if(!tr)return;
+  if(e.target.tagName==='SELECT')return;   // deixa Espaço/setas pro <select> nativo
   if(e.key==='Enter'){painel(+tr.dataset.id)}
   if(e.key===' '){e.preventDefault();historico(+tr.dataset.id)}
   if(e.key==='ArrowDown'&&tr.nextElementSibling){e.preventDefault();tr.nextElementSibling.focus()}
@@ -1285,6 +1419,49 @@ document.querySelectorAll('th button[data-ord]').forEach(function(b){
     document.querySelectorAll('th .seta').forEach(function(s){s.textContent='▾'});
     b.querySelector('.seta').textContent=ordem.dir>0?'▴':'▾'; desenhar();
   }});
+
+/* Redimensionar coluna arrastando a divisa: o cabeçalho é HTML estático (só
+   o tbody é redesenhado a cada render), então a alça é montada uma vez só,
+   aqui na inicialização. Largura vive no <col>, nunca no <th> -- é o que faz
+   table-layout:fixed respeitar o arrasto em vez de reempurrar pelo conteúdo
+   da célula. Persistida por navegador (localStorage).*/
+function ativarRedimensionamentoColunas(){
+  const CHAVE='painel-larguras-colunas', MIN=32;
+  const tabela=document.getElementById('tabela');
+  const cols=tabela.querySelectorAll('colgroup col');
+  const ths=tabela.querySelectorAll('thead th');
+  let salvas=null;
+  try{salvas=JSON.parse(localStorage.getItem(CHAVE)||'null')}catch(e){}
+  if(salvas&&salvas.length===cols.length)
+    cols.forEach(function(c,i){if(salvas[i])c.style.width=salvas[i]+'px'});
+
+  ths.forEach(function(th,i){
+    if(i===0)return;   // caixinha de selecionar: 34px fixo, não vale a pena
+    const alca=document.createElement('span');
+    alca.className='col-resizer';
+    th.appendChild(alca);
+    alca.addEventListener('mousedown',function(e){
+      e.preventDefault();
+      const col=cols[i], largoInicial=col.getBoundingClientRect().width, xInicial=e.clientX;
+      alca.classList.add('ativa'); document.body.style.userSelect='none';
+      function mover(ev){
+        col.style.width=Math.max(MIN,largoInicial+(ev.clientX-xInicial))+'px';
+      }
+      function soltar(){
+        document.removeEventListener('mousemove',mover);
+        document.removeEventListener('mouseup',soltar);
+        alca.classList.remove('ativa'); document.body.style.userSelect='';
+        try{
+          localStorage.setItem(CHAVE,JSON.stringify(
+            Array.from(cols).map(function(c){return Math.round(c.getBoundingClientRect().width)})));
+        }catch(err){}
+      }
+      document.addEventListener('mousemove',mover);
+      document.addEventListener('mouseup',soltar);
+    });
+  });
+}
+ativarRedimensionamentoColunas();
 /* ---------- etiquetas: MESMO modelo do MiniPreço ----------
    Medidas vindas de etiquetas.py, que por sua vez saíram pixel a pixel da arte
    aprovada (709 x 413 px = 60 x 35 mm, 11,8167 px/mm). Converter para mm aqui
@@ -1581,7 +1758,7 @@ function abrirPreco(id){
   const campo=document.getElementById('preco-valor');
   campo.value=d.meu==null?'':dinheiro(d.meu);
   document.getElementById('preco-btn').disabled=false;
-  document.getElementById('preco-btn').textContent='Salvar';
+  document.getElementById('preco-btn').textContent='Aplicar';
   abrirModal('fundo-preco');
   campo.focus(); campo.select();
 }
@@ -1590,12 +1767,13 @@ function fecharPreco(){
   fecharModalAberto();
 }
 
-async function salvarPreco(){
+/* Não escreve mais no banco aqui -- só guarda em PENDENTES. Quem grava é o
+   botão "Salvar" do painel, e só ele. O nome do botão do modal continua
+   "Aplicar" (não "Salvar") de propósito, pra não sugerir que já foi pro banco. */
+function salvarPreco(){
   const d=DADOS.find(x=>x.id===precoAlvo); if(!d)return;
   const e=document.getElementById('preco-erro');
-  const erro=function(msg){e.textContent=msg; e.hidden=false;
-    document.getElementById('preco-btn').disabled=false;
-    document.getElementById('preco-btn').textContent='Salvar'};
+  const erro=function(msg){e.textContent=msg; e.hidden=false};
 
   const preco=precoDoTexto(document.getElementById('preco-valor').value);
   if(preco==null)return erro('Preço inválido. Use algo como 19,90.');
@@ -1607,22 +1785,10 @@ async function salvarPreco(){
      !confirm('De '+dinheiro(antes)+' para '+dinheiro(preco)+'. Confirma?'))
     return;
 
-  document.getElementById('preco-btn').disabled=true;
-  document.getElementById('preco-btn').textContent='Salvando…';
-  try{
-    // merge-duplicates: grava por cima se o produto ja' tem preco. Sem isso o
-    // segundo salvamento do mesmo item volta 409 chave duplicada.
-    await rest('meu_preco',{metodo:'POST',
-      corpo:{gtin:d.gtin, preco:preco, origem:'manual'},
-      cabecalhos:{'Prefer':'resolution=merge-duplicates,return=representation'}});
-  }catch(err){
-    return erro(/40[13]/.test(err.message)
-      ? 'Sua conta não tem permissão para editar preço.'
-      : 'Não foi possível salvar: '+err.message);
-  }
-  d.meu=preco;
+  pendente(d.gtin).meu_preco={preco:preco, origem:'manual'};
+  d.meu=preco; d.manual=true;
   fecharPreco();
-  desenhar(); painel(d.id);
+  desenhar(); painel(d.id); atualizarBotaoSalvar();
 }
 
 document.getElementById('btn-editar').onclick=function(){abrirPreco(selecionado)};
@@ -1633,6 +1799,54 @@ document.getElementById('form-preco').addEventListener('submit',function(ev){
   ev.preventDefault(); salvarPreco()});
 
 document.getElementById('btn-hist').onclick=function(){historico(selecionado)};
+
+/* O único lugar que efetivamente grava no banco. Tudo que passou por
+   PENDENTES -- categoria, preço, custo de NF-e -- sai daqui num lote só, e só
+   quando a pessoa clica. `importar_custos` recebe TODOS os custos pendentes
+   (mesmo os de produto ainda não existente em precificacao.produto -- é essa
+   rpc quem cria a linha), e categoria/preço vão como upsert em lote na mesma
+   tabela que "Editar meu preço" já usava. "Sem categoria" grava categoria=''
+   em vez de apagar a linha: precificacao.categoria não tem policy de DELETE
+   (é arquitetura, categoria é só insert/update, com histórico de quem mudou). */
+async function salvarPendencias(){
+  if(!PENDENTES.size) return;
+  const b=document.getElementById('btn-salvar'), rotulo=b.textContent;
+  const sync=document.getElementById('sync');
+  b.disabled=true; b.textContent='Salvando…';
+  const custoItens=[], precoItens=[], catUpsert=[];
+  PENDENTES.forEach(function(p,gtin){
+    if(p.custo) custoItens.push(p.custo);
+    if(p.meu_preco) precoItens.push({gtin:gtin, preco:p.meu_preco.preco, origem:p.meu_preco.origem});
+    if(p.categoria!==undefined)
+      catUpsert.push({gtin:gtin, categoria:p.categoria||'', origem:'manual_minipreco'});
+  });
+  try{
+    if(custoItens.length)
+      await rest('rpc/importar_custos',{metodo:'POST',corpo:{itens:custoItens}});
+    if(precoItens.length)
+      await rest('meu_preco',{metodo:'POST',corpo:precoItens,
+        cabecalhos:{'Prefer':'resolution=merge-duplicates,return=representation'}});
+    if(catUpsert.length)
+      await rest('categoria',{metodo:'POST',corpo:catUpsert,
+        cabecalhos:{'Prefer':'resolution=merge-duplicates,return=representation'}});
+  }catch(err){
+    b.disabled=false; b.textContent=rotulo;
+    sync.textContent=/40[13]/.test(err.message)
+      ? 'Sua conta não tem permissão para salvar.'
+      : 'Não foi possível salvar: '+err.message;
+    return;
+  }
+  const gtins=[...PENDENTES.keys()];
+  PENDENTES.clear();
+  sync.textContent='Atualizando…';
+  await carregar();
+  trilho(); desenhar();
+  if(selecionado!=null&&DADOS.some(d=>d.id===selecionado)) painel(selecionado);
+  sync.textContent=gtins.length+' produto(s) salvos no banco.';
+  b.textContent=rotulo;
+  atualizarBotaoSalvar();
+}
+document.getElementById('btn-salvar').onclick=salvarPendencias;
 window.limpar=function(){document.getElementById('busca').value='';
   document.getElementById('cat').value='Todas as categorias';desenhar()};
 
@@ -1674,7 +1888,7 @@ async function abrirPainel(){
   // Quem e' 'leitura' nao ve botao que nao pode usar: botao que existe e nega
   // ensina errado. O RLS continua sendo a garantia -- isto e' so' a tela.
   if(papel!=='admin')
-    document.querySelectorAll('#btn-editar,[data-acao="editar"],[data-acao="manual"]')
+    document.querySelectorAll('#btn-editar,#btn-salvar,[data-acao="editar"],[data-acao="manual"]')
       .forEach(function(b){b.remove()});
   esconderLogin();
   await carregar();
@@ -1810,30 +2024,28 @@ async function nfArquivos(lista){
   nfDesenhar();
 }
 
-async function nfGravar(){
-  const b=document.getElementById('nf-gravar'), e=document.getElementById('nf-erro');
+/* Nao grava mais direto: os custos da nota entram em PENDENTES, do mesmo
+   jeito que categoria e preco. Item que ja esta na tela mostra o custo novo
+   na hora (so de olho); item novo da nota, que ainda nem existe no banco,
+   so aparece de verdade depois do "Salvar" -- e' o importar_custos do banco
+   quem cria a linha em precificacao.produto. */
+function nfGravar(){
   const itens=NF.filter(function(i){return i.marcado&&i.ean}).map(function(i){
-    return {gtin:i.ean, descricao:i.nome, custo:+i.custo.toFixed(4), nota:i.nota};
+    // GTIN completado a 13, a mesma chave do banco. Com o codigo cru da nota,
+    // o item de EAN curto nunca casava com a linha que ja' esta' na tela: o
+    // custo novo nao aparecia ate' o Salvar recarregar tudo.
+    return {gtin:gtin13(i.ean), descricao:i.nome, custo:+i.custo.toFixed(4), nota:i.nota};
   });
   if(!itens.length) return;
-  b.disabled=true; b.textContent='Gravando\u2026'; e.hidden=true;
-  try{
-    await rest('rpc/importar_custos',{metodo:'POST',corpo:{itens:itens}});
-  }catch(err){
-    b.disabled=false; b.textContent='Gravar custos';
-    e.textContent=/40[13]/.test(err.message)
-      ? 'Sua conta não tem permissão para gravar custo.'
-      : 'Não foi possível gravar: '+err.message;
-    e.hidden=false; return;
-  }
-  b.textContent='Gravar custos';
+  itens.forEach(function(i){
+    pendente(i.gtin).custo={gtin:i.gtin, descricao:i.descricao, custo:i.custo, nota:i.nota};
+    const d=DADOS.find(function(x){return x.gtin===i.gtin});
+    if(d) d.custo=i.custo;
+  });
   nfFechar();
-  // Recarrega em vez de remendar a memoria: item novo da nota ainda nao existe
-  // em DADOS, e custo mexe em piso, alvo e status, que quem calcula e' o banco.
-  document.getElementById('sync').textContent='Atualizando\u2026';
-  await carregar(); desenhar(); if(selecionado!=null)painel(selecionado);
+  desenhar(); atualizarBotaoSalvar();
   document.getElementById('sync').textContent=
-    itens.length+' custos gravados \u00b7 '+DADOS.length.toLocaleString('pt-BR')+' produtos';
+    itens.length+' custo(s) da nota prontos, ainda sem salvar. Clique em "Salvar" no painel do produto.';
 }
 
 document.getElementById('btn-nf').onclick=nfAbrir;
