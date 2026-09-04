@@ -2214,7 +2214,13 @@ const PIP_HTML=
  '</div>';
 
 async function abrirPip(){
-  if(pipJanela){pipJanela.focus();return}
+  /* `pipJanela` so' era zerado pelo 'pagehide'. Quando esse evento nao chega --
+     janela fechada pelo proprio Chrome, aba suspensa, PIP tomado por outra
+     pagina -- a referencia ficava apontando para uma janela morta, e daqui pra
+     frente TODO clique em Destacar caia neste focus() e nao fazia nada. Sem
+     erro, sem mensagem: o botao parava de funcionar ate' recarregar a pagina. */
+  if(pipJanela&&!pipJanela.closed){pipJanela.focus();return}
+  pipJanela=null;
   pipLista=pipItens(); pipIdx=Math.min(pipIdx,Math.max(pipLista.length-1,0));
   const w=await documentPictureInPicture.requestWindow({width:300,height:190});
   pipJanela=w;
@@ -2245,8 +2251,13 @@ async function abrirPip(){
     b.title='Precisa de Chrome ou Edge 116+ — este navegador nao tem janela destacada.';
     return;
   }
+  /* Erro no title e' erro invisivel: ninguem passa o mouse num botao que "nao
+     fez nada" para descobrir por que. Vai para a linha de status. */
   b.onclick=function(){abrirPip().catch(function(err){
-    b.title='Nao abriu: '+(err.message||err)})};
+    b.title='Nao abriu: '+(err.message||err);
+    document.getElementById('sync').textContent=
+      'Não deu para abrir a janela destacada: '+(err.message||err);
+  })};
 })();
 
 (async function(){
