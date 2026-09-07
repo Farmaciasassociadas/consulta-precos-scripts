@@ -2,13 +2,31 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "dashboard",
+      "name": "minipreco2-painel",
       "runtimeExecutable": "python",
       "runtimeArgs": [
-        "dashboard/servir.py",
-        "5173"
+        "C:/MiniPreco2/painel/servir.py",
+        "5174"
       ],
-      "port": 5173
+      "port": 5174
+    },
+    {
+      "name": "mp2-painel-teste",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "C:/MiniPreco2/painel/servir.py",
+        "5177"
+      ],
+      "port": 5177
+    },
+    {
+      "name": "mp2-varredura",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "C:/MiniPreco2/painel/servir.py",
+        "5178"
+      ],
+      "port": 5178
     }
   ]
 }

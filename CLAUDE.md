@@ -1,3 +1,35 @@
+# Os 4 apps — leia isto antes de editar qualquer coisa
+
+São quatro programas diferentes. IAs vêm confundindo um com o outro e editando
+no repositório errado. **Antes de qualquer edição, identifique qual app é o
+alvo pela pasta.** Se o pedido não deixar claro, pergunte — não adivinhe.
+
+| # | Nome | Pasta (única fonte) | O que é | Como roda |
+|---|------|---------------------|---------|-----------|
+| 1 | **Consulta Preços EAN** (o robô) | `C:\Users\docze\ConsultaPrecosEAN` | Desktop Python/Tkinter. Coleta preço dos concorrentes o dia todo, com Chrome + userscripts. Dono do `precos.csv`, do `log_assistente.txt` e do motor de precificação. | `Iniciar Assistente EAN.bat` → `python iniciar.py` |
+| 2 | **MiniPreço** (desktop) | `C:\Users\docze\ConsultaPrecosEAN` (`minipreco.py`) | Desktop Python. O app do balcão: consulta produto, mostra preço sugerido, imprime etiqueta. **Mora no mesmo repo do #1**, é outro executável, não outro projeto. | `Iniciar MiniPreço.bat` → `python iniciar.py --app minipreco` |
+| 3 | **MiniPreço 2** | `C:\MiniPreco2` | Campo de testes da próxima geração: coleta sem navegador, motor na nuvem (Supabase, schema `mp2`), painel no navegador. **Não é produção** e nunca escreve no schema `precificacao`. Repo separado de propósito (tem chave de serviço). | `python painel/servir.py` |
+| 4 | **AssociChat** | `C:\Claude\chat-interno` | Chat interno das Farmácias Associadas. Electron + TypeScript + Supabase, ícone na bandeja. Nada a ver com preço. | `npm run dev` |
+
+Desambiguação rápida:
+
+- "o robô", "a coleta", "o log", "precos.csv", "userscript" → **#1**
+- "o app do balcão", "etiqueta", "minipreco.py" → **#2**
+- "MP2", "mp2", "schema mp2", "coletor novo", "sem navegador", "o painel no navegador" → **#3**
+- "chat", "AssociChat", "Electron", "bandeja" → **#4**
+
+Cuidado com o par #1/#2: mesmo repositório, apps diferentes.
+
+> O antigo "Dashboard" (`C:\Claude\dashboard`, painel de precificação em
+> `index.html` puro) foi apagado em 07/09/2026 — parou de ser usado e só
+> causava confusão com o `MiniPreco2\painel`. Se algo referenciar
+> `C:\Claude\dashboard`, está desatualizado.
+
+Também não confundir as pastas de código do #1 dentro de `C:\Claude`:
+`repo_scripts` (userscripts públicos) e `Precificação\precificador` (cópia
+batch do motor) são **cópias/espelhos** — a fonte da verdade é o app em
+`C:\Users\docze\ConsultaPrecosEAN`.
+
 # Regras da raiz — leia antes de qualquer coisa
 
 Estas regras existem por um motivo medido: sessões deste projeto já morreram
