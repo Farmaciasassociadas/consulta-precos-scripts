@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Captura de Preço - Panvel (Assistente EAN)
 // @namespace    consulta-precos-drogaraia
-// @version      2.10
+// @version      2.11
 // @downloadURL  https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_panvel.user.js
 // @updateURL    https://raw.githubusercontent.com/Farmaciasassociadas/consulta-precos-scripts/main/captura_preco_panvel.user.js
 // @description  Busca o EAN na Panvel: pega o código do produto no card da busca e lê preço/estoque/princípio ativo pela API de catálogo (sem entrar na página do produto). Copia o resultado para a área de transferência.
@@ -545,8 +545,8 @@
         // Panvel começar a listar marketplace e isto não pegar nada.
         const vendedorApi = (cat.sellerName || cat.seller || cat.soldBy || cat.vendedor || '').toString().trim();
         if (vendedorApi && !/panvel/i.test(vendedorApi)) {
-            emitirResultado(montarSentinel(eanBuscado, 'MARKETPLACE', preco, estoque, `Vendido por: ${vendedorApi}`, nome));
-            console.log('[assistente-ean] Panvel: MARKETPLACE detectado, vendedor', vendedorApi, '- preco capturado:', preco);
+            emitirResultado(montarSentinel(eanBuscado, 'MARKETPLACE', precoStr, estoque, `Vendido por: ${vendedorApi}`, nome));
+            console.log('[assistente-ean] Panvel: MARKETPLACE detectado, vendedor', vendedorApi, '- preco capturado:', precoStr);
             encerrarAba();
             return;
         }
