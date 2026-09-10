@@ -190,12 +190,13 @@ def carregar_concorrentes(conn: sqlite3.Connection) -> int:
                 row.get("status") or "",
                 preco,
                 row.get("observacoes") or None,
+                (row.get("estoque") or "").strip().upper(),
             ))
 
     conn.execute("DELETE FROM preco_concorrente")
     conn.executemany(
-        "INSERT INTO preco_concorrente (ean, site, data_hora, status, preco, observacoes) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO preco_concorrente (ean, site, data_hora, status, preco, observacoes, estoque) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
         linhas,
     )
     conn.commit()

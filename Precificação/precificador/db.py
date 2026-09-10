@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS preco_concorrente (
     data_hora TEXT,
     status TEXT NOT NULL,
     preco REAL,
-    observacoes TEXT
+    observacoes TEXT,
+    estoque TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_preco_concorrente_ean ON preco_concorrente(ean);
 
@@ -139,6 +140,10 @@ def criar_schema(conn: sqlite3.Connection) -> None:
         pass  # coluna ja existe (rodadas anteriores)
     try:
         conn.execute("ALTER TABLE produto ADD COLUMN marca_exclusiva_preco REAL")
+    except sqlite3.OperationalError:
+        pass  # coluna ja existe (rodadas anteriores)
+    try:
+        conn.execute("ALTER TABLE preco_concorrente ADD COLUMN estoque TEXT")
     except sqlite3.OperationalError:
         pass  # coluna ja existe (rodadas anteriores)
     conn.commit()
