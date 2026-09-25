@@ -20,6 +20,8 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
+from caminhos import INSUMOS
+
 REFERENCIA = Path(r"C:\Users\docze\ConsultaPrecosEAN\precificacao\dados"
                   r"\referencia_categoria_brick.csv")
 # `segmento` NAO e' o "Catalogo Guia" da planilha: no resto do projeto ele e' o
@@ -27,9 +29,8 @@ REFERENCIA = Path(r"C:\Users\docze\ConsultaPrecosEAN\precificacao\dados"
 # lucro-alvo do motor e o agrupamento do chamariz sem erro nenhum aparecer.
 COLUNAS = {"ean": "ean", "vum": "vum", "curva em valor": "curva",
            "rk brick": "posicao"}
-# Planilha corrente do painel farmaceutico, arquivada junto do consolidado.
-BRICK_ATUAL = (Path(__file__).parent.parent / "outputs" / "consolidado_estoque"
-               / "BRICK 1855 - PRODUTOS - MAT08_2026.xlsx")
+# Planilha corrente do painel farmaceutico, na pasta de insumos do Drive.
+BRICK_ATUAL = INSUMOS / "BRICK 1855 - PRODUTOS - MAT08_2026.xlsx"
 
 
 def _chave(texto) -> str:

@@ -15,7 +15,7 @@ from openpyxl import load_workbook
 
 import db
 from atualizar_brick import BRICK_ATUAL, ler_brick
-from caminhos import CONSULTA_PRECOS, MARCA_EXCLUSIVA_XLSX, SUBCATEGORIA_XLSX
+from caminhos import CONSULTA_PRECOS, INSUMOS, MARCA_EXCLUSIVA_XLSX, SUBCATEGORIA_XLSX
 
 ROOT = Path(__file__).parent.parent
 
@@ -44,8 +44,8 @@ def _carregar_fatores_venda() -> dict[str, float]:
     except OSError:
         pass
     return fatores
-BRICK_ESTOQUE_XLSX = ROOT / "outputs" / "consolidado_estoque" / "estoque_pmc_brick.xlsx"
-PMC_PR_XLSX = ROOT / "outputs" / "eans_pmc" / "ean_descricao_fabricante_pmc_pr.xlsx"
+BRICK_ESTOQUE_XLSX = INSUMOS / "estoque_pmc_brick.xlsx"
+PMC_PR_XLSX = INSUMOS / "ean_descricao_fabricante_pmc_pr.xlsx"
 # Politica de margem: fonte da verdade e' a do app (repo PRIVADO), nao a copia
 # daqui. Alem de ser dado de negocio que nao pode ir para repo publico, a copia
 # local estava DESATUALIZADA: BEBIDAS E BOMBONIERE e VAREJINHO rodavam com

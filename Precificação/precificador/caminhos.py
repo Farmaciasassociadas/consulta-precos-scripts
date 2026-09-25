@@ -14,7 +14,14 @@ ESTOQUE_XLSX = caminho(
     "PRECIFICACAO_ESTOQUE_XLSX",
     r"G:\.shortcut-targets-by-id\1q0IRmUp06SR55V7qNb7wVLwWjEauQntR\DROGARIA\estoque.xlsx",
 )
-SUBCATEGORIA_XLSX = caminho("PRECIFICACAO_SUBCATEGORIA_XLSX", Path.home() / "Downloads" / "Pedro 2.xlsx")
+# Planilhas de entrada do ingest.py (Brick, estoque, PMC, subcategoria). Moram
+# no Drive, nao no git: C:\Claude empurra para repo PUBLICO, e o Drive ja'
+# sincroniza entre os PCs -- e' o que deixa o outro PC reconstruir o .db.
+INSUMOS = caminho(
+    "PRECIFICACAO_INSUMOS_DIR",
+    r"G:\.shortcut-targets-by-id\1q0IRmUp06SR55V7qNb7wVLwWjEauQntR\DROGARIA\Claude\Insumos-Precificacao",
+)
+SUBCATEGORIA_XLSX = caminho("PRECIFICACAO_SUBCATEGORIA_XLSX", INSUMOS / "Pedro 2.xlsx")
 MARCA_EXCLUSIVA_XLSX = caminho(
     "PRECIFICACAO_MARCA_EXCLUSIVA_XLSX",
     Path(r"G:\.shortcut-targets-by-id\1q0IRmUp06SR55V7qNb7wVLwWjEauQntR\DROGARIA")
