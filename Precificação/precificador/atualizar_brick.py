@@ -29,7 +29,7 @@ COLUNAS = {"ean": "ean", "vum": "vum", "curva em valor": "curva",
            "rk brick": "posicao"}
 # Planilha corrente do painel farmaceutico, arquivada junto do consolidado.
 BRICK_ATUAL = (Path(__file__).parent.parent / "outputs" / "consolidado_estoque"
-               / "BRICK 1855 - PRODUTOS - MAT07_2026.xlsx")
+               / "BRICK 1855 - PRODUTOS - MAT08_2026.xlsx")
 
 
 def _chave(texto) -> str:
