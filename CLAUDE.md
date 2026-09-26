@@ -17,7 +17,7 @@ Desambiguação: "preço", "coleta", "Brick", "motor", "painel", "MP2", "mp2",
 
 | O quê | Onde | Situação |
 |---|---|---|
-| Robô de coleta (Consulta Preços EAN) | `C:\Users\docze\ConsultaPrecosEAN` | Coleta parada desde 03/09/2026. A pasta **ainda existe** só porque o servidor da loja pode ler a credencial do banco de lá (`nuvem_config.json`) quando falta o `.env` do MP2 — resolver isso antes de apagar. |
+| Robô de coleta (Consulta Preços EAN) | `C:\Users\docze\ConsultaPrecosEAN` | Coleta parada desde 03/09/2026. O Farma Preço não depende mais de nada dela (credencial e ponte desligadas em 25/09/2026); a pasta só não foi apagada ainda. |
 | MiniPreço desktop (balcão) | mesmo repo, `minipreco.py` | Sem uso. Substituído pelo painel do Farma Preço. |
 | Userscripts / Violentmonkey | `C:\Claude\repo_scripts` e `*.user.js` do robô | Só serviam ao robô. |
 | Cópia de lote (precificador SQLite, rodadas por Excel) | era `C:\Claude\Precificação` | Última rodada 13/08/2026. Backup em `DROGARIA\Claude\Obsoleto\Precificacao_lote_aposentado_2026-09-25.zip`. |
